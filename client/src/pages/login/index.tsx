@@ -43,7 +43,7 @@ function detectMobile() {
 }
 
 export default function LoginPage() {
-  const { user, isAuthenticated, login, isLoading } = useAuth();
+  const { user, isAuthenticated, login, isLoading: authIsLoading } = useAuth();
   const [, navigate] = useLocation();
   const [isLoginProcessing, setIsLoginProcessing] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -157,10 +157,10 @@ export default function LoginPage() {
 
   // Efeito para marcar como verificado quando sabemos que o usuário não está autenticado
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (!authIsLoading && !isAuthenticated) {
       setVerificado(true);
     }
-  }, [isAuthenticated, isLoading]);
+  }, [isAuthenticated, authIsLoading]);
 
   /**
    * Versão EXTREMAMENTE SIMPLIFICADA E DIRETA para mostrar o formulário 2FA
@@ -339,6 +339,7 @@ export default function LoginPage() {
   });
 
   async function onSubmit(data: LoginFormValues) {
+    const [isLoading, setIsLoading] = useState(false);
     setIsLoading(true);
 
     try {
@@ -454,6 +455,7 @@ export default function LoginPage() {
   }
 
   const completeLogin = (userData: any) => {
+    const [isLoading, setIsLoading] = useState(false);
     try {
       // Armazenar dados do usuário no localStorage
       localStorage.setItem('userData', JSON.stringify(userData));
@@ -465,7 +467,7 @@ export default function LoginPage() {
 
       // Redirecionar com base nos parâmetros da URL ou para o dashboard
       if (redirectParams.redirectTo) {
-        navigate(`/${redirectParams.redirectTo}${redirectParams.tab ? `?tab=${redirectParams.tab}` : ''}`);
+        navigate(`/${redirectParams.redirectTo}${redirectParams.tab ? `?tab=${tab}` : ''}`);
       } else {
         navigate('/dashboard');
       }
@@ -494,6 +496,7 @@ export default function LoginPage() {
   });
 
   async function onSubmit2FA(data: TwoFactorFormValues) {
+    const [isLoading, setIsLoading] = useState(false);
     setIsLoading(true);
 
     try {
@@ -880,9 +883,9 @@ export default function LoginPage() {
                   <Button
                     type="submit"
                     className="w-full h-10 bg-primary hover:bg-primary/90 text-white font-semibold rounded-md flex items-center justify-center group mt-2"
-                    disabled={isLoading}
+                    disabled={authIsLoading}
                   >
-                    {isLoading ? (
+                    {authIsLoading ? (
                       <span className="flex items-center">
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                         Verificando...
@@ -1009,9 +1012,9 @@ export default function LoginPage() {
                 <Button
                   type="submit"
                   className="w-full h-9 bg-primary hover:bg-primary/90 text-white font-semibold rounded-md flex items-center justify-center group mt-2 text-sm"
-                  disabled={isLoading}
+                  disabled={authIsLoading}
                 >
-                  {isLoading ? (
+                  {authIsLoading ? (
                     <span className="flex items-center">
                       <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                       Entrando...
