@@ -1,5 +1,34 @@
+
 // API utility functions for interacting with the server
 import { apiRequest, queryClient } from "./queryClient";
+
+// Estado global para controlar se a sessão foi encerrada
+let sessionTerminated = false;
+
+// Função para marcar sessão como encerrada
+export function markSessionAsTerminated() {
+  sessionTerminated = true;
+  console.log('🔒 Sessão marcada como encerrada globalmente');
+}
+
+// Função para verificar se sessão está encerrada
+function isSessionTerminated(): boolean {
+  if (sessionTerminated) {
+    console.log('🚫 Sessão encerrada globalmente - bloqueando requisição');
+    return true;
+  }
+
+  const sessionModal = document.querySelector('[data-session-terminated="true"]');
+  const blockOverlay = document.getElementById('session-terminated-block');
+  
+  return !!(sessionModal || blockOverlay);
+}
+
+// Função para rejeitar requisições quando sessão encerrada
+function rejectRequest(operation: string): Promise<never> {
+  console.log(`🚫 ${operation} BLOQUEADA - sessão encerrada`);
+  return Promise.reject(new Error('SESSÃO ENCERRADA - Acesso negado'));
+}
 
 // Placeholder for the api object, assuming it's an axios instance or similar
 const api = {
@@ -19,42 +48,33 @@ const api = {
   },
 };
 
-// Função para verificar se modal de sessão encerrada está aberto
-function isSessionTerminated(): boolean {
-  const sessionModal = document.querySelector('[data-session-terminated="true"]');
-  return !!sessionModal;
-}
-
 // Adicionar interceptador de resposta para lidar com erros de autenticação
 api.interceptors.response.use(
   (response) => {
-    // Verificar se há um modal de sessão encerrada aberto
-    const sessionModal = document.querySelector('[data-session-terminated="true"]');
-    if (sessionModal) {
-      console.log('🚫 RESPOSTA BLOQUEADA - modal de sessão encerrada está aberto');
+    if (isSessionTerminated()) {
+      console.log('🚫 RESPOSTA BLOQUEADA - sessão encerrada');
       throw new Error('SESSÃO ENCERRADA - Acesso negado');
     }
     return response;
   },
   async (error) => {
-    // Verificar se há um modal de sessão encerrada aberto
-    const sessionModal = document.querySelector('[data-session-terminated="true"]');
-    if (sessionModal) {
-      console.log('🚫 ERRO BLOQUEADO - modal de sessão encerrada está aberto');
+    if (isSessionTerminated()) {
+      console.log('🚫 ERRO BLOQUEADO - sessão encerrada');
       return Promise.reject(new Error('SESSÃO ENCERRADA - Acesso negado'));
     }
 
     if (error.response?.status === 401) {
-      console.log('🔒 Erro 401 detectado - removendo dados de autenticação');
+      console.log('🔒 Erro 401 detectado - marcando sessão como encerrada');
+      markSessionAsTerminated();
+      
+      // Disparar evento para ativar proteção
+      window.dispatchEvent(new CustomEvent('session-terminated', {
+        detail: {
+          sessionToken: localStorage.getItem('sessionToken') || localStorage.getItem('token'),
+          message: 'Sessão expirada ou inválida'
+        }
+      }));
 
-      // Remover dados de autenticação
-      localStorage.removeItem('user');
-      localStorage.removeItem('isAuthenticated');
-      localStorage.removeItem('sessionToken');
-      localStorage.removeItem('token');
-
-      // Redirecionar para login apenas se não há modal de sessão encerrada
-      window.location.href = '/acessar';
       return Promise.reject(error);
     }
     return Promise.reject(error);
@@ -64,19 +84,15 @@ api.interceptors.response.use(
 // Adicionar interceptador de requisição para verificar sessão encerrada
 api.interceptors.request.use(
   (config) => {
-    // Verificar se há um modal de sessão encerrada aberto
-    const sessionModal = document.querySelector('[data-session-terminated="true"]');
-    if (sessionModal) {
-      console.log('🚫 REQUISIÇÃO BLOQUEADA - modal de sessão encerrada está aberto');
+    if (isSessionTerminated()) {
+      console.log('🚫 REQUISIÇÃO BLOQUEADA - sessão encerrada');
       throw new Error('SESSÃO ENCERRADA - Acesso negado');
     }
     return config;
   },
   (error) => {
-    // Verificar se há um modal de sessão encerrada aberto
-    const sessionModal = document.querySelector('[data-session-terminated="true"]');
-    if (sessionModal) {
-      console.log('🚫 ERRO DE REQUISIÇÃO BLOQUEADO - modal de sessão encerrada está aberto');
+    if (isSessionTerminated()) {
+      console.log('🚫 ERRO DE REQUISIÇÃO BLOQUEADO - sessão encerrada');
       return Promise.reject(new Error('SESSÃO ENCERRADA - Acesso negado'));
     }
     return Promise.reject(error);
@@ -87,10 +103,63 @@ api.interceptors.request.use(
 const originalApiRequest = apiRequest;
 const apiRequestWithSessionCheck = async (method: string, url: string, data?: any) => {
   if (isSessionTerminated()) {
-    console.log('🚫 ApiRequest bloqueada - modal de sessão encerrada está aberto');
-    throw new Error('Sessão encerrada - apiRequest bloqueada');
+    return rejectRequest(`ApiRequest ${method} ${url}`);
   }
-  return originalApiRequest(method, url, data);
+  
+  try {
+    const response = await originalApiRequest(method, url, data);
+    
+    // Verificar novamente após a resposta
+    if (isSessionTerminated()) {
+      throw new Error('Sessão encerrada durante a requisição');
+    }
+    
+    return response;
+  } catch (error: any) {
+    // Se receber 401, marcar sessão como encerrada
+    if (error.status === 401 || (error.response && error.response.status === 401)) {
+      console.log('🔒 Status 401 em apiRequest - marcando sessão como encerrada');
+      markSessionAsTerminated();
+      
+      window.dispatchEvent(new CustomEvent('session-terminated', {
+        detail: {
+          sessionToken: localStorage.getItem('sessionToken') || localStorage.getItem('token'),
+          message: 'Sessão expirada ou inválida'
+        }
+      }));
+    }
+    
+    throw error;
+  }
+};
+
+// Sobrescrever fetch global para verificar sessão encerrada
+const originalFetch = window.fetch;
+window.fetch = async (...args) => {
+  if (isSessionTerminated()) {
+    console.log('🚫 Fetch global BLOQUEADO - sessão encerrada:', args[0]);
+    throw new Error('SESSÃO ENCERRADA - Todas as requisições foram bloqueadas');
+  }
+  
+  try {
+    const response = await originalFetch(...args);
+    
+    if (response.status === 401) {
+      console.log('🔒 Status 401 em fetch global - marcando sessão como encerrada');
+      markSessionAsTerminated();
+      
+      window.dispatchEvent(new CustomEvent('session-terminated', {
+        detail: {
+          sessionToken: localStorage.getItem('sessionToken') || localStorage.getItem('token'),
+          message: 'Sessão expirada ou inválida'
+        }
+      }));
+    }
+    
+    return response;
+  } catch (error) {
+    throw error;
+  }
 };
 
 // Assinaturas API
@@ -118,17 +187,19 @@ export async function getMinhaAssinatura() {
 }
 
 export function invalidateAssinaturas() {
-  // Primeiro, invalidar o cache para forçar busca de dados frescos
+  if (isSessionTerminated()) {
+    console.log('🚫 Invalidação de assinaturas bloqueada - sessão encerrada');
+    return;
+  }
+  
   queryClient.invalidateQueries({ queryKey: ['/api/minha-assinatura'] });
-
-  // Forçar uma recarga imediata para atualizar os valores na UI
   queryClient.refetchQueries({ queryKey: ['/api/minha-assinatura'] });
 
-  // Para garantir que os dados sejam atualizados mesmo com delays no servidor,
-  // programar uma segunda recarga após um pequeno intervalo
   setTimeout(() => {
-    queryClient.refetchQueries({ queryKey: ['/api/minha-assinatura'] });
-    console.log("Recarregando dados da assinatura após timeout");
+    if (!isSessionTerminated()) {
+      queryClient.refetchQueries({ queryKey: ['/api/minha-assinatura'] });
+      console.log("Recarregando dados da assinatura após timeout");
+    }
   }, 1000);
 }
 
@@ -288,17 +359,21 @@ export async function calcularPrecoMarketplace(params: any) {
 
 // Invalidação de cache
 export function invalidateProdutos() {
+  if (isSessionTerminated()) return;
   queryClient.invalidateQueries({ queryKey: ['/api/produtos'] });
 }
 
 export function invalidateServicos() {
+  if (isSessionTerminated()) return;
   queryClient.invalidateQueries({ queryKey: ['/api/servicos'] });
 }
 
 export function invalidateItensAluguel() {
+  if (isSessionTerminated()) return;
   queryClient.invalidateQueries({ queryKey: ['/api/itens-aluguel'] });
 }
 
 export function invalidateMarketplaces() {
+  if (isSessionTerminated()) return;
   queryClient.invalidateQueries({ queryKey: ['/api/marketplaces'] });
 }

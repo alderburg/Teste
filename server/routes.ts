@@ -997,6 +997,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const isValid = await comparePasswords(password, hashedPassword);
         console.log(`Verificação de senha para usuário ${userId}: ${isValid ? 'válida' : 'inválida'}`);
         
+
+
+  // Endpoint para verificar status da sessão
+  app.get("/api/conta/check-session", isAuthenticated, async (req, res) => {
+    try {
+      const userId = parseInt(req.user?.id);
+      
+      if (!userId) {
+        console.log('❌ Check session - usuário não autenticado');
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
+
+      // Verificar se a sessão ainda é válida no banco
+      const sessionToken = req.session?.sessionToken || req.headers.authorization?.replace('Bearer ', '');
+      
+      if (!sessionToken) {
+        console.log('❌ Check session - token não encontrado');
+        return res.status(401).json({ message: "Token de sessão não encontrado" });
+      }
+
+      // Verificar na tabela de sessões
+      const sessionCheck = await executeQuery(`
+        SELECT id, expires_at, is_active 
+        FROM user_sessions_additional 
+        WHERE token = $1 AND user_id = $2 AND is_active = true
+      `, [sessionToken, userId]);
+
+      if (sessionCheck.rows.length === 0) {
+        console.log('❌ Check session - sessão não encontrada ou inativa');
+        return res.status(401).json({ message: "Sessão inválida ou expirada" });
+      }
+
+      const session = sessionCheck.rows[0];
+      
+      // Verificar se a sessão expirou
+      if (new Date() > new Date(session.expires_at)) {
+        console.log('❌ Check session - sessão expirada');
+        return res.status(401).json({ message: "Sessão expirada" });
+      }
+
+      console.log('✅ Check session - sessão válida para usuário', userId);
+      return res.json({ 
+        valid: true, 
+        userId: userId,
+        expiresAt: session.expires_at 
+      });
+
+    } catch (error) {
+      console.error("❌ Erro ao verificar status da sessão:", error);
+      return res.status(500).json({ message: "Erro interno do servidor" });
+    }
+  });
+
         return res.status(200).json({ success: isValid, message: isValid ? "Senha correta" : "Senha incorreta" });
       } catch (dbError) {
         console.error("Erro ao acessar o banco de dados:", dbError);

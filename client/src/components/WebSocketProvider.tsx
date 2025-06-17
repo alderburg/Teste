@@ -11,7 +11,7 @@ import { queryClient } from '@/lib/queryClient';
 interface WebSocketContextProps {
   connected: boolean;
   sendMessage: (message: any) => boolean;
-  lastUpdated?: Date; // Nova propriedade para rastrear a última atualização
+  lastUpdated?: Date;
 }
 
 const WebSocketContext = createContext<WebSocketContextProps>({
@@ -29,109 +29,173 @@ interface WebSocketProviderProps {
 }
 
 export default function WebSocketProvider({ children }: WebSocketProviderProps) {
-  // Usar o hook de WebSocket que criamos
   const { connected, sendMessage } = useWebSocket();
   const { user } = useAuth();
   const [lastUpdated, setLastUpdated] = useState<Date | undefined>(undefined);
-  const [connectionLost, setConnectionLost] = useState(false);
   const [sessionTerminated, setSessionTerminated] = useState(false);
   const [terminationMessage, setTerminationMessage] = useState<string>("");
 
-  // Ativar proteção quando sessão estiver encerrada
+  // Ativar proteção IMEDIATAMENTE quando sessão estiver encerrada
   useSessionGuard(sessionTerminated);
+
+  // Função para verificar se a sessão atual foi encerrada
+  const checkIfCurrentSession = (terminatedToken: string): boolean => {
+    const possibleTokens = [
+      localStorage.getItem('sessionToken'),
+      localStorage.getItem('token'),
+      document.cookie.split(';').find(c => c.trim().startsWith('sessionToken='))?.split('=')[1],
+      document.cookie.split(';').find(c => c.trim().startsWith('token='))?.split('=')[1]
+    ].filter(Boolean);
+
+    console.log('🔍 Verificando tokens:', {
+      terminatedToken: terminatedToken?.substring(0, 8) + '...',
+      possibleTokens: possibleTokens.map(t => t?.substring(0, 8) + '...')
+    });
+
+    return possibleTokens.includes(terminatedToken);
+  };
+
+  // Função para ativar proteção total
+  const activateSessionProtection = (message: string) => {
+    console.log('🔒 ATIVANDO PROTEÇÃO TOTAL DA SESSÃO');
+    
+    // PRIMEIRO: Limpar todos os dados imediatamente
+    queryClient.invalidateQueries();
+    queryClient.clear();
+    
+    // SEGUNDO: Ativar estado de sessão encerrada IMEDIATAMENTE
+    setSessionTerminated(true);
+    
+    // TERCEIRO: Definir mensagem
+    setTerminationMessage(message);
+    
+    console.log('🔒 PROTEÇÃO ATIVADA - Interface bloqueada');
+  };
+
+  // Verificar periodicamente o status da sessão
+  useEffect(() => {
+    if (!user) return;
+
+    const checkSessionStatus = async () => {
+      try {
+        const response = await fetch('/api/conta/check-session', {
+          method: 'GET',
+          credentials: 'include'
+        });
+
+        if (!response.ok) {
+          console.log('🔒 Sessão inválida detectada via check periódico');
+          activateSessionProtection('Sua sessão foi encerrada ou expirou');
+        }
+      } catch (error) {
+        console.log('🔒 Erro ao verificar sessão - assumindo sessão encerrada');
+        activateSessionProtection('Erro de conectividade - sessão encerrada');
+      }
+    };
+
+    // Verificar a cada 30 segundos
+    const interval = setInterval(checkSessionStatus, 30000);
+
+    return () => clearInterval(interval);
+  }, [user]);
+
+  // Verificar status da sessão quando WebSocket desconectar
+  useEffect(() => {
+    if (!connected && user) {
+      console.log('🔒 WebSocket desconectado - verificando status da sessão');
+      
+      // Aguardar um pouco para reconexão, se não reconectar, verificar sessão
+      setTimeout(async () => {
+        if (!connected) {
+          try {
+            const response = await fetch('/api/conta/check-session', {
+              method: 'GET',
+              credentials: 'include'
+            });
+
+            if (!response.ok) {
+              console.log('🔒 Sessão inválida após desconexão do WebSocket');
+              activateSessionProtection('Conexão perdida - sessão encerrada');
+            }
+          } catch (error) {
+            console.log('🔒 Não foi possível verificar sessão após desconexão');
+            activateSessionProtection('Conexão perdida - sessão encerrada');
+          }
+        }
+      }, 5000);
+    }
+  }, [connected, user]);
+
+  // Interceptar todas as respostas HTTP para detectar 401
+  useEffect(() => {
+    const originalFetch = window.fetch;
+    
+    window.fetch = async (...args) => {
+      try {
+        const response = await originalFetch(...args);
+        
+        if (response.status === 401 && user) {
+          console.log('🔒 Status 401 detectado - sessão encerrada');
+          activateSessionProtection('Sessão expirada ou inválida');
+        }
+        
+        return response;
+      } catch (error) {
+        throw error;
+      }
+    };
+
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, [user]);
 
   // Atualizar o timestamp sempre que recebermos uma mensagem
   useEffect(() => {
-    // Criar uma função para ouvir as mensagens do WebSocket
     const handleWebSocketMessage = (event: any) => {
       setLastUpdated(new Date());
 
-      // Verificar se é uma mensagem de sessão encerrada
       if (event.detail && event.detail.type === 'session_terminated') {
-        const currentSessionToken = localStorage.getItem('sessionToken') || 
-                                   localStorage.getItem('token') || 
-                                   document.cookie.split(';').find(c => c.trim().startsWith('sessionToken='))?.split('=')[1] || 
-                                   '';
         const terminatedSessionToken = event.detail.sessionToken;
 
         console.log('🔒 Evento de sessão encerrada recebido:', {
-          currentToken: currentSessionToken?.substring(0, 8) + '...',
-          terminatedToken: terminatedSessionToken?.substring(0, 8) + '...',
-          isCurrentSession: currentSessionToken === terminatedSessionToken
+          terminatedToken: terminatedSessionToken?.substring(0, 8) + '...'
         });
 
-        // Só mostrar o modal se for a sessão atual que foi encerrada
-        if (currentSessionToken === terminatedSessionToken) {
-          console.log('🔒 SESSÃO ATUAL ENCERRADA - ATIVANDO PROTEÇÃO TOTAL');
-          
-          // PRIMEIRO: Limpar todos os dados imediatamente
-          queryClient.invalidateQueries();
-          queryClient.clear();
-          
-          // SEGUNDO: Ativar estado de sessão encerrada ANTES do modal
-          setSessionTerminated(true);
-          
-          // TERCEIRO: Mostrar modal após proteção ativada
-          setTimeout(() => {
-            setTerminationMessage(event.detail.message || "Sua sessão foi encerrada por outro usuário");
-            console.log('🔒 Modal de sessão encerrada exibido');
-          }, 100);
-          
-        } else {
-          console.log('🔒 Outra sessão foi encerrada:', terminatedSessionToken?.substring(0, 8) + '...');
+        if (checkIfCurrentSession(terminatedSessionToken)) {
+          console.log('🔒 ESTA É A SESSÃO ATUAL - ATIVANDO PROTEÇÃO');
+          activateSessionProtection(event.detail.message || "Sua sessão foi encerrada por outro usuário");
         }
       }
     };
 
-    // Função para ouvir eventos específicos de sessão encerrada
     const handleSessionTerminated = (event: any) => {
       console.log('🔒 Evento session-terminated recebido:', event.detail);
       
-      // Verificar se é a sessão atual
-      const currentSessionToken = localStorage.getItem('sessionToken') || 
-                                 localStorage.getItem('token') || 
-                                 document.cookie.split(';').find(c => c.trim().startsWith('sessionToken='))?.split('=')[1] || 
-                                 '';
-      
-      if (currentSessionToken === event.detail.sessionToken) {
-        console.log('🔒 ESTA É A SESSÃO ATUAL - ATIVANDO PROTEÇÃO TOTAL');
-        
-        // PRIMEIRO: Limpar todos os dados imediatamente
-        queryClient.invalidateQueries();
-        queryClient.clear();
-        
-        // SEGUNDO: Ativar estado de sessão encerrada ANTES do modal
-        setSessionTerminated(true);
-        
-        // TERCEIRO: Mostrar modal após proteção ativada
-        setTimeout(() => {
-          setTerminationMessage(event.detail.message || "Sua sessão foi encerrada por outro usuário");
-          console.log('🔒 Modal de sessão encerrada exibido via evento direto');
-        }, 100);
+      if (checkIfCurrentSession(event.detail.sessionToken)) {
+        console.log('🔒 SESSÃO ATUAL ENCERRADA VIA EVENTO DIRETO');
+        activateSessionProtection(event.detail.message || "Sua sessão foi encerrada por outro usuário");
       }
     };
 
-    // Adicionar ambos os eventos de escuta
     window.addEventListener('websocket-message-received', handleWebSocketMessage);
     window.addEventListener('session-terminated', handleSessionTerminated);
 
-    // Limpar ao desmontar
     return () => {
       window.removeEventListener('websocket-message-received', handleWebSocketMessage);
       window.removeEventListener('session-terminated', handleSessionTerminated);
     };
-  }, []);
+  }, [user]);
 
   // Enviar informações de autenticação quando o usuário estiver logado
   useEffect(() => {
     if (connected && user) {
-      // Tentar obter o token da sessão de diferentes fontes
       const sessionToken = localStorage.getItem('sessionToken') || 
                            localStorage.getItem('token') || 
                            document.cookie.split(';').find(c => c.trim().startsWith('sessionToken='))?.split('=')[1] || 
                            '';
 
-      console.log(`🔐 Enviando autenticação WebSocket para usuário ${user.id} com token: ${sessionToken.substring(0, 8)}...`);
+      console.log(`🔐 Enviando autenticação WebSocket para usuário ${user.id}`);
 
       sendMessage({
         type: 'auth',
@@ -141,24 +205,15 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
     }
   }, [connected, user, sendMessage]);
 
-  // Mostrar notificação quando o status de conexão mudar
-  useEffect(() => {
-    // Se reconectar após perda de conexão, atualizar estado
-    if (connected && connectionLost) {
-      setConnectionLost(false);
-    } 
-    // Se perder a conexão, atualizar estado
-    else if (!connected && !connectionLost) {
-      setConnectionLost(true);
-    }
-  }, [connected, connectionLost]);
-
   return (
     <WebSocketContext.Provider value={{ connected, sendMessage, lastUpdated }}>
       {children}
       <SessionTerminatedModal
         isOpen={sessionTerminated}
-        onClose={() => setSessionTerminated(false)}
+        onClose={() => {
+          // Não permitir fechar o modal - forçar logout
+          console.log('🔒 Tentativa de fechar modal bloqueada - forçando logout');
+        }}
         message={terminationMessage}
       />
     </WebSocketContext.Provider>

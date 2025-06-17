@@ -1,169 +1,227 @@
+
 import { useEffect } from 'react';
 
 export function useSessionGuard(sessionTerminated: boolean) {
   useEffect(() => {
     if (!sessionTerminated) return;
 
-    console.log('🔒 Ativando proteção total contra acesso - sessão encerrada');
+    console.log('🔒 ATIVANDO PROTEÇÃO TOTAL - SESSÃO ENCERRADA');
+
+    // Criar overlay de bloqueio total imediatamente
+    const createBlockingOverlay = () => {
+      // Remover overlay existente se houver
+      const existingOverlay = document.getElementById('session-terminated-block');
+      if (existingOverlay) {
+        existingOverlay.remove();
+      }
+
+      const overlay = document.createElement('div');
+      overlay.id = 'session-terminated-block';
+      overlay.style.cssText = `
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        background: rgba(0, 0, 0, 0.95) !important;
+        z-index: 99999999 !important;
+        pointer-events: auto !important;
+        backdrop-filter: blur(10px) !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        color: white !important;
+        font-family: system-ui, sans-serif !important;
+        font-size: 18px !important;
+        text-align: center !important;
+      `;
+      
+      overlay.innerHTML = `
+        <div style="padding: 40px; background: rgba(220, 38, 38, 0.9); border-radius: 12px; border: 2px solid #fff; max-width: 500px;">
+          <h2 style="margin: 0 0 20px 0; color: white; font-size: 24px;">🔒 SESSÃO ENCERRADA</h2>
+          <p style="margin: 0 0 15px 0; color: white;">Sua sessão foi encerrada por motivos de segurança.</p>
+          <p style="margin: 0; color: #fef2f2; font-size: 16px;">Aguarde o redirecionamento automático...</p>
+        </div>
+      `;
+
+      document.body.appendChild(overlay);
+      return overlay;
+    };
+
+    // Criar overlay imediatamente
+    const overlay = createBlockingOverlay();
+
+    // Bloquear completamente o body
+    const originalBodyStyle = document.body.style.cssText;
+    document.body.style.cssText = `
+      ${originalBodyStyle}
+      overflow: hidden !important;
+      position: fixed !important;
+      width: 100% !important;
+      height: 100% !important;
+      top: 0 !important;
+      left: 0 !important;
+      pointer-events: none !important;
+      user-select: none !important;
+    `;
 
     // Salvar referências originais
+    const originalFetch = window.fetch;
     const originalXHROpen = XMLHttpRequest.prototype.open;
     const originalXHRSend = XMLHttpRequest.prototype.send;
-    const originalFetch = window.fetch;
 
-    // Interceptar TODAS as requisições XMLHttpRequest
+    // Bloquear TODAS as requisições fetch
+    window.fetch = async (...args) => {
+      console.log('🚫 FETCH TOTALMENTE BLOQUEADO - sessão encerrada:', args[0]);
+      throw new Error('SESSÃO ENCERRADA - Todas as requisições foram bloqueadas');
+    };
+
+    // Bloquear TODAS as requisições XMLHttpRequest
     XMLHttpRequest.prototype.open = function(...args) {
-      console.log('🚫 Requisição XHR BLOQUEADA - sessão encerrada:', args[1]);
-      // Não executar a abertura da requisição
-      return;
+      console.log('🚫 XHR TOTALMENTE BLOQUEADO - sessão encerrada:', args[1]);
+      throw new Error('SESSÃO ENCERRADA - Todas as requisições foram bloqueadas');
     };
 
     XMLHttpRequest.prototype.send = function(data) {
-      console.log('🚫 Envio XHR BLOQUEADO - sessão encerrada');
-      // Disparar erro imediatamente
-      if (this.onerror) {
-        this.onerror(new ProgressEvent('error'));
-      }
-      return;
+      console.log('🚫 XHR SEND TOTALMENTE BLOQUEADO - sessão encerrada');
+      throw new Error('SESSÃO ENCERRADA - Todas as requisições foram bloqueadas');
     };
-
-    // Interceptar TODAS as requisições fetch
-    window.fetch = async (...args) => {
-      console.log('🚫 Requisição fetch BLOQUEADA - sessão encerrada:', args[0]);
-      throw new Error('SESSÃO ENCERRADA - Acesso negado');
-    };
-
-    // Bloquear navegação entre páginas
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = 'Sua sessão foi encerrada. Você precisa fazer login novamente.';
-      return 'Sua sessão foi encerrada. Você precisa fazer login novamente.';
-    };
-
-    const handlePopState = (e: PopStateEvent) => {
-      console.log('🚫 Navegação BLOQUEADA - sessão encerrada');
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      // Manter na página atual
-      window.history.pushState(null, '', window.location.href);
-    };
-
-    // Bloquear submissão de formulários
-    const handleFormSubmit = (e: Event) => {
-      const form = e.target as HTMLElement;
-      if (!form.closest('[data-session-terminated="true"]')) {
-        console.log('🚫 Submissão de formulário BLOQUEADA - sessão encerrada');
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        return false;
-      }
-    };
-
-    // Bloquear todos os cliques exceto no modal de sessão encerrada
-    const handleClick = (e: Event) => {
-      const target = e.target as HTMLElement;
-      const isInModal = target.closest('[data-session-terminated="true"]');
-
-      if (!isInModal) {
-        console.log('🚫 Clique BLOQUEADO - sessão encerrada');
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        return false;
-      }
-    };
-
-    // Bloquear teclas (exceto interações com o modal)
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      const isInModal = target.closest('[data-session-terminated="true"]');
-
-      if (!isInModal) {
-        console.log('🚫 Tecla BLOQUEADA - sessão encerrada');
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        return false;
-      }
-    };
-
-    // Bloquear mudança de foco (exceto no modal)
-    const handleFocus = (e: FocusEvent) => {
-      const target = e.target as HTMLElement;
-      const isInModal = target.closest('[data-session-terminated="true"]');
-
-      if (!isInModal && target !== document.body) {
-        console.log('🚫 Foco BLOQUEADO - sessão encerrada');
-        e.preventDefault();
-        // Força o foco de volta para o modal
-        const modal = document.querySelector('[data-session-terminated="true"]');
-        if (modal) {
-          const focusableElement = modal.querySelector('button, input, [tabindex]') as HTMLElement;
-          if (focusableElement) {
-            focusableElement.focus();
-          }
-        }
-      }
-    };
-
-    // Adicionar todos os listeners com captura
-    window.addEventListener('beforeunload', handleBeforeUnload, { capture: true });
-    window.addEventListener('popstate', handlePopState, { capture: true });
-    document.addEventListener('submit', handleFormSubmit, { capture: true });
-    document.addEventListener('click', handleClick, { capture: true });
-    document.addEventListener('keydown', handleKeyDown, { capture: true });
-    document.addEventListener('focus', handleFocus, { capture: true });
 
     // Bloquear mudanças de URL
     const originalPushState = history.pushState;
     const originalReplaceState = history.replaceState;
 
     history.pushState = function(...args) {
-      console.log('🚫 Navegação pushState BLOQUEADA - sessão encerrada');
+      console.log('🚫 NAVEGAÇÃO BLOQUEADA - pushState');
       return;
     };
 
     history.replaceState = function(...args) {
-      console.log('🚫 Navegação replaceState BLOQUEADA - sessão encerrada');
+      console.log('🚫 NAVEGAÇÃO BLOQUEADA - replaceState');
       return;
     };
 
-    // Esconder todo o conteúdo da página exceto o modal
-    const originalBodyStyle = document.body.style.cssText;
-    document.body.style.cssText = `
-      ${originalBodyStyle}
-      pointer-events: none !important;
-      user-select: none !important;
-      overflow: hidden !important;
-    `;
+    // Bloquear eventos de navegação
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = 'Sua sessão foi encerrada. Você será redirecionado.';
+    };
 
-    // Permitir interação apenas com o modal
-    const modal = document.querySelector('[data-session-terminated="true"]');
-    if (modal) {
-      (modal as HTMLElement).style.pointerEvents = 'auto';
-      (modal as HTMLElement).style.userSelect = 'auto';
-      (modal as HTMLElement).style.zIndex = '9999999';
-      (modal as HTMLElement).style.position = 'fixed';
-    }
+    const handlePopState = (e: PopStateEvent) => {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      console.log('🚫 NAVEGAÇÃO BLOQUEADA - popstate');
+      window.history.pushState(null, '', window.location.href);
+    };
 
-    console.log('🔒 BLOQUEIO TOTAL ATIVADO - Apenas modal de sessão encerrada está acessível');
+    // Bloquear TODOS os eventos de interação
+    const blockAllEvents = (e: Event) => {
+      const target = e.target as HTMLElement;
+      
+      // Permitir apenas o modal de sessão encerrada
+      if (!target.closest('[data-session-terminated="true"]') && 
+          !target.closest('#session-terminated-block')) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        e.stopPropagation();
+        console.log('🚫 EVENTO BLOQUEADO:', e.type);
+        return false;
+      }
+    };
 
-    // Cleanup
+    // Lista de eventos para bloquear
+    const eventsToBlock = [
+      'click', 'dblclick', 'mousedown', 'mouseup', 'mousemove', 'mouseover', 'mouseout',
+      'keydown', 'keyup', 'keypress', 'focus', 'blur', 'change', 'input', 'submit',
+      'touchstart', 'touchend', 'touchmove', 'wheel', 'scroll'
+    ];
+
+    // Adicionar listeners para bloquear todos os eventos
+    eventsToBlock.forEach(eventType => {
+      document.addEventListener(eventType, blockAllEvents, { capture: true, passive: false });
+    });
+
+    // Adicionar listeners de navegação
+    window.addEventListener('beforeunload', handleBeforeUnload, { capture: true });
+    window.addEventListener('popstate', handlePopState, { capture: true });
+
+    // Bloquear submissão de formulários
+    const handleFormSubmit = (e: Event) => {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      console.log('🚫 FORMULÁRIO BLOQUEADO - sessão encerrada');
+      return false;
+    };
+
+    document.addEventListener('submit', handleFormSubmit, { capture: true });
+
+    // Esconder todo o conteúdo da página
+    const hidePageContent = () => {
+      const allElements = document.querySelectorAll('body > *:not(#session-terminated-block)');
+      allElements.forEach((element) => {
+        if (element instanceof HTMLElement) {
+          element.style.visibility = 'hidden';
+          element.style.pointerEvents = 'none';
+          element.style.userSelect = 'none';
+        }
+      });
+    };
+
+    hidePageContent();
+
+    // Garantir que o overlay sempre esteja visível
+    const ensureOverlayVisible = () => {
+      const currentOverlay = document.getElementById('session-terminated-block');
+      if (!currentOverlay) {
+        createBlockingOverlay();
+      }
+    };
+
+    const overlayInterval = setInterval(ensureOverlayVisible, 100);
+
+    console.log('🔒 PROTEÇÃO TOTAL ATIVADA - Sistema completamente bloqueado');
+
+    // Função de limpeza
     return () => {
+      // Restaurar funções originais
+      window.fetch = originalFetch;
       XMLHttpRequest.prototype.open = originalXHROpen;
       XMLHttpRequest.prototype.send = originalXHRSend;
-      window.fetch = originalFetch;
       history.pushState = originalPushState;
       history.replaceState = originalReplaceState;
+
+      // Remover todos os listeners
+      eventsToBlock.forEach(eventType => {
+        document.removeEventListener(eventType, blockAllEvents, { capture: true });
+      });
 
       window.removeEventListener('beforeunload', handleBeforeUnload, { capture: true });
       window.removeEventListener('popstate', handlePopState, { capture: true });
       document.removeEventListener('submit', handleFormSubmit, { capture: true });
-      document.removeEventListener('click', handleClick, { capture: true });
-      document.removeEventListener('keydown', handleKeyDown, { capture: true });
-      document.removeEventListener('focus', handleFocus, { capture: true });
 
+      // Restaurar estilos
       document.body.style.cssText = originalBodyStyle;
 
-      console.log('🔓 Proteção total removida - Acesso restaurado');
+      // Remover overlay
+      const currentOverlay = document.getElementById('session-terminated-block');
+      if (currentOverlay) {
+        currentOverlay.remove();
+      }
+
+      // Parar intervalo
+      clearInterval(overlayInterval);
+
+      // Mostrar conteúdo novamente
+      const allElements = document.querySelectorAll('body > *');
+      allElements.forEach((element) => {
+        if (element instanceof HTMLElement) {
+          element.style.visibility = '';
+          element.style.pointerEvents = '';
+          element.style.userSelect = '';
+        }
+      });
+
+      console.log('🔓 Proteção total removida');
     };
   }, [sessionTerminated]);
 }
