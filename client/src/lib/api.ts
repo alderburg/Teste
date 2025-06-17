@@ -1,3 +1,4 @@
+
 // API utility functions for interacting with the server
 import { apiRequest, queryClient } from "./queryClient";
 
@@ -19,16 +20,36 @@ const api = {
   },
 };
 
+// Função para verificar se modal de sessão encerrada está aberto
+function isSessionTerminated(): boolean {
+  const sessionModal = document.querySelector('[data-session-terminated="true"]');
+  return !!sessionModal;
+}
+
+// Adicionar interceptador de requisição para verificar sessão encerrada
+api.interceptors.request.use(
+  (config) => {
+    // Verificar se há um modal de sessão encerrada aberto
+    if (isSessionTerminated()) {
+      console.log('🚫 Requisição API bloqueada - modal de sessão encerrada está aberto');
+      throw new Error('Sessão encerrada - requisição API bloqueada');
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
 // Adicionar interceptador de resposta para lidar com erros de autenticação
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
       // Verificar se há um modal de sessão encerrada aberto
-      const sessionModal = document.querySelector('[data-session-terminated="true"]');
-      if (sessionModal) {
-        console.log('🚫 Requisição bloqueada - modal de sessão encerrada está aberto');
-        return Promise.reject(new Error('Sessão encerrada - requisição bloqueada'));
+      if (isSessionTerminated()) {
+        console.log('🚫 Resposta 401 bloqueada - modal de sessão encerrada está aberto');
+        return Promise.reject(new Error('Sessão encerrada - resposta 401 bloqueada'));
       }
 
       // Remover dados de autenticação
@@ -45,27 +66,21 @@ api.interceptors.response.use(
   }
 );
 
-// Adicionar interceptador de requisição para verificar sessão encerrada
-api.interceptors.request.use(
-  (config) => {
-    // Verificar se há um modal de sessão encerrada aberto
-    const sessionModal = document.querySelector('[data-session-terminated="true"]');
-    if (sessionModal) {
-      console.log('🚫 Requisição bloqueada - modal de sessão encerrada está aberto');
-      return Promise.reject(new Error('Sessão encerrada - requisição bloqueada'));
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
+// Sobrescrever apiRequest para verificar sessão encerrada
+const originalApiRequest = apiRequest;
+const apiRequestWithSessionCheck = async (method: string, url: string, data?: any) => {
+  if (isSessionTerminated()) {
+    console.log('🚫 ApiRequest bloqueada - modal de sessão encerrada está aberto');
+    throw new Error('Sessão encerrada - apiRequest bloqueada');
   }
-);
+  return originalApiRequest(method, url, data);
+};
 
 // Assinaturas API
 export async function criarAssinatura(dados: any) {
   try {
     console.log("API - Enviando dados para criar assinatura:", dados);
-    const res = await apiRequest("POST", "/api/assinaturas", dados);
+    const res = await apiRequestWithSessionCheck("POST", "/api/assinaturas", dados);
     const resultado = await res.json();
     console.log("API - Resposta da criação de assinatura:", resultado);
     return resultado;
@@ -76,12 +91,12 @@ export async function criarAssinatura(dados: any) {
 }
 
 export async function cancelarAssinatura(id: number) {
-  const res = await apiRequest("POST", `/api/assinaturas/cancelar`, { id });
+  const res = await apiRequestWithSessionCheck("POST", `/api/assinaturas/cancelar`, { id });
   return await res.json();
 }
 
 export async function getMinhaAssinatura() {
-  const res = await apiRequest("GET", "/api/minha-assinatura");
+  const res = await apiRequestWithSessionCheck("GET", "/api/minha-assinatura");
   return await res.json();
 }
 
@@ -102,17 +117,17 @@ export function invalidateAssinaturas() {
 
 // User API
 export async function registerUser(userData: any) {
-  const res = await apiRequest("POST", "/api/register", userData);
+  const res = await apiRequestWithSessionCheck("POST", "/api/register", userData);
   return await res.json();
 }
 
 export async function loginUser(credentials: any) {
-  const res = await apiRequest("POST", "/api/login", credentials);
+  const res = await apiRequestWithSessionCheck("POST", "/api/login", credentials);
   return await res.json();
 }
 
 export async function verifyEmail(email: string) {
-  const res = await apiRequest("POST", "/api/verify-email", { email });
+  const res = await apiRequestWithSessionCheck("POST", "/api/verify-email", { email });
   return await res.json();
 }
 
@@ -122,27 +137,27 @@ export async function getProdutos(userId: number, tipo?: string) {
   queryParams.append("userId", userId.toString());
   if (tipo) queryParams.append("tipo", tipo);
 
-  const res = await apiRequest("GET", `/api/produtos?${queryParams.toString()}`);
+  const res = await apiRequestWithSessionCheck("GET", `/api/produtos?${queryParams.toString()}`);
   return await res.json();
 }
 
 export async function getProduto(id: number) {
-  const res = await apiRequest("GET", `/api/produtos/${id}`);
+  const res = await apiRequestWithSessionCheck("GET", `/api/produtos/${id}`);
   return await res.json();
 }
 
 export async function createProduto(produtoData: any) {
-  const res = await apiRequest("POST", "/api/produtos", produtoData);
+  const res = await apiRequestWithSessionCheck("POST", "/api/produtos", produtoData);
   return await res.json();
 }
 
 export async function updateProduto(id: number, produtoData: any) {
-  const res = await apiRequest("PUT", `/api/produtos/${id}`, produtoData);
+  const res = await apiRequestWithSessionCheck("PUT", `/api/produtos/${id}`, produtoData);
   return await res.json();
 }
 
 export async function deleteProduto(id: number) {
-  const res = await apiRequest("DELETE", `/api/produtos/${id}`);
+  const res = await apiRequestWithSessionCheck("DELETE", `/api/produtos/${id}`);
   return await res.json();
 }
 
@@ -151,27 +166,27 @@ export async function getServicos(userId: number) {
   const queryParams = new URLSearchParams();
   queryParams.append("userId", userId.toString());
 
-  const res = await apiRequest("GET", `/api/servicos?${queryParams.toString()}`);
+  const res = await apiRequestWithSessionCheck("GET", `/api/servicos?${queryParams.toString()}`);
   return await res.json();
 }
 
 export async function getServico(id: number) {
-  const res = await apiRequest("GET", `/api/servicos/${id}`);
+  const res = await apiRequestWithSessionCheck("GET", `/api/servicos/${id}`);
   return await res.json();
 }
 
 export async function createServico(servicoData: any) {
-  const res = await apiRequest("POST", "/api/servicos", servicoData);
+  const res = await apiRequestWithSessionCheck("POST", "/api/servicos", servicoData);
   return await res.json();
 }
 
 export async function updateServico(id: number, servicoData: any) {
-  const res = await apiRequest("PUT", `/api/servicos/${id}`, servicoData);
+  const res = await apiRequestWithSessionCheck("PUT", `/api/servicos/${id}`, servicoData);
   return await res.json();
 }
 
 export async function deleteServico(id: number) {
-  const res = await apiRequest("DELETE", `/api/servicos/${id}`);
+  const res = await apiRequestWithSessionCheck("DELETE", `/api/servicos/${id}`);
   return await res.json();
 }
 
@@ -180,27 +195,27 @@ export async function getItensAluguel(userId: number) {
   const queryParams = new URLSearchParams();
   queryParams.append("userId", userId.toString());
 
-  const res = await apiRequest("GET", `/api/itens-aluguel?${queryParams.toString()}`);
+  const res = await apiRequestWithSessionCheck("GET", `/api/itens-aluguel?${queryParams.toString()}`);
   return await res.json();
 }
 
 export async function getItemAluguel(id: number) {
-  const res = await apiRequest("GET", `/api/itens-aluguel/${id}`);
+  const res = await apiRequestWithSessionCheck("GET", `/api/itens-aluguel/${id}`);
   return await res.json();
 }
 
 export async function createItemAluguel(itemData: any) {
-  const res = await apiRequest("POST", "/api/itens-aluguel", itemData);
+  const res = await apiRequestWithSessionCheck("POST", "/api/itens-aluguel", itemData);
   return await res.json();
 }
 
 export async function updateItemAluguel(id: number, itemData: any) {
-  const res = await apiRequest("PUT", `/api/itens-aluguel/${id}`, itemData);
+  const res = await apiRequestWithSessionCheck("PUT", `/api/itens-aluguel/${id}`, itemData);
   return await res.json();
 }
 
 export async function deleteItemAluguel(id: number) {
-  const res = await apiRequest("DELETE", `/api/itens-aluguel/${id}`);
+  const res = await apiRequestWithSessionCheck("DELETE", `/api/itens-aluguel/${id}`);
   return await res.json();
 }
 
@@ -209,48 +224,48 @@ export async function getMarketplaces(userId: number) {
   const queryParams = new URLSearchParams();
   queryParams.append("userId", userId.toString());
 
-  const res = await apiRequest("GET", `/api/marketplaces?${queryParams.toString()}`);
+  const res = await apiRequestWithSessionCheck("GET", `/api/marketplaces?${queryParams.toString()}`);
   return await res.json();
 }
 
 export async function getMarketplace(id: number) {
-  const res = await apiRequest("GET", `/api/marketplaces/${id}`);
+  const res = await apiRequestWithSessionCheck("GET", `/api/marketplaces/${id}`);
   return await res.json();
 }
 
 export async function createMarketplace(marketplaceData: any) {
-  const res = await apiRequest("POST", "/api/marketplaces", marketplaceData);
+  const res = await apiRequestWithSessionCheck("POST", "/api/marketplaces", marketplaceData);
   return await res.json();
 }
 
 export async function updateMarketplace(id: number, marketplaceData: any) {
-  const res = await apiRequest("PUT", `/api/marketplaces/${id}`, marketplaceData);
+  const res = await apiRequestWithSessionCheck("PUT", `/api/marketplaces/${id}`, marketplaceData);
   return await res.json();
 }
 
 export async function deleteMarketplace(id: number) {
-  const res = await apiRequest("DELETE", `/api/marketplaces/${id}`);
+  const res = await apiRequestWithSessionCheck("DELETE", `/api/marketplaces/${id}`);
   return await res.json();
 }
 
 // Cálculos de Precificação
 export async function calcularPrecoProduto(params: any) {
-  const res = await apiRequest("POST", "/api/calculos/produto", params);
+  const res = await apiRequestWithSessionCheck("POST", "/api/calculos/produto", params);
   return await res.json();
 }
 
 export async function calcularPrecoServico(params: any) {
-  const res = await apiRequest("POST", "/api/calculos/servico", params);
+  const res = await apiRequestWithSessionCheck("POST", "/api/calculos/servico", params);
   return await res.json();
 }
 
 export async function calcularPrecoAluguel(params: any) {
-  const res = await apiRequest("POST", "/api/calculos/aluguel", params);
+  const res = await apiRequestWithSessionCheck("POST", "/api/calculos/aluguel", params);
   return await res.json();
 }
 
 export async function calcularPrecoMarketplace(params: any) {
-  const res = await apiRequest("POST", "/api/calculos/marketplace", params);
+  const res = await apiRequestWithSessionCheck("POST", "/api/calculos/marketplace", params);
   return await res.json();
 }
 

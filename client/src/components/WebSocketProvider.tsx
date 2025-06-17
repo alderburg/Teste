@@ -1,7 +1,8 @@
+
 import { ReactNode, createContext, useContext, useEffect, useState } from 'react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useToast } from '@/hooks/use-toast';
-import SessionTerminatedModal from '@/components/SessionTerminatedModal';
+import { SessionTerminatedModal } from '@/components/auth/SessionTerminatedModal';
 import { useAuth } from '@/hooks/use-auth';
 import { useSessionGuard } from '@/hooks/use-session-guard';
 import { queryClient } from '@/lib/queryClient';
@@ -85,6 +86,7 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
                                  '';
       
       if (currentSessionToken === event.detail.sessionToken) {
+        console.log('🔒 Esta é a sessão atual - mostrando modal de encerramento');
         setTerminationMessage(event.detail.message || "Sua sessão foi encerrada por outro usuário");
         setSessionTerminated(true);
         
