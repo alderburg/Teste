@@ -70,6 +70,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // SEGUNDO: Configurar sistema de autenticação ANTES de todas as rotas
   setupAuth(app);
+
+
   
   // Configurar a rota personalizada de processamento de cartão
   setupCustomCardRoute(app);
@@ -529,7 +531,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Notificar via WebSocket sobre o encerramento da sessão
         const targetUserId = sessionCheck.rows[0].user_id;
-        notifySessionTerminated(targetUserId, sessionToken);
+        if (typeof (global as any).notifySessionTerminated === 'function') {
+          (global as any).notifySessionTerminated(targetUserId, sessionToken);
+        } else {
+          console.log(`⚠️ Sistema WebSocket não disponível para notificação de sessão`);
+        }
         
         // Notificar usuários relacionados sobre a atualização na lista de sessões
         // Usar o mesmo sistema das outras abas (endereços, contatos, etc)
@@ -6638,25 +6644,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   };
 
-  // Função para notificar sobre encerramento de sessão
-  const notifySessionTerminated = (userId: number, sessionToken: string) => {
-    console.log(`🔔 Tentando notificar usuário ${userId} sobre encerramento da sessão ${sessionToken.substring(0, 8)}...`);
-    
-    clients.forEach((clientInfo, ws) => {
-      console.log(`🔍 Verificando cliente: userId=${clientInfo.userId}, sessionToken=${clientInfo.sessionToken?.substring(0, 8)}, readyState=${ws.readyState}`);
-      
-      // Notificar se for o mesmo usuário E a mesma sessão sendo encerrada
-      if (clientInfo.userId === userId && clientInfo.sessionToken === sessionToken && ws.readyState === WebSocket.OPEN) {
-        console.log(`📤 Enviando notificação de encerramento para usuário ${userId}`);
-        ws.send(JSON.stringify({
-          type: 'session_terminated',
-          sessionToken: sessionToken,
-          message: 'Sua sessão foi encerrada por outro usuário. Você será deslogado em 10 segundos.',
-          timestamp: new Date().toISOString()
-        }));
-      }
-    });
-  };
+;
 
   // Quando um cliente se conecta
   wss.on('connection', (ws) => {
@@ -8410,7 +8398,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `, [sessionId, userId]);
 
       // Notificar via WebSocket sobre o encerramento da sessão
-      notifySessionTerminated(userId, sessionId);
+      if (typeof (global as any).notifySessionTerminated === 'function') {
+        (global as any).notifySessionTerminated(userId, sessionId);
+      } else {
+        console.log(`⚠️ Sistema WebSocket não disponível para notificação de sessão`);
+      }
       
       // Notificar clientes conectados via WebSocket sobre a atualização da lista de sessões
       for (const [ws, clientInfo] of clients.entries()) {

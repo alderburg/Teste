@@ -52,18 +52,36 @@ export function useWebSocket() {
                                  document.cookie.split(';').find(c => c.trim().startsWith('sessionToken='))?.split('=')[1] || 
                                  '';
       
+      console.log('🔒 Verificando tokens:', {
+        current: currentSessionToken?.substring(0, 8) + '...',
+        terminated: data.sessionToken?.substring(0, 8) + '...',
+        match: currentSessionToken === data.sessionToken
+      });
+      
       if (currentSessionToken === data.sessionToken) {
         console.log('🔒 Esta é a sessão atual - disparando evento de encerramento');
         
         // Disparar evento específico para sessão encerrada
         const sessionTerminatedEvent = new CustomEvent('session-terminated', { 
           detail: { 
-            message: data.message,
+            message: data.message || 'Sua sessão foi encerrada por outro usuário',
+            sessionToken: data.sessionToken,
+            userId: data.userId,
+            type: 'session_terminated'
+          } 
+        });
+        window.dispatchEvent(sessionTerminatedEvent);
+        
+        // Também disparar o evento websocket-message-received para compatibilidade
+        const webSocketEvent = new CustomEvent('websocket-message-received', { 
+          detail: { 
+            type: 'session_terminated',
+            message: data.message || 'Sua sessão foi encerrada por outro usuário',
             sessionToken: data.sessionToken,
             userId: data.userId
           } 
         });
-        window.dispatchEvent(sessionTerminatedEvent);
+        window.dispatchEvent(webSocketEvent);
       }
       
       return; // Deixar o evento ser processado pelo WebSocketProvider
