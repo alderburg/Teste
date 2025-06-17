@@ -531,18 +531,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const targetUserId = sessionCheck.rows[0].user_id;
         notifySessionTerminated(targetUserId, sessionToken);
         
-        // Notificar clientes conectados via WebSocket sobre a atualização da lista de sessões
-        clients.forEach((clientInfo, ws) => {
-          if (clientInfo.userId === targetUserId && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({
-              type: 'data_update',
-              resource: 'sessoes',
-              action: 'delete',
-              userId: targetUserId,
-              data: { sessionId: sessionId }
-            }));
-          }
-        });
+        // Notificar usuários relacionados sobre a atualização na lista de sessões
+        // Usar o mesmo sistema das outras abas (endereços, contatos, etc)
+        let userIdForNotification;
+        
+        if (isAdditionalUser) {
+          // Para usuário adicional, buscar o ID do usuário pai
+          const userId = parseInt(req.user!.additionalUserId);
+          const parentUserResult = await connectionManager.executeQuery(
+            'SELECT user_id FROM usuarios_adicionais WHERE id = $1',
+            [userId]
+          );
+          userIdForNotification = parentUserResult.rows.length > 0 ? 
+            parentUserResult.rows[0].user_id : userId;
+        } else {
+          // Se é usuário principal, usar o próprio ID
+          userIdForNotification = parseInt(req.user!.id);
+        }
+        
+        console.log(`🔔 Notificando usuários relacionados sobre delete em sessoes para usuário ${userIdForNotification}`);
+        notifyRelatedUsers('sessoes', 'delete', { sessionId: sessionId }, userIdForNotification);
         
         res.json({
           success: true,

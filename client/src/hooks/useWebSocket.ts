@@ -107,10 +107,13 @@ export function useWebSocket() {
                 console.log(`Novo item adicionado ao cache para ${resource}:`, data.data);
               }
             } 
-            else if (data.action === 'delete' && data.data && data.data.id) {
+            else if (data.action === 'delete' && data.data) {
               // Para exclusão, remover o item
-              updatedData = previousData.filter(item => item.id !== data.data.id);
-              console.log(`Item removido do cache para ${resource}:`, data.data.id);
+              const idToRemove = data.data.sessionId || data.data.id;
+              if (idToRemove) {
+                updatedData = previousData.filter(item => item.id !== idToRemove);
+                console.log(`Item removido do cache para ${resource}:`, idToRemove);
+              }
             } 
 
             // Atualizar o cache diretamente
