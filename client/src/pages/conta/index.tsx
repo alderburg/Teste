@@ -1776,31 +1776,73 @@ export default function MinhaContaPage() {
     retry: false // Não tentar novamente em caso de falha
   });
   
-  // Buscar contatos do banco de dados
-  const { data: contatosData, isLoading: isLoadingContatos } = useQuery({
-    queryKey: ["/api/contatos", user?.id],
-    enabled: !!user?.id,
+  // Query para buscar contatos - seguindo o padrão das outras abas
+  const { 
+    data: contatosData, 
+    isLoading: isLoadingContatos 
+  } = useQuery({
+    queryKey: ["/api/contatos"],
+    // Permitir sempre buscar dados, seguindo o padrão das abas de Contatos e Usuários
+    enabled: true,
+    // Configurações para permitir atualização ao trocar de aba
+    staleTime: 0, // Considerar dados sempre obsoletos (permite refetch ao trocar de aba)
+    gcTime: 60000, // Manter no cache por 1 minuto
+    refetchOnWindowFocus: false, // Sem refetch no foco da janela
+    refetchOnMount: true, // Permitir refetch na montagem do componente
+    refetchOnReconnect: false, // Sem refetch na reconexão
+    retry: false // Não tentar novamente em caso de falha
   });
   
-  // Buscar usuários adicionais do banco de dados
-  const { data: usuariosData, isLoading: isLoadingUsuarios } = useQuery({
-    queryKey: ["/api/usuarios-adicionais", user?.id],
-    enabled: !!user?.id,
+  // Query para buscar usuários adicionais - seguindo o padrão das outras abas
+  const { 
+    data: usuariosData, 
+    isLoading: isLoadingUsuarios 
+  } = useQuery({
+    queryKey: ["/api/usuarios-adicionais"],
+    // Permitir sempre buscar dados, seguindo o padrão das abas de Contatos e Usuários
+    enabled: true,
+    // Configurações para permitir atualização ao trocar de aba
+    staleTime: 0, // Considerar dados sempre obsoletos (permite refetch ao trocar de aba)
+    gcTime: 60000, // Manter no cache por 1 minuto
+    refetchOnWindowFocus: false, // Sem refetch no foco da janela
+    refetchOnMount: true, // Permitir refetch na montagem do componente
+    refetchOnReconnect: false, // Sem refetch na reconexão
+    retry: false // Não tentar novamente em caso de falha
   });
 
-  // Query para buscar histórico de assinaturas reais da Locaweb
-  const { data: historicoAssinaturas, isLoading: isLoadingHistoricoAssinaturas } = useQuery({
-    queryKey: ["/api/historico-assinaturas", user?.id],
-    enabled: !!user?.id && showHistoricoAssinaturas,
-    staleTime: 5 * 60 * 1000, // Cache por 5 minutos
+  // Query para buscar histórico de assinaturas - seguindo o padrão das outras abas
+  const { 
+    data: historicoAssinaturas, 
+    isLoading: isLoadingHistoricoAssinaturas 
+  } = useQuery({
+    queryKey: ["/api/historico-assinaturas"],
+    // Permitir sempre buscar dados quando a seção for exibida
+    enabled: showHistoricoAssinaturas,
+    // Configurações para permitir atualização ao trocar de aba
+    staleTime: 0, // Considerar dados sempre obsoletos (permite refetch ao trocar de aba)
+    gcTime: 60000, // Manter no cache por 1 minuto
+    refetchOnWindowFocus: false, // Sem refetch no foco da janela
+    refetchOnMount: true, // Permitir refetch na montagem do componente
+    refetchOnReconnect: false, // Sem refetch na reconexão
+    retry: false // Não tentar novamente em caso de falha
   });
 
-  // Query para buscar histórico de pagamentos reais da Locaweb com sincronização automática
-  const { data: historicoPagamentos, isLoading: isLoadingHistoricoPagamentos, refetch: refetchHistoricoPagamentos } = useQuery({
-    queryKey: ["/api/historico-pagamentos", user?.id],
-    enabled: !!user?.id && showHistoricoPagamentos,
-    staleTime: 0, // Sem cache para dados sempre atualizados
-    refetchOnMount: true, // Sempre buscar dados atualizados ao montar
+  // Query para buscar histórico de pagamentos - seguindo o padrão das outras abas
+  const { 
+    data: historicoPagamentos, 
+    isLoading: isLoadingHistoricoPagamentos, 
+    refetch: refetchHistoricoPagamentos 
+  } = useQuery({
+    queryKey: ["/api/historico-pagamentos"],
+    // Permitir sempre buscar dados quando a seção for exibida
+    enabled: showHistoricoPagamentos,
+    // Configurações para permitir atualização ao trocar de aba
+    staleTime: 0, // Considerar dados sempre obsoletos (permite refetch ao trocar de aba)
+    gcTime: 60000, // Manter no cache por 1 minuto
+    refetchOnWindowFocus: false, // Sem refetch no foco da janela
+    refetchOnMount: true, // Permitir refetch na montagem do componente
+    refetchOnReconnect: false, // Sem refetch na reconexão
+    retry: false // Não tentar novamente em caso de falha
   });
 
   // Efeito para buscar dados quando o histórico for exibido
@@ -1859,21 +1901,22 @@ export default function MinhaContaPage() {
   // Estado para armazenar dados finalizados após um recarregamento completo
   const [finalPlanoData, setFinalPlanoData] = useState<AssinaturaResponse | null>(null);
   
-  // Buscar assinatura e plano do usuário do banco de dados externo
+  // Query para buscar assinatura - seguindo o padrão das outras abas
   const { 
     data: assinaturaData, 
     isLoading: isLoadingAssinaturaOriginal, 
     refetch: refetchAssinatura 
   } = useQuery<AssinaturaResponse>({
-    queryKey: ["/api/minha-assinatura", user?.id],
-    enabled: !!user?.id,
-    refetchOnWindowFocus: true,
-    refetchOnMount: true,
-    staleTime: 0, // Sempre refetch ao montar o componente
-    retry: 3, // Tentar 3 vezes se falhar
-    retryDelay: 500, // 500ms entre tentativas para agilizar
-    // Forçar o uso de um novo request em cada refetch
-    networkMode: "always" 
+    queryKey: ["/api/minha-assinatura"],
+    // Permitir sempre buscar dados, seguindo o padrão das abas de Contatos e Usuários
+    enabled: true,
+    // Configurações para permitir atualização ao trocar de aba
+    staleTime: 0, // Considerar dados sempre obsoletos (permite refetch ao trocar de aba)
+    gcTime: 60000, // Manter no cache por 1 minuto
+    refetchOnWindowFocus: false, // Sem refetch no foco da janela
+    refetchOnMount: true, // Permitir refetch na montagem do componente
+    refetchOnReconnect: false, // Sem refetch na reconexão
+    retry: false // Não tentar novamente em caso de falha
   });
 
 
