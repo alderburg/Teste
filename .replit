@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "bash", "web", "postgresql-16"]
+modules = ["nodejs-20", "web", "bash"]
 run = "npm run dev"
 hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
@@ -41,4 +41,4 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm run dev"
-waitForPort = 5001
+waitForPort = 5000
