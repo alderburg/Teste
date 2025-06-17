@@ -157,10 +157,10 @@ export default function LoginPage() {
 
   // Efeito para marcar como verificado quando sabemos que o usuário não está autenticado
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
+    if (!isLoading && !isAuthenticated) {
       setVerificado(true);
     }
-  }, [isAuthenticated, authLoading]);
+  }, [isAuthenticated, isLoading]);
 
   /**
    * Versão EXTREMAMENTE SIMPLIFICADA E DIRETA para mostrar o formulário 2FA
