@@ -48,6 +48,7 @@ export default function LoginPage() {
   const [isLoginProcessing, setIsLoginProcessing] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const isMobile = detectMobile();
 
@@ -339,7 +340,6 @@ export default function LoginPage() {
   });
 
   async function onSubmit(data: LoginFormValues) {
-    const [isLoading, setIsLoading] = useState(false);
     setIsLoading(true);
 
     try {
@@ -455,7 +455,6 @@ export default function LoginPage() {
   }
 
   const completeLogin = (userData: any) => {
-    const [isLoading, setIsLoading] = useState(false);
     try {
       // Armazenar dados do usuário no localStorage
       localStorage.setItem('userData', JSON.stringify(userData));
@@ -496,7 +495,6 @@ export default function LoginPage() {
   });
 
   async function onSubmit2FA(data: TwoFactorFormValues) {
-    const [isLoading, setIsLoading] = useState(false);
     setIsLoading(true);
 
     try {
@@ -883,9 +881,9 @@ export default function LoginPage() {
                   <Button
                     type="submit"
                     className="w-full h-10 bg-primary hover:bg-primary/90 text-white font-semibold rounded-md flex items-center justify-center group mt-2"
-                    disabled={authIsLoading}
+                    disabled={isLoading}
                   >
-                    {authIsLoading ? (
+                    {isLoading ? (
                       <span className="flex items-center">
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                         Verificando...
@@ -1012,9 +1010,9 @@ export default function LoginPage() {
                 <Button
                   type="submit"
                   className="w-full h-9 bg-primary hover:bg-primary/90 text-white font-semibold rounded-md flex items-center justify-center group mt-2 text-sm"
-                  disabled={authIsLoading}
+                  disabled={isLoading}
                 >
-                  {authIsLoading ? (
+                  {isLoading ? (
                     <span className="flex items-center">
                       <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                       Entrando...
