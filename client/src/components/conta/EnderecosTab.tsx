@@ -41,10 +41,22 @@ export default function EnderecosTab() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Buscar endereços do usuário
-  const { data: enderecosData, isLoading: isLoadingEnderecos, error: enderecosError, refetch: refetchEnderecos } = useQuery({
-    queryKey: ["/api/enderecos", user?.id],
-    enabled: !!user?.id,
+  // Query para buscar endereços - seguindo o padrão das outras abas
+  const { 
+    data: enderecosData, 
+    isLoading: isLoadingEnderecos, 
+    refetch: refetchEnderecos 
+  } = useQuery({
+    queryKey: ["/api/enderecos"],
+    // Permitir sempre buscar dados, seguindo o padrão das abas de Contatos e Usuários
+    enabled: true,
+    // Configurações para permitir atualização ao trocar de aba
+    staleTime: 0, // Considerar dados sempre obsoletos (permite refetch ao trocar de aba)
+    gcTime: 60000, // Manter no cache por 1 minuto
+    refetchOnWindowFocus: false, // Sem refetch no foco da janela
+    refetchOnMount: true, // Permitir refetch na montagem do componente
+    refetchOnReconnect: false, // Sem refetch na reconexão
+    retry: false // Não tentar novamente em caso de falha
   });
 
   // Use os dados da API ou um array vazio como fallback
