@@ -334,8 +334,8 @@ export function setupAuth(app: Express): void {
   // Configurações de sessão mais robustas
   const sessionSettings: session.SessionOptions = {
     secret: process.env.SESSION_SECRET || "meu_preco_certo_app_secret",
-    resave: true,
-    saveUninitialized: true,
+    resave: false, // Mudado para false para evitar salvar sessões desnecessárias
+    saveUninitialized: false, // Mudado para false para não criar sessões para usuários não autenticados
     rolling: true,
     cookie: {
       secure: false, // Desabilitado para desenvolvimento
@@ -832,6 +832,17 @@ export function setupAuth(app: Express): void {
         const sessionInvalidated = await storage.invalidateUserSession(sessionId);
         console.log(`✅ Sessão ${sessionId} invalidada: ${sessionInvalidated}`);
 
+        // NOVO: Também remover da tabela 'session' do PostgreSQL (onde o express-session armazena)
+        try {
+          const { connectionManager } = await import('./connection-manager');
+          await connectionManager.executeQuery(`
+            DELETE FROM session WHERE sid = $1
+          `, [sessionId]);
+          console.log(`✅ Sessão ${sessionId.substring(0, 8)}... removida da tabela session do PostgreSQL`);
+        } catch (sessionTableError) {
+          console.error(`⚠️ Erro ao remover da tabela session:`, sessionTableError);
+        }
+
         // 2. Log de atividade
         await storage.createActivityLog({
           userId,
@@ -864,9 +875,22 @@ export function setupAuth(app: Express): void {
           return next(err);
         }
 
-        // 5. Limpar cookies
-        res.clearCookie('connect.sid');
-        res.clearCookie('mpc.sid'); // Cookie personalizado
+        // 5. Limpar cookies com configurações mais robustas
+        res.clearCookie('connect.sid', { 
+          path: '/', 
+          httpOnly: true, 
+          secure: false 
+        });
+        res.clearCookie('mpc.sid', { 
+          path: '/', 
+          httpOnly: true, 
+          secure: false 
+        });
+
+        // 6. Adicionar headers para evitar cache
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
 
         console.log('✅ Logout completado com sucesso');
         return res.status(200).json({ 
