@@ -43,23 +43,37 @@ function detectMobile() {
 }
 
 export default function LoginPage() {
-  // NÃO USAR o redirecionador automático - queremos controlar isso manualmente
-  // const redirectCheck = <RedirectChecker />;
-  
+  const { user, isAuthenticated, login, isLoading } = useAuth();
   const [, navigate] = useLocation();
-  const { toast } = useToast();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoginProcessing, setIsLoginProcessing] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-  const [isMobile, setIsMobile] = useState(detectMobile);
-  
+  const { toast } = useToast();
+  const isMobile = detectMobile();
+
+  // Limpar estado de sessão encerrada ao acessar página de login
+  useEffect(() => {
+    const clearSessionState = async () => {
+      try {
+        // Attempt to import and call the function
+        const apiModule = await import('@/lib/api');
+        apiModule.clearSessionTerminated();
+        console.log('✅ Estado de sessão encerrada limpo ao acessar login');
+      } catch (error) {
+        console.log('⚠️ Erro ao limpar estado de sessão:', error);
+      }
+    };
+
+    clearSessionState();
+  }, []);
+
   // Atualizar estado quando o tamanho da janela muda
   useEffect(() => {
     const handleResize = () => setIsMobile(detectMobile());
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-  
+
   // Defina o estado inicial de 2FA checando o localStorage diretamente
   const [showTwoFactorForm, setShowTwoFactorForm] = useState(() => {
     try {
@@ -68,7 +82,7 @@ export default function LoginPage() {
       return false;
     }
   });
-  
+
   const [awaiting2FACode, setAwaiting2FACode] = useState(() => {
     try {
       return localStorage.getItem('pendingTwoFactor') === 'true';
@@ -76,19 +90,19 @@ export default function LoginPage() {
       return false;
     }
   });
-  
+
   const [verifying2FA, setVerifying2FA] = useState(false);
-  
+
   // Componente de verificação e redirecionamento foi movido para redirect-checker.tsx
   // Este componente é importado e usado no topo do componente atual
   const [tempUserData, setTempUserData] = useState<any>(null);
   const [verificado, setVerificado] = useState(false);
   const codeInputRefs = useRef<(HTMLInputElement | null)[]>([]);
-  
+
   // Implementação da função forceUpdate para forçar renderização
   const [, updateState] = useState<{}>();
   const forceUpdate = useCallback(() => updateState({}), []);
-  
+
   // Verificar parâmetros da URL para identificar se estamos vindo de um logout
   const urlParams = new URLSearchParams(window.location.search);
   const fromLogout = urlParams.get('fromdirectlogout') === 'true' || 
@@ -100,7 +114,7 @@ export default function LoginPage() {
                    sessionStorage.getItem('bypassAllSplashScreens') === 'true' || // Nova flag forte
                    (window as any).LOGOUT_IN_PROGRESS === true || 
                    (window as any).HARD_LOGOUT_IN_PROGRESS === true; 
-  
+
   // Se estamos vindo de um logout, não fazer redirecionamento automático
   // para evitar o ciclo de redirecionamento
   if (isAuthenticated && !verificado && !fromLogout) {
@@ -108,12 +122,12 @@ export default function LoginPage() {
     window.location.href = "/dashboard";
     return null; // Não renderiza nada enquanto redireciona
   }
-  
+
   // Se estamos vindo de um logout, limpar as flags de controle após a renderização inicial
   useEffect(() => {
     if (fromLogout) {
       console.log("Detectado acesso pós-logout à página de login - removendo flags para prevenir loops");
-      
+
       // Limpar TODAS as flags relacionadas a splash screens e logout
       sessionStorage.removeItem('noSplashAfterLogout');
       sessionStorage.removeItem('forceDirectLogin');
@@ -121,33 +135,33 @@ export default function LoginPage() {
       sessionStorage.removeItem('bypassAllSplashScreens');
       sessionStorage.removeItem('isLogoutRedirect');
       sessionStorage.removeItem('forceShowSplash');
-      
+
       // Também limpar o parâmetro da URL se necessário
       if (urlParams.has('logout') || urlParams.has('noSplash') || urlParams.has('fromdirectlogout')) {
         // Usar location só para construir o URL sem parâmetros
         const cleanUrl = window.location.pathname;
         window.history.replaceState({}, document.title, cleanUrl);
       }
-      
+
       // Limpar qualquer variável global relacionada
       if ((window as any).LOGOUT_IN_PROGRESS) {
         (window as any).LOGOUT_IN_PROGRESS = false;
       }
-      
+
       // Limpar qualquer dado antigo de localStorage que poderia causar problemas
       localStorage.removeItem('userData');
       localStorage.removeItem('user');
       localStorage.removeItem('token');
     }
   }, [fromLogout]);
-  
+
   // Efeito para marcar como verificado quando sabemos que o usuário não está autenticado
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       setVerificado(true);
     }
   }, [isAuthenticated, authLoading]);
-  
+
   /**
    * Versão EXTREMAMENTE SIMPLIFICADA E DIRETA para mostrar o formulário 2FA
    */
@@ -156,14 +170,14 @@ export default function LoginPage() {
     // Esta verificação é feita 100% dentro deste useEffect para evitar problemas
     try {
       const hasPending2FA = localStorage.getItem('pendingTwoFactor') === 'true';
-      
+
       if (hasPending2FA) {
         console.log('LOGIN PAGE (useEffect): 2FA PENDENTE DETECTADO - Mostrando formulário 2FA');
-        
+
         // Definir estados para mostrar formulário 2FA
         setShowTwoFactorForm(true);
         setAwaiting2FACode(true);
-        
+
         // Tentar recuperar dados temporários 
         const tempUserDataStr = localStorage.getItem('tempUserData');
         if (tempUserDataStr) {
@@ -181,14 +195,14 @@ export default function LoginPage() {
       console.error('LOGIN PAGE (useEffect): Erro ao verificar 2FA pendente:', e);
     }
   }, []);
-  
+
   // Ainda mantemos o useEffect para verificações após montagem
   useEffect(() => {
     // Verificar o estado atual de 2FA para diagnóstico
     const hasPending = localStorage.getItem('pendingTwoFactor') === 'true';
     console.log("Login - Estado de 2FA: pendente =", hasPending, 
                 ", mostrandoFormulário =", showTwoFactorForm);
-    
+
     // Garantir que o splash screen seja removido ao carregar a página
     const splashElement = document.getElementById('splash-screen');
     if (splashElement) {
@@ -346,7 +360,7 @@ export default function LoginPage() {
       }
 
       const userData = await response.json();
-      
+
       // Log da resposta completa para debugging
       console.log("Resposta do login:", userData);
 
@@ -355,44 +369,44 @@ export default function LoginPage() {
         setVerifying2FA(true);
         // Verificar o flag requires2FA na resposta diretamente
         const requires2FA = userData.requires2FA === true;
-        
+
         console.log("Status 2FA verificado através da resposta inicial:", requires2FA ? "Ativado" : "Desativado");
         console.log("showTwoFactorForm antes:", showTwoFactorForm);
 
         if (requires2FA) {
           // Usuário tem 2FA habilitado, precisamos verificar o código
           console.log("2FA está habilitado para esta conta. Solicitando código...");
-          
+
           // Primeiro, desativamos o carregamento para permitir interações
           setIsLoading(false);
-          
+
           // Definimos os dados temporários do usuário para uso na verificação
           setTempUserData(userData);
-          
+
           // ATUALIZAÇÃO SIMPLIFICADA: Definir flag para 2FA pendente
           localStorage.setItem('pendingTwoFactor', 'true');
-          
+
           // IMPORTANTE: armazenar userData no estado e localStorage para uso na verificação 2FA
           setTempUserData(userData);
           localStorage.setItem('tempUserData', JSON.stringify(userData));
-          
+
           console.log("Dados do usuário salvos temporariamente para verificação 2FA");
-          
+
           console.log("ATIVANDO MODO 2FA - Definindo estados diretos para troca de formulário");
-          
+
           // IMPORTANTE: Remover qualquer splash screen residual que possa estar causando preloader duplicado
           const splashElement = document.getElementById('splash-screen');
           if (splashElement) {
               splashElement.style.display = 'none';
           }
-          
+
           // Ativação direta dos estados para mostrar o formulário 2FA
           setAwaiting2FACode(true);
           setShowTwoFactorForm(true);
-          
+
           // Limpar referências anteriores para os inputs do código
           codeInputRefs.current = [];
-          
+
           // Forçar atualização do componente para garantir renderização imediata
           forceUpdate();
 
@@ -401,7 +415,7 @@ export default function LoginPage() {
             description: "Por favor, digite o código gerado pelo seu aplicativo autenticador.",
             duration: 6000, // Aumentar duração da notificação
           });
-          
+
           setVerifying2FA(false);
           return; // Parar aqui e aguardar o código 2FA
         }
@@ -421,7 +435,7 @@ export default function LoginPage() {
     } catch (error) {
       console.error('Erro no login:', error);
       setIsLoading(false);
-      
+
       // Verifica se o erro está relacionado a verificação de email
       if (error instanceof Error && error.message.includes("verifique seu email")) {
         toast({
@@ -443,19 +457,19 @@ export default function LoginPage() {
     try {
       // Armazenar dados do usuário no localStorage
       localStorage.setItem('userData', JSON.stringify(userData));
-      
+
       // Se houver um token, armazená-lo também
       if (userData?.token) {
         localStorage.setItem('token', userData.token);
       }
-      
+
       // Redirecionar com base nos parâmetros da URL ou para o dashboard
       if (redirectParams.redirectTo) {
         navigate(`/${redirectParams.redirectTo}${redirectParams.tab ? `?tab=${redirectParams.tab}` : ''}`);
       } else {
         navigate('/dashboard');
       }
-      
+
       toast({
         title: "Login realizado com sucesso",
         description: "Bem-vindo ao sistema!",
@@ -481,15 +495,15 @@ export default function LoginPage() {
 
   async function onSubmit2FA(data: TwoFactorFormValues) {
     setIsLoading(true);
-    
+
     try {
       console.log("Dados para verificação 2FA:", { code: data.code, tempUserData });
-      
+
       // Garantir que temos os dados do usuário
       if (!tempUserData || !tempUserData.id) {
         throw new Error("Dados temporários do usuário não encontrados");
       }
-      
+
       const response = await fetch('/api/verify-2fa', {
         method: 'POST',
         headers: {
@@ -501,22 +515,22 @@ export default function LoginPage() {
         }),
         credentials: 'include'
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || "Código inválido ou expirado");
       }
-      
+
       // Sucesso! Remover flags de 2FA pendente
       localStorage.removeItem('pendingTwoFactor');
       localStorage.removeItem('tempUserData');
-      
+
       // Completar login com os dados temporários salvos
       const userData = tempUserData;
       setTempUserData(null);
       setShowTwoFactorForm(false);
       setAwaiting2FACode(false);
-      
+
       // Atualizar a sessão para indicar que 2FA foi verificado
       fetch('/api/verify-2fa-session', {
         method: 'POST',
@@ -527,14 +541,14 @@ export default function LoginPage() {
       }).catch(err => {
         console.warn("Não foi possível atualizar a sessão de 2FA:", err);
       });
-      
+
       // Completar o processo de login
       completeLogin(userData);
-      
+
     } catch (error) {
       console.error("Erro na verificação 2FA:", error);
       setIsLoading(false);
-      
+
       toast({
         variant: "destructive",
         title: "Verificação falhou",
@@ -542,7 +556,7 @@ export default function LoginPage() {
       });
     }
   }
-  
+
   // Diagnóstico para estados de 2FA
   useEffect(() => {
     const tempUserDataPresent = tempUserData !== null;
@@ -559,7 +573,7 @@ export default function LoginPage() {
   if (isMobile) {
     return <MobileLogin />;
   }
-  
+
   // Caso contrário, renderizar a versão desktop
   return (
     <div className="h-screen bg-white flex flex-col md:flex-row overflow-hidden">
@@ -569,14 +583,14 @@ export default function LoginPage() {
         <div className="absolute inset-0 opacity-20" style={{ 
           backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")" 
         }}></div>
-        
+
         <div className="relative w-full h-full z-10">
           <div className="w-full h-full flex flex-col justify-center items-center p-2 overflow-auto" style={{ paddingBottom: "1rem" }}>
             {/* Logo e marca - versão desktop */}
             <div className="flex flex-col items-center mb-2 md:mb-3">
               <img src={LogoDesktop} alt="Meu Preço Certo" className="h-10 md:h-14 lg:h-16 xlarge:h-20 2xl:h-24 mb-1" />
             </div>
-            
+
             {/* Conteúdo central destacado */}
             <div className="w-full" style={{ maxWidth: "70%" }}>
               <div className="flex items-center justify-center mb-2">
@@ -584,7 +598,7 @@ export default function LoginPage() {
                   O melhor preço começa com o preço certo
                 </div>
               </div>
-              
+
               <h2 className="text-lg md:text-xl lg:text-2xl xlarge:text-3xl 2xl:text-4xl font-bold text-center text-white mb-2 md:mb-3 lg:mb-4">
                 Maximize seus 
                 <span className="bg-gradient-to-r from-yellow-300 to-amber-500 bg-clip-text text-transparent">
@@ -603,7 +617,7 @@ export default function LoginPage() {
                     </div>
                   </div>
                 </div>
-                
+
                 {/* Simulação de gráficos e métricas */}
                 <div className="px-2 py-1">
                   {/* Metrics row */}
@@ -625,7 +639,7 @@ export default function LoginPage() {
                       </div>
                     ))}
                   </div>
-                  
+
                   {/* Área dos gráficos em layout mais compacto */}
                   <div className="flex space-x-2 h-[160px] [@media(min-width:1370px)]:h-[260px]">
                     {/* Coluna da esquerda - gráficos */}
@@ -645,7 +659,7 @@ export default function LoginPage() {
                             </div>
                           </div>
                         </div>
-                        
+
                         {/* Lucro atual dinâmico */}
                         <div className="flex justify-between items-center mb-0.5">
                           <div className="flex items-center text-[10px]">
@@ -657,7 +671,7 @@ export default function LoginPage() {
                             <span className="font-medium">+2.4%</span>
                           </div>
                         </div>
-                        
+
                         {/* Stock Market Chart Simulation - apenas com animação vertical e cores alternadas */}
                         <div className="overflow-hidden w-full h-6 mb-0.5 flex items-end bg-gray-50 rounded-t-sm [@media(min-width:1370px)]:h-10">
                           <div className="stock-chart-container relative w-full h-full flex items-end">
@@ -671,7 +685,7 @@ export default function LoginPage() {
                             ))}
                           </div>
                         </div>
-                        
+
                         {/* Bar Chart Simulation - com cores alternadas de categorias */}
                         <div className="w-full grid grid-cols-12 gap-1 items-end h-7 [@media(min-width:1370px)]:h-16">
                           {[42, 30, 55, 25, 60, 38, 48, 58, 35, 45, 52, 40].map((height, index) => {
@@ -683,7 +697,7 @@ export default function LoginPage() {
                               { bg: "bg-purple-100", fill: "bg-purple-500" }, // Roxo - Usados
                               { bg: "bg-amber-100", fill: "bg-amber-500" },   // Âmbar - Aluguéis
                             ];
-                            
+
                             return (
                               <div key={index} className="w-full flex flex-col items-center justify-end" style={{ minHeight: '100%' }}>
                                 <div className={`w-full ${colors[categoryIndex].bg} rounded-t-sm`} style={{ height: `${height}%` }}>
@@ -694,7 +708,7 @@ export default function LoginPage() {
                           })}
                         </div>
                       </div>
-                      
+
                       {/* Gráfico de pizza */}
                       <div className="border rounded-lg p-1 pb-1 bg-white flex-1 h-[65px] mb-1">
                         <h4 className="text-xs font-medium mb-0.5">Distribuição de vendas</h4>
@@ -711,7 +725,7 @@ export default function LoginPage() {
                               <div className="absolute h-2.5 w-2.5 rounded-full bg-white top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"></div>
                             </div>
                           </div>
-                          
+
                           <div className="ml-1 grid grid-cols-2 gap-x-1 gap-y-0 w-full text-[8px]">
                             <div className="flex items-center">
                               <div className="h-1 w-1 rounded-full bg-blue-500 mr-0.5"></div>
@@ -733,7 +747,7 @@ export default function LoginPage() {
                         </div>
                       </div>
                     </div>
-                    
+
                     {/* Coluna da direita - tabela de precificações */}
                     <div className="w-5/12 border rounded-lg p-1 bg-white flex flex-col h-full [@media(min-width:1370px)]:p-3">
                       <div className="flex items-center justify-between mb-0.5">

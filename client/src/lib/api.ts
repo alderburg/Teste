@@ -11,8 +11,20 @@ export function markSessionAsTerminated() {
   console.log('🔒 Sessão marcada como encerrada globalmente');
 }
 
+// Função para limpar estado de sessão encerrada (para permitir novo login)
+export function clearSessionTerminated() {
+  sessionTerminated = false;
+  console.log('✅ Estado de sessão encerrada limpo - login permitido');
+}
+
 // Função para verificar se sessão está encerrada
 function isSessionTerminated(): boolean {
+  // Se estivermos na página de login, não bloquear
+  const currentPath = window.location.pathname;
+  if (currentPath === '/acessar' || currentPath === '/login' || currentPath === '/cadastre-se' || currentPath === '/recuperar') {
+    return false;
+  }
+
   if (sessionTerminated) {
     console.log('🚫 Sessão encerrada globalmente - bloqueando requisição');
     return true;
@@ -28,6 +40,12 @@ function isSessionTerminated(): boolean {
 function rejectRequest(operation: string): Promise<never> {
   console.log(`🚫 ${operation} BLOQUEADA - sessão encerrada`);
   return Promise.reject(new Error('SESSÃO ENCERRADA - Acesso negado'));
+}
+
+// Função para verificar se a URL é de autenticação
+function isAuthRequest(url: string): boolean {
+  const authUrls = ['/api/login', '/api/register', '/api/logout', '/api/verify-email', '/api/forgot-password', '/api/reset-password'];
+  return authUrls.some(authUrl => url.includes(authUrl));
 }
 
 // Placeholder for the api object, assuming it's an axios instance or similar
@@ -102,22 +120,29 @@ api.interceptors.request.use(
 // Sobrescrever apiRequest para verificar sessão encerrada
 const originalApiRequest = apiRequest;
 const apiRequestWithSessionCheck = async (method: string, url: string, data?: any) => {
-  if (isSessionTerminated()) {
+  // Permitir requisições de autenticação mesmo com sessão encerrada
+  if (isSessionTerminated() && !isAuthRequest(url)) {
     return rejectRequest(`ApiRequest ${method} ${url}`);
   }
   
   try {
     const response = await originalApiRequest(method, url, data);
     
-    // Verificar novamente após a resposta
-    if (isSessionTerminated()) {
+    // Se for login bem-sucedido, limpar estado de sessão encerrada
+    if (url.includes('/api/login') && response.ok) {
+      clearSessionTerminated();
+      console.log('✅ Login bem-sucedido - limpando estado de sessão encerrada');
+    }
+    
+    // Verificar novamente após a resposta (só para não-auth requests)
+    if (isSessionTerminated() && !isAuthRequest(url)) {
       throw new Error('Sessão encerrada durante a requisição');
     }
     
     return response;
   } catch (error: any) {
-    // Se receber 401, marcar sessão como encerrada
-    if (error.status === 401 || (error.response && error.response.status === 401)) {
+    // Se receber 401 em requisições não-auth, marcar sessão como encerrada
+    if ((error.status === 401 || (error.response && error.response.status === 401)) && !isAuthRequest(url)) {
       console.log('🔒 Status 401 em apiRequest - marcando sessão como encerrada');
       markSessionAsTerminated();
       
@@ -136,15 +161,25 @@ const apiRequestWithSessionCheck = async (method: string, url: string, data?: an
 // Sobrescrever fetch global para verificar sessão encerrada
 const originalFetch = window.fetch;
 window.fetch = async (...args) => {
-  if (isSessionTerminated()) {
-    console.log('🚫 Fetch global BLOQUEADO - sessão encerrada:', args[0]);
+  const url = args[0] as string;
+  
+  // Permitir requisições de autenticação mesmo com sessão encerrada
+  if (isSessionTerminated() && !isAuthRequest(url)) {
+    console.log('🚫 Fetch global BLOQUEADO - sessão encerrada:', url);
     throw new Error('SESSÃO ENCERRADA - Todas as requisições foram bloqueadas');
   }
   
   try {
     const response = await originalFetch(...args);
     
-    if (response.status === 401) {
+    // Se for login bem-sucedido, limpar estado de sessão encerrada
+    if (url.includes('/api/login') && response.ok) {
+      clearSessionTerminated();
+      console.log('✅ Login bem-sucedido via fetch - limpando estado de sessão encerrada');
+    }
+    
+    // Só marcar como encerrada se não for requisição de auth
+    if (response.status === 401 && !isAuthRequest(url)) {
       console.log('🔒 Status 401 em fetch global - marcando sessão como encerrada');
       markSessionAsTerminated();
       

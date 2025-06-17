@@ -152,7 +152,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const logout = async () => {
     console.log("🚪 Iniciando logout...");
     
-    // 1. PRIMEIRO: Fazer logout no servidor (antes de limpar dados locais)
+    // 1. Limpar estado de sessão encerrada
+    try {
+      const { clearSessionTerminated } = await import('@/lib/api');
+      clearSessionTerminated();
+    } catch (error) {
+      console.log("⚠️ Erro ao importar clearSessionTerminated:", error);
+    }
+    
+    // 2. PRIMEIRO: Fazer logout no servidor (antes de limpar dados locais)
     try {
       await fetch('/api/logout', {
         method: 'POST',
@@ -166,15 +174,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.log("⚠️ Erro no logout do servidor:", error);
     }
     
-    // 2. Agora limpar o estado local
+    // 3. Agora limpar o estado local
     setUser(null);
     setIsLoading(false);
     
-    // 3. Limpar todos os dados locais
+    // 4. Limpar todos os dados locais
     localStorage.clear();
     sessionStorage.clear();
     
-    // 4. Limpar cookies
+    // 5. Limpar cookies
     document.cookie.split(";").forEach(cookie => {
       const cookieName = cookie.trim().split("=")[0];
       if (cookieName) {
@@ -182,7 +190,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     });
     
-    // 5. Redirecionar para login
+    // 6. Redirecionar para login
     console.log("🔄 Redirecionando para login...");
     window.location.href = '/acessar';
   };
