@@ -61,6 +61,14 @@ export function useWebSocket() {
       if (currentSessionToken === data.sessionToken) {
         console.log('🔒 Esta é a sessão atual - disparando evento de encerramento');
         
+        // Invalidar imediatamente o queryClient para evitar requisições
+        try {
+          queryClient.invalidateQueries();
+          queryClient.clear();
+        } catch (error) {
+          console.error('Erro ao limpar queryClient:', error);
+        }
+        
         // Disparar evento específico para sessão encerrada
         const sessionTerminatedEvent = new CustomEvent('session-terminated', { 
           detail: { 

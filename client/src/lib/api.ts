@@ -1,6 +1,66 @@
 // API utility functions for interacting with the server
 import { apiRequest, queryClient } from "./queryClient";
 
+// Placeholder for the api object, assuming it's an axios instance or similar
+const api = {
+  interceptors: {
+    response: {
+      use: (
+        success: (response: any) => any,
+        error: (error: any) => any
+      ) => { },
+    },
+    request: {
+      use: (
+        success: (config: any) => any,
+        error: (error: any) => any
+      ) => { },
+    },
+  },
+};
+
+// Adicionar interceptador de resposta para lidar com erros de autenticação
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 401) {
+      // Verificar se há um modal de sessão encerrada aberto
+      const sessionModal = document.querySelector('[data-session-terminated="true"]');
+      if (sessionModal) {
+        console.log('🚫 Requisição bloqueada - modal de sessão encerrada está aberto');
+        return Promise.reject(new Error('Sessão encerrada - requisição bloqueada'));
+      }
+
+      // Remover dados de autenticação
+      localStorage.removeItem('user');
+      localStorage.removeItem('isAuthenticated');
+      localStorage.removeItem('sessionToken');
+      localStorage.removeItem('token');
+
+      // Redirecionar para login
+      window.location.href = '/acessar';
+      return Promise.reject(error);
+    }
+    return Promise.reject(error);
+  }
+);
+
+// Adicionar interceptador de requisição para verificar sessão encerrada
+api.interceptors.request.use(
+  (config) => {
+    // Verificar se há um modal de sessão encerrada aberto
+    const sessionModal = document.querySelector('[data-session-terminated="true"]');
+    if (sessionModal) {
+      console.log('🚫 Requisição bloqueada - modal de sessão encerrada está aberto');
+      return Promise.reject(new Error('Sessão encerrada - requisição bloqueada'));
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
 // Assinaturas API
 export async function criarAssinatura(dados: any) {
   try {
@@ -28,10 +88,10 @@ export async function getMinhaAssinatura() {
 export function invalidateAssinaturas() {
   // Primeiro, invalidar o cache para forçar busca de dados frescos
   queryClient.invalidateQueries({ queryKey: ['/api/minha-assinatura'] });
-  
+
   // Forçar uma recarga imediata para atualizar os valores na UI
   queryClient.refetchQueries({ queryKey: ['/api/minha-assinatura'] });
-  
+
   // Para garantir que os dados sejam atualizados mesmo com delays no servidor,
   // programar uma segunda recarga após um pequeno intervalo
   setTimeout(() => {
@@ -61,7 +121,7 @@ export async function getProdutos(userId: number, tipo?: string) {
   const queryParams = new URLSearchParams();
   queryParams.append("userId", userId.toString());
   if (tipo) queryParams.append("tipo", tipo);
-  
+
   const res = await apiRequest("GET", `/api/produtos?${queryParams.toString()}`);
   return await res.json();
 }
@@ -90,7 +150,7 @@ export async function deleteProduto(id: number) {
 export async function getServicos(userId: number) {
   const queryParams = new URLSearchParams();
   queryParams.append("userId", userId.toString());
-  
+
   const res = await apiRequest("GET", `/api/servicos?${queryParams.toString()}`);
   return await res.json();
 }
@@ -119,7 +179,7 @@ export async function deleteServico(id: number) {
 export async function getItensAluguel(userId: number) {
   const queryParams = new URLSearchParams();
   queryParams.append("userId", userId.toString());
-  
+
   const res = await apiRequest("GET", `/api/itens-aluguel?${queryParams.toString()}`);
   return await res.json();
 }
@@ -148,7 +208,7 @@ export async function deleteItemAluguel(id: number) {
 export async function getMarketplaces(userId: number) {
   const queryParams = new URLSearchParams();
   queryParams.append("userId", userId.toString());
-  
+
   const res = await apiRequest("GET", `/api/marketplaces?${queryParams.toString()}`);
   return await res.json();
 }

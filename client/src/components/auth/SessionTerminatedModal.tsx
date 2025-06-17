@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { queryClient } from "@/lib/queryClient";
 
 interface SessionTerminatedModalProps {
   isOpen: boolean;
@@ -15,6 +16,40 @@ export function SessionTerminatedModal({ isOpen, onClose, message }: SessionTerm
   const [, setLocation] = useLocation();
   const { logout } = useAuth();
   const [countdown, setCountdown] = useState(10);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  // Interceptar tentativas de navegação e requisições quando o modal estiver aberto
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Interceptar requisições fetch
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      console.log('🚫 Requisição bloqueada devido à sessão encerrada:', args[0]);
+      throw new Error('Sessão encerrada - requisição bloqueada');
+    };
+
+    // Interceptar tentativas de navegação
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+
+    const handlePopState = (e: PopStateEvent) => {
+      e.preventDefault();
+      console.log('🚫 Navegação bloqueada devido à sessão encerrada');
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('popstate', handlePopState);
+
+    // Limpar ao fechar o modal
+    return () => {
+      window.fetch = originalFetch;
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -33,32 +68,56 @@ export function SessionTerminatedModal({ isOpen, onClose, message }: SessionTerm
   }, [isOpen]);
 
   const handleLogout = async () => {
+    if (isLoggingOut) return;
+    
+    setIsLoggingOut(true);
+    
     try {
+      console.log('🔒 Iniciando logout forçado devido à sessão encerrada');
+      
+      // Invalidar e limpar todas as queries
+      queryClient.invalidateQueries();
+      queryClient.clear();
+      
       // Limpar completamente o estado local
       localStorage.removeItem('sessionToken');
+      localStorage.removeItem('token');
       localStorage.removeItem('user');
       localStorage.removeItem('isAuthenticated');
       localStorage.removeItem('userType');
       sessionStorage.clear();
       
-      // Executar logout do hook
-      await logout();
+      // Limpar cookies
+      document.cookie.split(";").forEach((c) => {
+        const eqPos = c.indexOf("=");
+        const name = eqPos > -1 ? c.substr(0, eqPos) : c;
+        document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+      });
+      
+      // Executar logout do hook (sem aguardar para evitar travamento)
+      logout().catch(() => {
+        console.log('Erro no logout, mas continuando com redirecionamento');
+      });
       
       // Fechar modal
       onClose();
       
-      // Forçar redirecionamento
-      window.location.href = "/acessar?logout=true";
+      // Aguardar um pouco para garantir que o modal foi fechado
+      setTimeout(() => {
+        // Forçar redirecionamento
+        window.location.href = "/acessar?logout=true&session_terminated=true";
+      }, 100);
+      
     } catch (error) {
       console.error('Erro durante logout forçado:', error);
       // Mesmo com erro, forçar redirecionamento
-      window.location.href = "/acessar?logout=true";
+      window.location.href = "/acessar?logout=true&session_terminated=true";
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={() => {}}>
-      <DialogContent className="sm:max-w-md" hideCloseButton>
+    <Dialog open={isOpen} onOpenChange={() => {}} modal={true}>
+      <DialogContent className="sm:max-w-md" hideCloseButton data-session-terminated="true">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-orange-600">
             <AlertTriangle className="h-5 w-5" />
@@ -74,6 +133,11 @@ export function SessionTerminatedModal({ isOpen, onClose, message }: SessionTerm
             <p className="text-sm text-slate-500">
               Você será redirecionado para a página de login em {countdown} segundos
             </p>
+            {isLoggingOut && (
+              <p className="text-sm text-blue-600 mt-2">
+                Encerrando sessão...
+              </p>
+            )}
           </div>
 
           <div className="flex justify-center gap-3">
@@ -81,9 +145,10 @@ export function SessionTerminatedModal({ isOpen, onClose, message }: SessionTerm
               onClick={handleLogout}
               className="flex items-center gap-2"
               variant="default"
+              disabled={isLoggingOut}
             >
               <LogOut className="h-4 w-4" />
-              Ir para Login
+              {isLoggingOut ? 'Saindo...' : 'Ir para Login'}
             </Button>
           </div>
         </div>

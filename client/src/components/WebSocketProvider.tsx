@@ -3,6 +3,8 @@ import { useWebSocket } from '@/hooks/useWebSocket';
 import { useToast } from '@/hooks/use-toast';
 import SessionTerminatedModal from '@/components/SessionTerminatedModal';
 import { useAuth } from '@/hooks/use-auth';
+import { useSessionGuard } from '@/hooks/use-session-guard';
+import { queryClient } from '@/lib/queryClient';
 
 // Criar contexto para WebSocket
 interface WebSocketContextProps {
@@ -34,6 +36,9 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
   const [sessionTerminated, setSessionTerminated] = useState(false);
   const [terminationMessage, setTerminationMessage] = useState<string>("");
 
+  // Ativar proteção quando sessão estiver encerrada
+  useSessionGuard(sessionTerminated);
+
   // Atualizar o timestamp sempre que recebermos uma mensagem
   useEffect(() => {
     // Criar uma função para ouvir as mensagens do WebSocket
@@ -59,6 +64,10 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
           console.log('🔒 Sessão atual foi encerrada remotamente - mostrando modal');
           setTerminationMessage(event.detail.message || "Sua sessão foi encerrada por outro usuário");
           setSessionTerminated(true);
+          
+          // Invalidar todas as queries para evitar requisições desnecessárias
+          queryClient.invalidateQueries();
+          queryClient.clear();
         } else {
           console.log('🔒 Outra sessão foi encerrada:', terminatedSessionToken?.substring(0, 8) + '...');
         }
@@ -68,8 +77,21 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
     // Função para ouvir eventos específicos de sessão encerrada
     const handleSessionTerminated = (event: any) => {
       console.log('🔒 Evento session-terminated recebido:', event.detail);
-      setTerminationMessage(event.detail.message || "Sua sessão foi encerrada por outro usuário");
-      setSessionTerminated(true);
+      
+      // Verificar se é a sessão atual
+      const currentSessionToken = localStorage.getItem('sessionToken') || 
+                                 localStorage.getItem('token') || 
+                                 document.cookie.split(';').find(c => c.trim().startsWith('sessionToken='))?.split('=')[1] || 
+                                 '';
+      
+      if (currentSessionToken === event.detail.sessionToken) {
+        setTerminationMessage(event.detail.message || "Sua sessão foi encerrada por outro usuário");
+        setSessionTerminated(true);
+        
+        // Invalidar todas as queries para evitar requisições desnecessárias
+        queryClient.invalidateQueries();
+        queryClient.clear();
+      }
     };
 
     // Adicionar ambos os eventos de escuta
