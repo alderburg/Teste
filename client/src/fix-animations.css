@@ -1,0 +1,54 @@
+/**
+ * Este arquivo CSS tem como objetivo garantir que as animações de spinners
+ * funcionem corretamente em todas as páginas da aplicação, sobrescrevendo
+ * qualquer configuração que as desabilite.
+ */
+
+/* 
+ * Restaura a animação de spin para os elementos com a classe animate-spin
+ * Esta regra tem alta especificidade e !important para garantir que será aplicada
+ */
+.animate-spin {
+  animation: spin 1s linear infinite !important;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Restaura animações específicas para diferentes tipos de spinners */
+.spinner, 
+.loading-spinner,
+[class*="loader"],
+.spinner-border,
+.spinner-grow,
+[class*="loading-"],
+[class*="spinner-"],
+.splash-progress-bar,
+.Loader2 {
+  animation-duration: 1s !important;
+  animation-iteration-count: infinite !important;
+  animation-timing-function: linear !important;
+}
+
+/* Garantir que os spinners específicos do Lucide funcionem */
+.lucide-loader,
+.lucide-loader-2,
+svg[class*="lucide-loader"] {
+  animation: spin 1s linear infinite !important;
+}
+
+/* Garantir que elementos SVG dentro de componentes de loading funcionem */
+button svg[class*="animate-"],
+.loading svg,
+.spinner svg,
+[role="status"] svg {
+  animation-duration: 1s !important;
+  animation-iteration-count: infinite !important;
+  animation-timing-function: linear !important;
+}

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ProdutosNovos>
+  <Produto>
+    <codigo>001</codigo>
+    <descricao>Smartphone Galaxy A50</descricao>
+    <quantidade>1</quantidade>
+    <valorCompra>1200.00</valorCompra>
+  </Produto>
+  <Produto>
+    <codigo>002</codigo>
+    <descricao>Notebook Dell 15"</descricao>
+    <quantidade>1</quantidade>
+    <valorCompra>3500.00</valorCompra>
+  </Produto>
+  <Produto>
+    <codigo>003</codigo>
+    <descricao>Mouse sem fio Logitech</descricao>
+    <quantidade>5</quantidade>
+    <valorCompra>50.00</valorCompra>
+  </Produto>
+  <Produto>
+    <codigo>004</codigo>
+    <descricao>Teclado USB Microsoft</descricao>
+    <quantidade>3</quantidade>
+    <valorCompra>80.00</valorCompra>
+  </Produto>
+  <Produto>
+    <codigo>005</codigo>
+    <descricao>Monitor LG 24"</descricao>
+    <quantidade>2</quantidade>
+    <valorCompra>950.00</valorCompra>
+  </Produto>
+</ProdutosNovos>

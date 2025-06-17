@@ -1,0 +1,105 @@
+/* 
+ * Menu alignment fixes for landing page
+ * Ensures logo is aligned to the left and menu items to the right
+ */
+
+/* Container for the entire header */
+.landing-header .max-w-7xl,
+header .max-w-7xl {
+  width: 100%;
+  display: flex !important;
+  justify-content: space-between !important;
+}
+
+/* Logo container - align fully left */
+.landing-header .flex-shrink-0,
+header .flex-shrink-0 {
+  margin-right: auto !important;
+}
+
+/* Navigation container - align fully right */
+.landing-header .hidden.md\:flex,
+header .hidden.md\:flex {
+  margin-left: auto !important;
+  justify-content: flex-end !important;
+}
+
+/* Ensure the content is properly spaced */
+.landing-header .flex.items-center.justify-between,
+header .flex.items-center.justify-between {
+  width: 100% !important;
+  display: flex !important;
+  justify-content: space-between !important;
+}
+
+/* Mobile menu container alignment */
+.landing-header .md\:hidden,
+header .md\:hidden {
+  margin-left: auto !important;
+}
+
+/* Force proper display for navigation items */
+.landing-header nav,
+header nav {
+  display: flex !important;
+}
+
+/* Menu item spacing */
+.landing-header .hidden.md\:flex a,
+header .hidden.md\:flex a {
+  white-space: nowrap !important;
+}
+
+/* Ensure buttons stay together */
+.landing-header .hidden.md\:flex .flex,
+header .hidden.md\:flex .flex {
+  display: flex !important;
+}
+
+/* Mobile menu popup positioning fixes */
+header [ref="menuRef"],
+.landing-header [ref="menuRef"] {
+  position: absolute !important;
+  right: 50% !important;
+  transform: translateX(50%) !important;
+  top: 64px !important;
+  width: calc(100% - 32px) !important;
+  max-width: 300px !important;
+  z-index: 100 !important;
+  background-color: white !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  margin: 0 auto !important;
+}
+
+/* Mobile menu items alignment */
+header [ref="menuRef"] a,
+.landing-header [ref="menuRef"] a {
+  display: block !important;
+  text-align: left !important;
+  width: 100% !important;
+  padding: 10px 16px !important;
+}
+
+/* Mobile menu button spacing and alignment */
+header [ref="menuRef"] .mt-3,
+.landing-header [ref="menuRef"] .mt-3 {
+  margin-top: 12px !important;
+  padding: 8px 16px !important;
+}
+
+/* Style for mobile menu buttons container */
+header [ref="menuRef"] .space-y-2,
+.landing-header [ref="menuRef"] .space-y-2 {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+}
+
+/* Individual buttons in mobile menu */
+header [ref="menuRef"] button,
+.landing-header [ref="menuRef"] button {
+  width: 100% !important;
+  justify-content: center !important;
+  text-align: center !important;
+}

@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
+  <meta name="description" content="Portal de Login Meu Preço Certo" />
+  <title>Meu Preço Certo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Script para evitar piscadas na tela de cadastro mobile - carregado condicionalmente -->
+  <script>
+    // Carregar o script apenas na página de cadastro mobile
+    if (window.location.pathname === '/cadastre-se' || window.location.pathname === '/m/signup') {
+      const script = document.createElement('script');
+      script.src = '/src/pages/login/stop-flickering.js';
+      document.head.appendChild(script);
+    }
+  </script>
+  
+  <style>
+    /* Estilo básico para o corpo */
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+      background-color: white; /* Fundo branco para combinar com o splash screen */
+    }
+    
+    /* Regras críticas para prevenir que elementos desapareçam em modais */
+    body[aria-hidden="true"],
+    body[data-state="open"],
+    body.dialog-open {
+      position: static !important;
+      overflow: auto !important;
+      width: 100% !important;
+      height: auto !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      padding-right: 0 !important; /* Corrige o problema de padding lateral */
+    }
+    
+    /* Não ocultar o root, apenas configurar a transição */
+    #root {
+      opacity: 1;
+      transition: opacity 0.1s ease-in;
+      visibility: visible !important;
+    }
+    
+    /* Regra para preservar a visibilidade do menu e cabeçalho */
+    body > div#root > div > header,
+    body > div#root > div > nav,
+    body > div#root > div > aside,
+    body > div#root > div > main,
+    body > div#root > div > div.sidebar {
+      visibility: visible !important;
+      opacity: 1 !important;
+      display: flex !important;
+    }
+    
+    /* Inicialmente ocultamos o menu em dispositivos móveis */
+    @media (max-width: 768px) {
+      .sidebar {
+        display: none !important;
+      }
+      
+      /* Quando o menu for aberto, esta classe será adicionada pelo React */
+      .sidebar.sidebar-open {
+        display: block !important;
+      }
+      
+      /* Ajustes adicionais para telas pequenas */
+      body {
+        font-size: 14px;
+      }
+      
+      table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+      }
+    }
+    
+    /* Estilo para o splash screen - restaurado do original */
+    #splash-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      background-color: #f5f7fa;
+      z-index: 9999;
+      opacity: 1;
+      transition: opacity 0.5s ease-out;
+      padding: 20px;
+      box-sizing: border-box;
+      background-image: linear-gradient(to bottom, #f8fafc, #f1f5f9);
+    }
+    
+    /* Container para os elementos de texto do splash */
+    .splash-content {
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s ease-in;
+    }
+    
+    /* Estilos para a animação de cursor */
+    @keyframes blink-cursor {
+      from, to { border-color: transparent; }
+      50% { border-color: #0e4c92; }
+    }
+    
+    #splash-screen.hidden {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.8s ease-out; /* Transição mais suave */
+    }
+    
+    /* Pulsação para logo do splash */
+    .splash-logo {
+      width: 240px; /* Aumentado de 180px para 240px */
+      margin-bottom: 2rem;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0% {
+        transform: scale(1);
+        opacity: 1;
+      }
+      50% {
+        transform: scale(1.05);
+        opacity: 0.9;
+      }
+      100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+    
+    /* Animação para o cursor piscando */
+    @keyframes blink-cursor {
+      from, to { border-right-color: transparent }
+      50% { border-right-color: #0e4c92 }
+    }
+    
+    /* Texto do splash */
+    .splash-text {
+      color: #0e4c92;
+      margin-top: 10px;
+      font-size: 20px; /* Aumentado de 16px para 20px */
+      font-weight: 600; /* Aumentado de 500 para 600 */
+      text-align: center;
+      min-height: 60px; /* Garantir espaço para o texto sendo digitado mesmo com quebra de linha */
+      display: block; /* Alterado para block para garantir centralização consistente */
+      width: 320px; /* Largura fixa para corresponder à largura da barra de progresso */
+      margin-left: auto;
+      margin-right: auto;
+      white-space: normal; /* Permite quebra de linha */
+      word-wrap: break-word; /* Quebra palavras longas */
+      word-break: keep-all; /* Não quebra palavras no meio */
+      line-height: 1.5; /* Espaçamento entre linhas */
+      position: relative; /* Para posicionamento absoluto do cursor */
+    }
+    
+    /* Configuração para quebra de linha na versão mobile */
+    @media (max-width: 768px) {
+      .splash-text {
+        white-space: pre-wrap; /* Preserva as quebras de linha \n */
+      }
+    }
+    
+    /* Estilo específico para o efeito de digitação */
+    .typing-effect {
+      display: inline-block;
+      overflow: hidden;
+      border-right: .15em solid #0e4c92; /* Cursor piscando */
+      white-space: nowrap;
+      margin: 0 auto;
+      animation: typing 3.5s steps(40, end), blink-caret .75s step-end infinite;
+    }
+    
+    /* Status do splash */
+    .splash-status {
+      margin-top: 8px;
+      font-size: 14px;
+      color: #64748b;
+      min-height: 20px;
+    }
+    
+    /* Barra de progresso */
+    .splash-progress {
+      width: 320px; /* Aumentado de 280px para 320px para corresponder ao logo maior */
+      height: 6px; /* Aumentado de 4px para 6px para melhor visibilidade */
+      background-color: #e2e8f0;
+      border-radius: 3px; /* Ajustado para 3px */
+      margin: 20px 0; /* Aumentado de 16px para 20px */
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1); /* Adicionado sombra suave */
+    }
+    
+    .splash-progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #0e4c92, #0080ff);
+      border-radius: 3px; /* Ajustado para 3px */
+      animation: loading 3s ease-in-out infinite; /* Tempo aumentado para 3s */
+    }
+    
+    @keyframes loading {
+      0% { width: 0%; }
+      50% { width: 70%; }
+      100% { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Splash screen original restaurado -->
+  <div id="splash-screen">
+    <img class="splash-logo" src="/images/webp/negativoo.webp" alt="Meu Preço Certo" onload="showSplashContent()" />
+    <div class="splash-content">
+      <div class="splash-text">Preparando tudo para você...</div>
+      <div class="splash-progress">
+        <div class="splash-progress-bar"></div>
+      </div>
+      <div class="splash-status"></div>
+    </div>
+  </div>
+  
+  <div id="root"></div>
+  
+  <!-- Script para controlar a exibição do conteúdo do splash -->
+  <script>
+    // Flag para controlar se a imagem já foi carregada
+    window.splashImageLoaded = false;
+    
+    function showSplashContent() {
+      // Marca a imagem como carregada
+      window.splashImageLoaded = true;
+      
+      // Função que será chamada quando a imagem terminar de carregar
+      const splashContent = document.querySelector('.splash-content');
+      if (splashContent) {
+        // Pequeno atraso para garantir que a transição seja suave
+        setTimeout(() => {
+          // Exibir diretamente o conteúdo definindo os estilos
+          splashContent.style.visibility = 'visible';
+          splashContent.style.opacity = '1';
+        }, 100);
+      }
+    }
+    
+    // Adicionar um safety fallback caso a imagem já esteja em cache
+    // e o evento onload não dispare normalmente
+    document.addEventListener('DOMContentLoaded', function() {
+      setTimeout(() => {
+        if (!window.splashImageLoaded) {
+          console.log('Fallback: Imagem do splash parece já estar em cache, mostrando conteúdo');
+          showSplashContent();
+        }
+      }, 300);
+    });
+    
+    // Fallback extra para garantir que o conteúdo sempre apareça
+    window.addEventListener('load', function() {
+      setTimeout(() => {
+        const splashContent = document.querySelector('.splash-content');
+        if (splashContent && (splashContent.style.opacity !== '1' || splashContent.style.visibility !== 'visible')) {
+          console.log('Fallback final: Garantindo que o conteúdo do splash seja exibido');
+          splashContent.style.visibility = 'visible';
+          splashContent.style.opacity = '1';
+        }
+      }, 500);
+    });
+  </script>
+  
+  <script type="module" src="/src/main.tsx"></script>
+  
+  <script>
+    // Variáveis para controle do splash screen
+    let splashRemoved = false;
+    const pageLoadStartTime = performance.now();
+    
+    // Função para remover o splash screen
+    function hideSplash() {
+      if (splashRemoved) return;
+      
+      // Verificar se estamos na landing page e se o conteúdo da página já está carregado
+      if (isLandingPage) {
+        const rootContent = document.getElementById('root');
+        const mainContent = rootContent ? rootContent.querySelector('main') : null;
+        const headerContent = rootContent ? rootContent.querySelector('header') : null;
+        const anySection = rootContent ? rootContent.querySelector('section') : null;
+        const navContent = rootContent ? rootContent.querySelector('nav') : null;
+        const landingLogo = rootContent ? rootContent.querySelector('img[src*="logo"]') : null;
+        
+        // Verificamos por qualquer elemento da página que indique que a landing page está carregada
+        if (!headerContent && !anySection && !navContent && !landingLogo) {
+          console.log("Conteúdo principal da landing page ainda não detectado, aguardando...");
+          // Aguardar mais tempo para a primeira detecção de conteúdo
+          setTimeout(hideSplash, 300); // Verificar novamente em 300ms
+          return;
+        } else {
+          // Encontramos conteúdo, mas vamos dar mais um tempo para que ele seja completamente carregado
+          console.log("Conteúdo da landing page detectado, aguardando renderização completa...");
+          setTimeout(() => {
+            console.log("Renderização completa, removendo splash");
+            // Continuar com a remoção do splash
+            splashRemoved = true;
+            const splash = document.getElementById('splash-screen');
+            if (splash) {
+              splash.classList.add('hidden');
+              const removeTime = performance.now();
+              console.log(`[⏱️ Performance] Splash screen exibido por: ${(removeTime - pageLoadStartTime).toFixed(2)}ms`);
+            }
+          }, 500);
+        }
+      }
+      
+      const splash = document.getElementById('splash-screen');
+      if (splash) {
+        const removeTime = performance.now();
+        console.log(`[⏱️ Performance] Splash screen exibido por: ${(removeTime - pageLoadStartTime).toFixed(2)}ms`);
+        
+        // Adicionar classe para desaparecer com animação
+        splash.classList.add('hidden');
+        
+        // Limpar flags de logout após mostrar splash
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('logout') === 'true' || 
+            params.get('fromdirectlogout') === 'true' ||
+            sessionStorage.getItem('isLogoutRedirect') === 'true') {
+          
+          console.log("Limpando flags de logout após exibição do splash");
+          // Limpar parâmetros da URL
+          if (params.has('logout') || params.has('fromdirectlogout')) {
+            const cleanUrl = window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
+          }
+          
+          // Limpar sessionStorage
+          sessionStorage.removeItem('isLogoutRedirect');
+          sessionStorage.removeItem('noSplashAfterLogout');
+        }
+        
+        // Remover completamente após a animação
+        setTimeout(() => {
+          splash.remove();
+          const completeRemoveTime = performance.now();
+          console.log(`[⏱️ Performance] Splash screen completamente removido em: ${(completeRemoveTime - removeTime).toFixed(2)}ms`);
+        }, 300);
+        
+        // Marcar como removido
+        splashRemoved = true;
+      }
+    }
+    
+    // Exportar função de remoção para o escopo global
+    window.hideSplashScreen = hideSplash;
+    
+    // Verificar se veio de logout ou está na landing page
+    const params = new URLSearchParams(window.location.search);
+    const pathname = window.location.pathname;
+    const isLandingPage = pathname === '/' || pathname === '/home' || pathname === '/landing' || pathname.includes('/landing');
+    const isLoginPage = pathname === '/acessar';
+    const isSignupPage = pathname === '/cadastre-se';
+    const isRecoverPage = pathname === '/recuperar';
+    
+    // Verificar se há 2FA pendente na sessão e redirecionar se necessário
+    const check2FAStatus = async () => {
+      try {
+        const response = await fetch('/api/auth/2fa/status');
+        const data = await response.json();
+        
+        if (data && data.authenticated && data.twoFactorEnabled && !data.twoFactorVerified && data.requiresVerification) {
+          console.log("🔒 2FA pendente detectado no carregamento da página. Redirecionando...");
+          window.location.href = '/verificar-2fa';
+          return true;
+        }
+      } catch (error) {
+        console.log("Erro ao verificar status 2FA:", error);
+      }
+      return false;
+    };
+    
+    // Verificar 2FA se estiver na página de login, cadastro ou recuperação
+    // e interromper o splash se for redirecionar
+    if (isLoginPage || isSignupPage || isRecoverPage) {
+      // Vamos suspender a exibição de textos no splash até confirmar se vai redirecionar
+      const splashElement = document.getElementById('splash-screen');
+      const splashText = document.querySelector('.splash-text');
+      const originalText = splashText ? splashText.textContent : '';
+      
+      if (splashText) {
+        splashText.textContent = 'Verificando autenticação...';
+      }
+      
+      // Verificamos 2FA antes de continuar
+      (async () => {
+        const needs2FA = await check2FAStatus();
+        if (!needs2FA) {
+          // Se não precisar redirecionar, restaura o texto original
+          if (splashText) {
+            splashText.textContent = originalText;
+          }
+        } else {
+          // Se vai redirecionar, remover o splash para evitar duplicidade
+          if (splashElement) {
+            splashElement.remove();
+          }
+        }
+      })();
+    }
+    
+    let isLogout = params.get('logout') === 'true' || 
+                  params.get('fromdirectlogout') === 'true' ||
+                  sessionStorage.getItem('isLogoutRedirect') === 'true' ||
+                  sessionStorage.getItem('noSplashAfterLogout') === 'true';
+                  
+    // Gerenciar o estado da sessão para a landing page
+    if (isLandingPage) {
+      // Limpar qualquer estado de sessão anterior para garantir que 
+      // o splash da landing page seja mostrado corretamente
+      sessionStorage.removeItem('landingPageSplashShown');
+      sessionStorage.removeItem('landingPageShowingSplash');
+      
+      // Vamos sempre mostrar o splash na landing page,
+      // ignorando se já foi mostrado anteriormente
+      console.log("Landing page detectada - sempre mostrando o splash");
+    }
+    
+    // Verificação adicional para depuração
+    console.log("Verificando página e flags:", {
+      isLandingPage: isLandingPage,
+      pathname: pathname,
+      urlLogout: params.get('logout') === 'true',
+      urlFromDirectLogout: params.get('fromdirectlogout') === 'true',
+      sessionIsLogoutRedirect: sessionStorage.getItem('isLogoutRedirect') === 'true',
+      sessionNoSplashAfterLogout: sessionStorage.getItem('noSplashAfterLogout') === 'true'
+    });
+    
+    // Atualizar texto principal do splash
+    const splashText = document.querySelector('.splash-text');
+    if (splashText) {
+      // Verificar se estamos na página de verificação 2FA OU se há uma verificação 2FA pendente
+      const is2FAVerifyPage = pathname === '/verificar-2fa';
+      const has2FAPending = localStorage.getItem('pendingTwoFactor') === 'true';
+      
+      // Se estamos na página de verificação 2FA ou temos 2FA pendente durante login/cadastro
+      if (is2FAVerifyPage || has2FAPending) {
+        // Array de mensagens alternativas para 2FA
+        const mensagens2FA = [
+          'Verificação de segurança necessária...',
+          'Protegendo sua conta com autenticação adicional...',
+          'Aguardando código de verificação...',
+          'Sistema de proteção avançada ativado...',
+          'Verificação de identidade em andamento...',
+          'Segurança em dobro para sua tranquilidade...',
+          'Confirmando que é realmente você...'
+        ];
+        
+        // Índice inicial aleatório
+        let mensagemIndex = Math.floor(Math.random() * mensagens2FA.length);
+        
+        // Função para alternar mensagens com efeito de fade
+        const alternarMensagens = () => {
+          // Aplicar efeito de fade out
+          splashText.style.opacity = '0';
+          
+          setTimeout(() => {
+            // Mudar para próxima mensagem
+            mensagemIndex = (mensagemIndex + 1) % mensagens2FA.length;
+            splashText.textContent = mensagens2FA[mensagemIndex];
+            
+            // Aplicar efeito de fade in
+            splashText.style.opacity = '1';
+          }, 500); // 500ms para o fade out
+        };
+        
+        // Definir mensagem inicial
+        splashText.textContent = mensagens2FA[mensagemIndex];
+        splashText.style.transition = 'opacity 0.5s ease';
+        
+        // Alternar mensagens a cada 4 segundos
+        const intervaloMensagens = setInterval(alternarMensagens, 4000);
+        
+        // Limpar intervalo quando o splash for removido
+        window.addEventListener('beforeunload', () => clearInterval(intervaloMensagens));
+        
+        console.log("Detectada necessidade de verificação 2FA - alterando texto do splash com animação");
+      } else if (isLogout) {
+        splashText.textContent = 'Finalizando sua sessão...';
+        console.log("Detectado logout - alterando texto do splash");
+      } else if (isLoginPage) {
+        // Verificar se foi um redirecionamento explícito da landing
+        let redirecionado = false;
+        try {
+          redirecionado = localStorage.getItem('splashRedirectType') === 'login';
+          if (redirecionado) {
+            console.log("Detectado redirecionamento específico para login");
+            localStorage.removeItem('splashRedirectType');
+          }
+        } catch (e) {
+          console.error("Erro ao verificar redirecionamento de login:", e);
+        }
+        
+        // Array de mensagens para tela de login
+        const mensagensLogin = [
+          'Estou te transferindo para tela de login...',
+          'Preparando ambiente de acesso seguro...',
+          'Configurando formulário de acesso...',
+          'Carregando área de login...',
+          'Aguarde enquanto preparamos tudo...'
+        ];
+        
+        // Índice inicial aleatório
+        let mensagemIndex = Math.floor(Math.random() * mensagensLogin.length);
+        splashText.textContent = mensagensLogin[mensagemIndex];
+        splashText.style.transition = 'opacity 0.5s ease';
+        
+        console.log("Detectada página de login - mostrando mensagens prolongadas");
+        
+        // Não alternar mensagens tão rapidamente para login - só a cada 5 segundos
+        const intervaloLogin = setInterval(() => {
+          splashText.style.opacity = '0';
+          
+          setTimeout(() => {
+            mensagemIndex = (mensagemIndex + 1) % mensagensLogin.length;
+            splashText.textContent = mensagensLogin[mensagemIndex];
+            splashText.style.opacity = '1';
+          }, 500);
+        }, 5000);
+        
+        // Limpar intervalo quando o splash for removido
+        window.addEventListener('beforeunload', () => clearInterval(intervaloLogin));
+        
+      } else if (isSignupPage) {
+        // Verificar se foi um redirecionamento explícito da landing
+        let redirecionado = false;
+        try {
+          redirecionado = localStorage.getItem('splashRedirectType') === 'cadastro';
+          if (redirecionado) {
+            console.log("Detectado redirecionamento específico para cadastro");
+            localStorage.removeItem('splashRedirectType');
+          }
+        } catch (e) {
+          console.error("Erro ao verificar redirecionamento de cadastro:", e);
+        }
+        
+        // Array de mensagens para tela de cadastro
+        const mensagensCadastro = [
+          'Estou te transferindo para tela de cadastro...',
+          'Preparando formulário de registro...',
+          'Configurando ambiente para novo cadastro...',
+          'Carregando assistente de cadastro...',
+          'Preparando para sua nova conta...',
+          'Criando sua experiência de cadastro...',
+          'Preparando ambiente seguro para cadastro...'
+        ];
+        
+        // Índice inicial aleatório
+        let mensagemIndex = Math.floor(Math.random() * mensagensCadastro.length);
+        splashText.textContent = mensagensCadastro[mensagemIndex];
+        splashText.style.transition = 'opacity 0.5s ease';
+        
+        console.log("Detectada página de cadastro - mostrando mensagens prolongadas");
+        
+        // Não alternar mensagens tão rapidamente para cadastro - só a cada 5 segundos
+        const intervaloCadastro = setInterval(() => {
+          splashText.style.opacity = '0';
+          
+          setTimeout(() => {
+            mensagemIndex = (mensagemIndex + 1) % mensagensCadastro.length;
+            splashText.textContent = mensagensCadastro[mensagemIndex];
+            splashText.style.opacity = '1';
+          }, 500);
+        }, 5000);
+        
+        // Limpar intervalo quando o splash for removido
+        window.addEventListener('beforeunload', () => clearInterval(intervaloCadastro));
+        
+      } else if (isRecoverPage) {
+        // Verificar se foi um redirecionamento explícito
+        let redirecionado = false;
+        try {
+          redirecionado = localStorage.getItem('splashRedirectType') === 'recuperar';
+          if (redirecionado) {
+            console.log("Detectado redirecionamento específico para recuperação");
+            localStorage.removeItem('splashRedirectType');
+          }
+        } catch (e) {
+          console.error("Erro ao verificar redirecionamento de recuperação:", e);
+        }
+        
+        // Array de mensagens para recuperação
+        const mensagensRecuperar = [
+          'Estou te transferindo para tela de recuperação...',
+          'Preparando sistema de recuperação de conta...',
+          'Configurando ferramentas de segurança...',
+          'Carregando assistente de recuperação...',
+          'Inicializando processo de recuperação...',
+          'Configurando ambiente seguro para recuperação...',
+          'Preparando sistema para restaurar seu acesso...',
+          'Montando assistente de recuperação de senha...'
+        ];
+        
+        // Índice inicial aleatório
+        let mensagemIndex = Math.floor(Math.random() * mensagensRecuperar.length);
+        splashText.textContent = mensagensRecuperar[mensagemIndex];
+        splashText.style.transition = 'opacity 0.5s ease';
+        
+        console.log("Detectada página de recuperação - mostrando mensagens prolongadas");
+        
+        // Não alternar mensagens tão rapidamente para recuperação - só a cada 5 segundos
+        const intervaloRecuperar = setInterval(() => {
+          splashText.style.opacity = '0';
+          
+          setTimeout(() => {
+            mensagemIndex = (mensagemIndex + 1) % mensagensRecuperar.length;
+            splashText.textContent = mensagensRecuperar[mensagemIndex];
+            splashText.style.opacity = '1';
+          }, 500);
+        }, 5000);
+        
+        // Limpar intervalo quando o splash for removido
+        window.addEventListener('beforeunload', () => clearInterval(intervaloRecuperar));
+      } else if (isLandingPage) {
+        // Para landing page, vamos adicionar um efeito de digitação
+        const textToType = 'O melhor preço começa\ncom o preço certo';
+        splashText.textContent = ''; // Começar com texto vazio
+        
+        // Função para simular efeito de digitação
+        // Abordagem melhorada para o efeito de digitação
+        function typeEffect(text, element, i = 0) {
+          if (i < text.length) {
+            // Atualiza o texto
+            element.textContent = text.substring(0, i+1);
+            
+            // Configura o container para permitir quebra de linha nos pontos específicos definidos pelo \n
+            // Configura o container para permitir apenas uma quebra de linha
+            element.style.display = 'block';
+            element.style.width = '250px'; // Largura fixa para controlar quebra
+            element.style.width = '280px'; // Largura fixa para garantir apenas uma quebra
+            element.style.margin = '0 auto';
+            element.style.whiteSpace = 'pre-wrap'; // Preserva quebras de linha \n
+            element.style.overflowWrap = 'normal'; // Evita quebras de palavras
+            element.style.overflow = 'hidden'; // Previne expansão desnecessária
+            element.style.textAlign = 'center';
+            element.style.lineHeight = '1.3'; // Diminui espaçamento entre linhas
+            
+            // Um pseudo-elemento para o cursor que funciona em todas as linhas
+            const cursor = document.createElement('span');
+            cursor.style.display = 'inline-block';
+            cursor.style.width = '2px';
+            cursor.style.height = '1em'; // Altura menor para não ultrapassar a linha
+            cursor.style.backgroundColor = '#0e4c92';
+            cursor.style.verticalAlign = 'middle';
+            cursor.style.marginLeft = '2px';
+            cursor.style.position = 'relative'; // Posicionamento relativo
+            cursor.style.top = '0px'; // Alinhamento com o texto
+            cursor.style.animation = 'blink-cursor 0.7s step-end infinite';
+            cursor.id = 'typing-cursor';
+            
+            // Adiciona o cursor após o texto atual
+            element.appendChild(cursor);
+            
+            // Continua a digitação
+            setTimeout(() => typeEffect(text, element, i + 1), 45);
+          } else {
+            // Quando terminar de digitar, remove o cursor imediatamente e adiciona o ponto
+            // Remove o cursor imediatamente
+            const cursor = document.getElementById('typing-cursor');
+            if (cursor) {
+              cursor.remove();
+            }
+            
+            // Adiciona o ponto de exclamação no texto
+            element.textContent = element.textContent + '!';
+            element.style.textAlign = 'center';
+            
+            console.log("Digitação completa, cursor removido");
+          }
+        }
+        
+        // Iniciar o efeito de digitação após um pequeno delay
+        setTimeout(() => {
+          typeEffect(textToType, splashText);
+        }, 300);
+        
+        console.log("Detectada landing page - iniciando efeito de digitação no texto");
+      }
+    }
+                    
+    // Definir mensagens com base no contexto
+    const loadingMessages = isLogout ? [
+      "Encerrando sessão...",
+      "Limpando dados temporários...",
+      "Finalizando conexões...",
+      "Sessão encerrada com sucesso!"
+    ] : isLoginPage ? [
+      "Preparando área de acesso...",
+      "Carregando formulário de login...",
+      "Configurando autenticação...",
+      "Quase pronto para o acesso..."
+    ] : isSignupPage ? [
+      "Preparando formulário de cadastro...",
+      "Configurando validações...",
+      "Estabelecendo conexão segura...",
+      "Quase pronto para o cadastro..."
+    ] : isRecoverPage ? [
+      "Preparando sistema de recuperação...",
+      "Configurando validações de segurança...",
+      "Preparando envio de instruções...",
+      "Quase pronto para recuperar sua senha..."
+    ] : isLandingPage ? [
+      // Para a landing page, não mostramos mensagens rotativas
+      ""
+    ] : [
+      "Conectando ao banco de dados...",
+      "Carregando interface...",
+      "Preparando componentes...",
+      "Configurando recursos...",
+      "Carregando módulos...",
+      "Quase pronto...",
+      "Iniciando aplicação..."
+    ];
+
+    // Exibir a primeira mensagem imediatamente (ou deixar vazio para landing page)
+    const statusElement = document.querySelector('.splash-status');
+    const progressElement = document.querySelector('.splash-progress');
+    
+    if (statusElement) {
+      statusElement.textContent = loadingMessages[0];
+      // Esconder completamente o elemento de status na landing page
+      if (isLandingPage) {
+        statusElement.style.display = 'none';
+        // Também esconder a barra de progresso na landing page
+        if (progressElement) {
+          progressElement.style.display = 'none';
+        }
+      }
+    }
+
+    // Se for logout, atualizar as mensagens mais rapidamente
+    const messageInterval = isLogout ? 800 : 700;
+    
+    // Função para atualizar a mensagem de status
+    let messageIndex = 0;
+    function updateStatusMessage() {
+      const statusElement = document.querySelector('.splash-status');
+      if (statusElement && messageIndex < loadingMessages.length && !isLandingPage) {
+        statusElement.textContent = loadingMessages[messageIndex];
+        messageIndex++;
+        
+        if (messageIndex >= loadingMessages.length) {
+          messageIndex = 0; // Volta ao início se necessário
+        }
+      }
+    }
+    
+    // Iniciar a exibição das mensagens (exceto na landing page)
+    if (!isLandingPage) {
+      updateStatusMessage();
+      var messageTimer = setInterval(updateStatusMessage, 800);
+    } else {
+      console.log("Não exibindo mensagens rotativas na landing page");
+      var messageTimer = null; // Nenhum timer para landing page
+    }
+    
+    // Função para verificar se o conteúdo da página já está pronto
+    function checkContent() {
+      const root = document.getElementById('root');
+      if (root) {
+        // Verificar se o header já está carregado (um bom indicador de conteúdo)
+        const header = root.querySelector('header');
+        if (header) {
+          const headerTime = performance.now();
+          console.log(`[⏱️ Performance] Header detectado em: ${(headerTime - pageLoadStartTime).toFixed(2)}ms`);
+          console.log(`[⏱️ Performance] Tornando o conteúdo principal visível`);
+          console.log(`[⏱️ Performance] Header encontrado, removendo splash definitivamente`);
+          // Parar a rotação de mensagens
+          clearInterval(messageInterval);
+          hideSplash();
+          return true;
+        }
+        
+        // Verificar se temos a primeira seção carregada
+        const mainSection = root.querySelector('main section:first-child');
+        if (mainSection) {
+          const contentTime = performance.now();
+          console.log(`[⏱️ Performance] Conteúdo detectado após: ${(contentTime - pageLoadStartTime).toFixed(2)}ms`);
+          console.log(`[⏱️ Performance] Elementos chave carregados: header primeira seção`);
+          console.log(`[⏱️ Performance] Conteúdo visível, iniciando remoção do splash`);
+          // Parar a rotação de mensagens
+          clearInterval(messageInterval);
+          hideSplash();
+          
+          return true;
+        }
+        
+        // Verificação alternativa baseada em elementos visíveis
+        const visibleElements = root.querySelectorAll('div:not([style*="display:none"]):not([style*="display: none"]):not([style*="visibility:hidden"]):not([style*="visibility: hidden"])');
+        
+        if (visibleElements.length > 1) {
+          const contentTime = performance.now();
+          console.log(`[⏱️ Performance] Elementos visíveis detectados após: ${(contentTime - pageLoadStartTime).toFixed(2)}ms`);
+          console.log(`[⏱️ Performance] Total de elementos visíveis: ${visibleElements.length}`);
+          
+          // Removemos o splash imediatamente
+          console.log("[⏱️ Performance] Conteúdo visível, iniciando remoção do splash");
+          // Parar a rotação de mensagens
+          clearInterval(messageInterval);
+          hideSplash();
+          
+          return true;
+        }
+      }
+      return false;
+    }
+    
+    // Verificar se estamos em processo de logout
+    // Evitamos verificar window.LOGOUT_IN_PROGRESS diretamente para evitar erros
+    
+    // Ajustar tempos baseado no tipo de operação
+    const checkInterval = isLogout ? 100 : isLandingPage ? 50 : 25; // Mais lento para logout, médio para landing
+    // Definir tempos de timeout personalizados por tipo de página
+    let timeoutDuration = 10000; // Padrão (10 segundos)
+    
+    // Verificar se estamos na página de verificação 2FA
+    const is2FAVerifyPage = pathname === '/verificar-2fa';
+    
+    // Removemos esta verificação global para evitar problemas
+    // A verificação específica será feita dentro de cada seção para maior segurança
+    
+    if (isLogout) {
+      timeoutDuration = 3000; // Logout (3 segundos)
+    } else if (isLandingPage) {
+      timeoutDuration = 5000; // Landing page (5 segundos)
+    } else if (isLoginPage) {
+      timeoutDuration = 18000; // Login (18 segundos - bem mais tempo)
+    } else if (isSignupPage) {
+      timeoutDuration = 18000; // Cadastro (18 segundos - bem mais tempo)
+    } else if (isRecoverPage) {
+      timeoutDuration = 15000; // Recuperação (15 segundos)
+    } else if (is2FAVerifyPage) {
+      timeoutDuration = 15000; // Verificação 2FA (15 segundos)
+    }
+    
+    console.log(`Configurando verificação de conteúdo a cada ${checkInterval}ms e timeout de ${timeoutDuration}ms`);
+    console.log(`Status de logout: ${isLogout ? 'Sim' : 'Não'}, Landing page: ${isLandingPage ? 'Sim' : 'Não'}`);
+    
+    // Tempos mínimos específicos para cada contexto
+    if (isLogout) {
+      console.log("Detectado processo de logout - exibindo splash por tempo mínimo de 1.5s");
+      setTimeout(() => {
+        console.log("Tempo mínimo para exibição do splash de logout atingido");
+      }, 1500);
+    } else if (isLandingPage) {
+      console.log("Detectada landing page - exibindo splash por tempo fixo de 5s");
+      
+      // Para landing page vamos verificar se o conteúdo já está carregado
+      let landingPageContentCheckerInterval = setInterval(() => {
+        const root = document.getElementById('root');
+        
+        // Verificamos se a landing page já está carregada verificando se existem elementos visíveis
+        if (root && root.children.length > 0) {
+          // Verificamos qualquer elemento principal da página
+          const anyContent = document.querySelector('.landing-hero') || 
+                            document.querySelector('main') || 
+                            document.querySelector('section') || 
+                            document.querySelector('header') ||
+                            document.querySelector('nav');
+          
+          // Se qualquer um desses elementos estiver presente, podemos considerar que a página está carregando
+          if (anyContent) {
+            console.log("Conteúdo da landing page detectado, preparando para remover splash");
+            
+            console.log("Elemento encontrado:", anyContent.tagName || anyContent.className);
+            
+            // Aguardamos um tempo maior para garantir que o restante da página seja carregado
+            // Isso evita a tela em branco entre o splash e o conteúdo
+            setTimeout(() => {
+              console.log("Removendo splash da landing page após carregamento do conteúdo");
+              // Neste ponto, a página deve estar visualmente pronta para ser mostrada
+              hideSplash();
+              clearInterval(landingPageContentCheckerInterval);
+            }, 800);
+          }
+        }
+      }, 200); // Verificar a cada 200ms
+      
+      // Timeout de segurança para a landing page - caso o conteúdo demore muito
+      setTimeout(() => {
+        if (landingPageContentCheckerInterval) {
+          clearInterval(landingPageContentCheckerInterval);
+          console.log("Timeout da landing page atingido, removendo splash");
+          hideSplash();
+        }
+      }, 8000); // Máximo de 8 segundos
+      
+      // Desativamos a verificação do conteúdo para a landing page
+      // para garantir que o splash seja exibido pelo tempo completo
+      sessionStorage.setItem('landingPageShowingSplash', 'true');
+    }
+    
+    // Verificar periodicamente se o conteúdo existe
+    const contentCheckInterval = setInterval(function() {
+      // Para logout: não remover o splash automaticamente pelo conteúdo
+      // Para landing page: NUNCA removemos por detecção de conteúdo
+      
+      // Verificar conteúdo apenas se não for logout e não for landing page
+      if (!isLogout && !isLandingPage && checkContent()) {
+        // Para páginas normais (não landing page, não logout)
+        // podemos remover o splash quando o conteúdo estiver pronto
+        console.log("Conteúdo detectado, removendo splash screen");
+        clearInterval(contentCheckInterval);
+        hideSplash();
+      }
+    }, checkInterval);
+    
+    // Timeout de segurança para remover o splash após um tempo máximo
+    // Para a landing page, não usamos o timeout de segurança pois queremos
+    // controlar o tempo de exibição com precisão
+    if (!isLandingPage) {
+      setTimeout(function() {
+        const timeoutTime = performance.now();
+        console.log(`[⏱️ Performance] Timeout de segurança atingido após: ${(timeoutTime - pageLoadStartTime).toFixed(2)}ms`);
+        console.log(`Timeout de segurança atingido, removendo splash`);
+        // Parar o intervalo de mensagens ao atingir o timeout
+        if (typeof messageInterval !== 'undefined') {
+          clearInterval(messageInterval);
+        }
+        hideSplash();
+      }, timeoutDuration);
+    } else {
+      console.log("Landing page - não usando timeout de segurança");
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,449 @@
+/* Personalização dos componentes Shadcn para a Landing Page */
+
+/* SOLUÇÃO COMPLETA PARA PROBLEMAS DE VISIBILIDADE EM MODAIS */
+/* Estas regras previnem que elementos desapareçam quando diálogos são abertos */
+
+/* 1. Garantir que o body mantenha seu estilo quando modais são abertos */
+body:has([role="dialog"][data-state="open"]), 
+body:has([role="alertdialog"][data-state="open"]),
+body:has([data-state="open"]),
+body.calculando-ativo,
+body[aria-hidden="true"] {
+  visibility: visible !important;
+  opacity: 1 !important;
+  padding-right: 0 !important;
+  overflow-y: auto !important;
+  height: auto !important;
+}
+
+/* 2. Preservar o menu principal da landing page - sem forçar estilos visuais */
+header,
+.header,
+nav.navbar,
+.landing-nav,
+.top-nav,
+.landing-header {
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* 3. Forçar todas as seções a permanecerem visíveis quando diálogos estão abertos */
+body:has([role="dialog"][data-state="open"]) section,
+body:has([role="dialog"][data-state="open"]) header,
+body:has([role="dialog"][data-state="open"]) footer,
+body:has([role="dialog"][data-state="open"]) main,
+body:has([role="alertdialog"][data-state="open"]) section,
+body:has([role="alertdialog"][data-state="open"]) header,
+body:has([role="alertdialog"][data-state="open"]) footer,
+body:has([role="alertdialog"][data-state="open"]) main,
+body.calculando-ativo section,
+body.calculando-ativo header,
+body.calculando-ativo footer,
+body.calculando-ativo main,
+body[aria-hidden="true"] section,
+body[aria-hidden="true"] header,
+body[aria-hidden="true"] footer,
+body[aria-hidden="true"] main {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+  background-color: inherit !important;
+  background-image: inherit !important;
+  z-index: 1 !important;
+  position: relative !important;
+  overflow: visible !important;
+}
+
+/* Ajustes para garantir que os inputs tenham a mesma altura e aparência */
+.input, .custom-input {
+  height: 40px !important;
+  border-radius: 0.375rem !important;
+  border: 1px solid #d1d5db !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+  padding: 0 12px !important;
+  font-size: 0.875rem !important;
+}
+
+.input:focus {
+  border-color: #8b5cf6 !important;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.25) !important;
+  outline: none !important;
+}
+
+/* Estilizações para o componente Select */
+[data-radix-select-trigger] {
+  height: 40px !important;
+  border-radius: 0.375rem !important;
+  border: 1px solid #d1d5db !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+  padding: 0 12px !important;
+}
+
+[data-radix-select-trigger]:focus {
+  border-color: #8b5cf6 !important;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.25) !important;
+  outline: none !important;
+}
+
+/* Checkbox estilizado */
+[data-state="checked"] {
+  background-color: #8b5cf6 !important;
+  border-color: #8b5cf6 !important;
+}
+
+/* Ajuste nos botões do formulário */
+.bg-purple-600 {
+  background-color: #8b5cf6 !important;
+}
+
+.bg-purple-600:hover {
+  background-color: #7c3aed !important;
+}
+
+/* Estilos para o carrossel de depoimentos */
+.embla {
+  position: relative;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.embla__viewport {
+  overflow: hidden;
+}
+
+.embla__container {
+  display: flex;
+  backface-visibility: hidden;
+}
+
+.embla__slide {
+  flex: 0 0 100%;
+  min-width: 0;
+  position: relative;
+}
+
+@media (min-width: 768px) {
+  .embla__slide {
+    flex: 0 0 33.33%;
+  }
+}
+
+.testimonial-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.testimonial-card .content {
+  flex: 1;
+}
+
+.testimonial-card .footer {
+  margin-top: auto;
+}
+
+/* FORÇA SCROLL VERTICAL NA LANDING PAGE */
+[data-page="landing"] {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  height: auto !important;
+  min-height: 100vh !important;
+  max-height: none !important;
+  position: relative !important;
+  width: 100% !important;
+}
+
+/* Garantir que todas as seções da landing sejam normais */
+[data-page="landing"] section {
+  overflow: visible !important;
+  height: auto !important;
+  max-height: none !important;
+  position: relative !important;
+  width: 100% !important;
+}
+
+/* Container principal da landing page */
+[data-page="landing"] > div:first-child {
+  overflow: visible !important;
+  height: auto !important;
+  min-height: 100vh !important;
+  max-height: none !important;
+  width: 100% !important;
+}
+
+/* Remover limitações específicas que podem quebrar o layout */
+[data-page="landing"] .min-h-screen {
+  min-height: 100vh !important;
+  height: auto !important;
+  max-height: none !important;
+}
+
+/* Efeito de brilho para o rótulo MAIS VENDIDO */
+@keyframes shine {
+  0% {
+    background-position: -100% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.shine-effect {
+  position: relative;
+  overflow: hidden;
+}
+
+.shine-effect::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.1) 10%,
+    rgba(255, 255, 255, 0.6) 50%,
+    rgba(255, 255, 255, 0.1) 90%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shine 2s infinite linear;
+  pointer-events: none;
+  z-index: 20;
+}
+
+/* Animações para o fundo da seção de storytelling */
+@keyframes pulse-slow {
+  0% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.05); }
+  100% { opacity: 0.4; transform: scale(1); }
+}
+
+@keyframes float-up-down {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes spin-very-slow {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes floating-particles {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(5px, 10px); }
+  50% { transform: translate(15px, 5px); }
+  75% { transform: translate(10px, -5px); }
+  100% { transform: translate(0, 0); }
+}
+
+@keyframes fadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; }
+  10% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 1s ease-in-out forwards;
+}
+
+.animate-fadeInOut {
+  animation: fadeInOut 12s ease-in-out infinite;
+}
+
+@keyframes chart-line-grow {
+  0% { transform: scaleX(0); opacity: 0; }
+  80% { transform: scaleX(1); opacity: 1; }
+  100% { transform: scaleX(1); opacity: 1; }
+}
+
+@keyframes chart-line-continuous {
+  0% { transform: scaleX(0); opacity: 0; }
+  40% { transform: scaleX(1); opacity: 1; }
+  80% { transform: scaleX(1); opacity: 1; }
+  81% { transform: scaleX(0); opacity: 0; }
+  100% { transform: scaleX(0); opacity: 0; }
+}
+
+@keyframes dot-appear {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.5); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.8; }
+}
+
+@keyframes dot-continuous {
+  0% { transform: scale(0); opacity: 0; }
+  25% { transform: scale(1.5); opacity: 1; }
+  50% { transform: scale(1); opacity: 0.8; }
+  75% { transform: scale(1); opacity: 0.8; }
+  76% { transform: scale(0); opacity: 0; }
+  100% { transform: scale(0); opacity: 0; }
+}
+
+@keyframes drawLine {
+  0% { stroke-dasharray: 1000; stroke-dashoffset: 1000; }
+  40% { stroke-dasharray: 1000; stroke-dashoffset: 0; }
+  80% { stroke-dasharray: 1000; stroke-dashoffset: 0; }
+  81% { stroke-dasharray: 1000; stroke-dashoffset: 1000; }
+  100% { stroke-dasharray: 1000; stroke-dashoffset: 1000; }
+}
+
+.chart-line {
+  height: 2px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.5), rgba(255, 215, 0, 0.4), rgba(255, 255, 255, 0.2));
+  transform-origin: left;
+  animation: chart-line-continuous 15s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+  box-shadow: 0 0 8px rgba(255, 215, 0, 0.2);
+}
+
+.chart-line-success {
+  background: linear-gradient(90deg, rgba(100, 255, 100, 0.5), rgba(50, 205, 50, 0.4), rgba(100, 255, 100, 0.2));
+  box-shadow: 0 0 8px rgba(50, 205, 50, 0.2);
+  animation-delay: 2s;
+}
+
+.chart-line-danger {
+  background: linear-gradient(90deg, rgba(255, 100, 100, 0.5), rgba(205, 50, 50, 0.4), rgba(255, 100, 100, 0.2));
+  box-shadow: 0 0 8px rgba(255, 50, 50, 0.2);
+  animation-delay: 1s;
+}
+
+.chart-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background-color: rgba(255, 215, 0, 0.8);
+  position: absolute;
+  animation: chart-dot-pulse 2s infinite ease-in-out;
+  box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+}
+
+.chart-dot::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at center, rgba(255, 215, 0, 0.3) 0%, rgba(255, 215, 0, 0) 70%);
+  opacity: 0.7;
+  animation: chart-dot-pulse 2s infinite ease-in-out;
+}
+
+@keyframes chart-dot-pulse {
+  0% { transform: scale(0.8); opacity: 0.3; }
+  50% { transform: scale(1.2); opacity: 0.7; }
+  100% { transform: scale(0.8); opacity: 0.3; }
+}
+
+/* Animação contínua com reset para os pontos */
+@keyframes chart-dot-continuous {
+  0% { transform: scale(0); opacity: 0; }
+  10% { transform: scale(1.5); opacity: 1; }
+  30% { transform: scale(1); opacity: 0.8; }
+  70% { transform: scale(1); opacity: 0.8; }
+  80% { transform: scale(0); opacity: 0; }
+  100% { transform: scale(0); opacity: 0; }
+}
+
+.chart-dot-success {
+  background-color: rgba(50, 205, 50, 0.8);
+  box-shadow: 0 0 5px rgba(50, 205, 50, 0.5);
+}
+
+.chart-dot-success::after {
+  background: radial-gradient(circle at center, rgba(50, 205, 50, 0.3) 0%, rgba(50, 205, 50, 0) 70%);
+}
+
+.chart-dot-danger {
+  background-color: rgba(255, 50, 50, 0.8);
+  box-shadow: 0 0 5px rgba(255, 50, 50, 0.5);
+}
+
+.chart-dot-danger::after {
+  background: radial-gradient(circle at center, rgba(255, 50, 50, 0.3) 0%, rgba(255, 50, 50, 0) 70%);
+}
+
+/* Eixos de grade do gráfico */
+.chart-grid-line {
+  position: absolute;
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.chart-grid-line-vertical {
+  width: 1px;
+  height: 100%;
+}
+
+.chart-grid-line-horizontal {
+  height: 1px;
+  width: 100%;
+}
+
+.pulse-effect {
+  animation: pulse-slow 8s infinite ease-in-out;
+}
+
+.float-effect {
+  animation: float-up-down 12s infinite ease-in-out;
+}
+
+.spin-effect {
+  animation: spin-very-slow 45s infinite linear;
+}
+
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle at center, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0) 70%);
+  pointer-events: none;
+}
+
+.particle:nth-child(1) {
+  width: 30px;
+  height: 30px;
+  top: 10%;
+  left: 45%;
+  opacity: 0.2;
+  animation: floating-particles 15s infinite ease-in-out;
+}
+
+.particle:nth-child(2) {
+  width: 20px;
+  height: 20px;
+  top: 65%;
+  left: 15%;
+  opacity: 0.15;
+  animation: floating-particles 18s infinite ease-in-out reverse;
+}
+
+.particle:nth-child(3) {
+  width: 15px;
+  height: 15px;
+  top: 25%;
+  left: 75%;
+  opacity: 0.1;
+  animation: floating-particles 20s infinite ease-in-out;
+  animation-delay: 5s;
+}
+
+.particle:nth-child(4) {
+  width: 25px;
+  height: 25px;
+  top: 80%;
+  left: 65%;
+  opacity: 0.2;
+  animation: floating-particles 22s infinite ease-in-out reverse;
+  animation-delay: 7s;
+}

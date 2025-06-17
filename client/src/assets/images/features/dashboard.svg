@@ -1,0 +1,17 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="256" height="256" rx="16" fill="url(#paint0_linear_dashboard)" />
+  <path d="M50 70C50 64.4772 54.4772 60 60 60H196C201.523 60 206 64.4772 206 70V186C206 191.523 201.523 196 196 196H60C54.4772 196 50 191.523 50 186V70Z" fill="#F8FAFC" />
+  <rect x="70" y="100" width="40" height="76" rx="4" fill="#818CF8" />
+  <rect x="125" y="120" width="40" height="56" rx="4" fill="#34D399" />
+  <rect x="180" y="80" width="40" height="96" rx="4" fill="#F472B6" />
+  <path d="M50 80H206" stroke="#E2E8F0" strokeWidth="2" />
+  <circle cx="65" cy="70" r="5" fill="#FCA5A5" />
+  <circle cx="85" cy="70" r="5" fill="#FCD34D" />
+  <circle cx="105" cy="70" r="5" fill="#86EFAC" />
+  <defs>
+    <linearGradient id="paint0_linear_dashboard" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse">
+      <stop stopColor="#4338CA" />
+      <stop offset="1" stopColor="#6366F1" />
+    </linearGradient>
+  </defs>
+</svg>

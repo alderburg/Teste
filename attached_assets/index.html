@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
+  <meta name="description" content="Portal de Login Meu Preço Certo" />
+  <title>Meu Preço Certo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* Estilo básico para o corpo */
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+      background-color: white; /* Fundo branco para combinar com o splash screen */
+    }
+    
+    /* Não ocultar o root, apenas configurar a transição */
+    #root {
+      opacity: 1;
+      transition: opacity 0.1s ease-in;
+    }
+    
+    /* Inicialmente ocultamos o menu em dispositivos móveis */
+    @media (max-width: 768px) {
+      .sidebar {
+        display: none !important;
+      }
+      
+      /* Quando o menu for aberto, esta classe será adicionada pelo React */
+      .sidebar.sidebar-open {
+        display: block !important;
+      }
+      
+      /* Ajustes adicionais para telas pequenas */
+      body {
+        font-size: 14px;
+      }
+      
+      table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+      }
+    }
+    
+    /* Estilo para o splash screen com fundo branco conforme solicitado */
+    #splash-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: white;
+      display: flex;
+      flex-direction: column; /* Organiza logo e mensagem verticalmente */
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      transition: opacity 0.05s ease-out; /* Transição ainda mais rápida para eliminar a tela branca */
+    }
+    
+    #splash-logo {
+      height: 160px;
+      width: auto;
+      animation: pulse 2s infinite;
+    }
+    
+    #splash-message {
+      margin-top: 20px;
+      font-size: 18px;
+      font-weight: 500;
+      color: #4a5568;
+      text-align: center;
+      font-family: 'Inter', sans-serif;
+    }
+    
+    @keyframes pulse {
+      0% { opacity: 0.6; }
+      50% { opacity: 1; }
+      100% { opacity: 0.6; }
+    }
+    
+    /* Estilo para animação de pontos de carregamento */
+    .loading-dots:after {
+      content: '.';
+      animation: loading 1.5s infinite;
+      display: inline-block;
+      width: 20px;
+      text-align: left;
+    }
+    
+    @keyframes loading {
+      0% { content: '.'; }
+      33% { content: '..'; }
+      66% { content: '...'; }
+      100% { content: '.'; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Tela de splash simples -->
+  <div id="splash-screen">
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+      <img 
+        id="splash-logo" 
+        src="/negativoo.png" 
+        alt="Meu Preço Certo"
+        onerror="this.onerror=null; this.src='/assets/negativoo.png';"
+      />
+      <div id="splash-message" style="margin-top: 20px; text-align: center; font-size: 18px; color: #5E35B1; font-weight: 500; opacity: 0; transition: opacity 0.5s;"></div>
+      <div id="auth-redirect-message" style="margin-top: 20px; text-align: center; font-size: 16px; color: #5E35B1; font-weight: 600; opacity: 0; transition: opacity 0.5s; background-color: rgba(94, 53, 177, 0.08); padding: 10px 20px; border-radius: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); letter-spacing: 0.2px; min-width: 320px;"></div>
+    </div>
+  </div>
+  
+  <div id="root" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></div>
+  
+  <script>
+    // Código de redirecionamento simplificado apenas para página de verificação 2FA
+    (function() {
+      // Verificar se estamos na página de verificação 2FA
+      if (window.location.pathname === '/verificar-2fa') {
+        console.log("⏩ SPLASH: Detectou página de verificação 2FA");
+        
+        // Obter referências aos elementos importantes
+        const splash = document.getElementById('splash-screen');
+        const authRedirectMessage = document.getElementById('auth-redirect-message');
+        
+        // Função para verificar o status do usuário e 2FA
+        function verificarAutenticacao() {
+          // Verificar o localStorage para dados do usuário (modo simples)
+          const userData = localStorage.getItem('userData');
+          
+          if (userData) {
+            // Usuário está logado - verificar se precisa de 2FA
+            console.log("⏩ SPLASH: Usuário autenticado, verificando status 2FA");
+            
+            // Verificar API para status de 2FA real (não só o localStorage)
+            // Remover o splash imediatamente para melhorar a experiência do usuário
+            if (splash) {
+              splash.style.opacity = '0';
+              splash.classList.add('loading-fast-transition');
+              setTimeout(function() {
+                splash.style.display = 'none';
+              }, 100); // Reduzido para 100ms
+            }
+            
+            // Fazer verificação em segundo plano com AbortSignal.timeout
+            fetch('/api/auth/2fa-session-status?' + new Date().getTime(), {
+              credentials: 'include',
+              headers: {
+                'Accept': 'application/json'
+              },
+              // Limitar tempo da requisição a 1.5 segundos
+              signal: AbortSignal.timeout(1500)
+            })
+            .then(response => response.json())
+            .then(data => {
+              console.log("⏩ Status 2FA verificado:", data);
+              
+              // Verificar se o usuário tem 2FA habilitado E não foi verificado ainda
+              if (data.twoFactorEnabled && !data.twoFactorVerified) {
+                console.log("⚠️ 2FA precisa ser verificado - MANTENDO o usuário na página de verificação");
+                
+                // Esconder mensagem de redirecionamento e deixar a página de verificação mostrar seus próprios elementos
+                if (authRedirectMessage) {
+                  authRedirectMessage.style.opacity = "0";
+                }
+                
+                // Ocultar a tela de splash para deixar a página de verificação 2FA aparecer
+                if (splash) {
+                  splash.style.opacity = '0';
+                  setTimeout(function() {
+                    splash.style.display = 'none';
+                  }, 100);
+                }
+                
+                return; // Permitir que o usuário veja a página de verificação 2FA
+              }
+              
+              // Se 2FA já foi verificado ou não está habilitado, redirecionar para dashboard
+              if ((data.twoFactorVerified || !data.twoFactorEnabled) && data.authenticated) {
+                // Mostrar a mensagem de usuário logado
+                if (authRedirectMessage) {
+                  authRedirectMessage.style.opacity = "1";
+                  authRedirectMessage.innerHTML = "Você já está logado!";
+                  
+                  // Após 2 segundos, mudar para mensagem de redirecionamento
+                  setTimeout(function() {
+                    authRedirectMessage.innerHTML = "Redirecionando para sua Dashboard principal...";
+                  }, 2000);
+                }
+                
+                // Redirecionar para o dashboard após 4 segundos
+                setTimeout(function() {
+                  window.location.href = "/dashboard";
+                }, 4000);
+              }
+            })
+            .catch(error => {
+              console.error("Erro ao verificar status 2FA:", error);
+              // Em caso de erro, mostrar a página de verificação 2FA normal
+              if (splash) {
+                splash.style.opacity = '0';
+                setTimeout(function() {
+                  splash.style.display = 'none';
+                }, 100); // Tempo reduzido para acelerar a transição em caso de erro
+              }
+            });
+          } else {
+            // Usuário NÃO está logado - mostrar mensagem e redirecionar para login
+            console.log("⏩ SPLASH: Usuário NÃO autenticado, redirecionando para login");
+            
+            // Mostrar a mensagem de usuário não logado
+            if (authRedirectMessage) {
+              authRedirectMessage.style.opacity = "1";
+              authRedirectMessage.innerHTML = "Você não está logado!";
+              
+              // Após 2 segundos, mudar para mensagem de redirecionamento
+              setTimeout(function() {
+                authRedirectMessage.innerHTML = "Redirecionando para tela de login...";
+              }, 2000);
+            }
+            
+            // Redirecionar para o login após 4 segundos
+            setTimeout(function() {
+              window.location.href = "/acessar";
+            }, 4000);
+          }
+        }
+        
+        // Executar verificação imediatamente sem delay
+        verificarAutenticacao();
+        
+        // Não executar o resto do código para evitar duplo processamento
+        return;
+      }
+    })();
+    
+    // Script otimizado para gerenciar o splash screen e melhorar carregamento
+    // Captura o tempo inicial do carregamento da página
+    const pageLoadStartTime = performance.now();
+    
+    document.addEventListener('DOMContentLoaded', function() {
+      // Registrar o tempo do DOMContentLoaded
+      const domLoadTime = performance.now();
+      console.log(`[⏱️ Performance] DOMContentLoaded: ${(domLoadTime - pageLoadStartTime).toFixed(2)}ms`);
+      
+      const splash = document.getElementById('splash-screen');
+      const authRedirectMessage = document.getElementById('auth-redirect-message');
+      let splashTimeout;
+      let splashShownDuration;
+      const splashStartTime = pageLoadStartTime; // Tempo em que o splash começou a ser exibido
+      
+      // Verificar se o usuário está autenticado
+      function checkUserAuthentication() {
+        try {
+          // Verificar se há dados do usuário no localStorage
+          const userData = localStorage.getItem('userData');
+          
+          // Verificar se estamos na landing page (raiz)
+          const isLandingPage = window.location.pathname === '/' || window.location.pathname === '';
+          
+          if (userData) {
+            // Usuário autenticado
+            
+            // NÃO mostrar a mensagem de redirecionamento nas páginas normais, 
+            // pois a verificação 2FA tem seu próprio código no início do script
+            const isVerify2FARoute = window.location.pathname === '/verificar-2fa';
+            
+            // Se NÃO for a página de verificação 2FA, não mostramos mensagem
+            if (!isVerify2FARoute && !isLandingPage && authRedirectMessage) {
+              authRedirectMessage.innerHTML = ""; 
+              authRedirectMessage.style.opacity = "0";
+              console.log("Usuário autenticado em página normal");
+            } else if (isLandingPage) {
+              console.log("Usuário autenticado na landing page - não mostrando mensagem");
+            }
+            
+            return true;
+          }
+        } catch (e) {
+          console.error("Erro ao verificar autenticação:", e);
+        }
+        return false;
+      }
+      
+      // Verificar autenticação no carregamento da página
+      checkUserAuthentication();
+      
+      // REMOVIDA a função check2FAStatus - agora a verificação é feita diretamente no início do script
+      
+      // A verificação 2FA agora é feita diretamente no início do script
+      
+      // Função para esconder o splash
+      function hideSplash() {
+        if (splash) {
+          // Verificar se estamos na página de verificação 2FA e exibindo mensagens
+          const isVerify2FARoute = window.location.pathname === '/verificar-2fa';
+          const authRedirectMessage = document.getElementById('auth-redirect-message');
+          
+          // Se estiver na página de verificação 2FA, NÃO remover o splash até o redirecionamento completo
+          if (isVerify2FARoute && authRedirectMessage && authRedirectMessage.style.opacity === '1') {
+            console.log(`[⏱️ Performance] Mantendo splash screen para página de verificação 2FA`);
+            return; // Não remover o splash ainda - esperando pelo redirecionamento automático
+          }
+          
+          const splashHideTime = performance.now();
+          splashShownDuration = splashHideTime - splashStartTime;
+          
+          console.log(`[⏱️ Performance] Splash screen exibido por: ${splashShownDuration.toFixed(2)}ms`);
+          
+          // Transição rápida do splash screen para evitar tela branca intermediária
+          splash.style.opacity = '0';
+          
+          // Tempo de transição mínimo para evitar a tela branca intermediária
+          setTimeout(function() {
+            splash.style.display = 'none';
+            console.log(`[⏱️ Performance] Splash screen completamente removido em: ${(performance.now() - splashHideTime).toFixed(2)}ms`);
+          }, 100);
+        }
+      }
+      
+      // Nova estratégia para evitar a tela branca: manter o splash até que o conteúdo esteja pronto
+      // e só então fazer a transição
+      function checkContent() {
+        const root = document.getElementById('root');
+        
+        if (root && root.children.length > 0) {
+          // Procurar por elementos importantes que indicam que a página está pronta
+          const header = root.querySelector('header');
+          const firstSection = root.querySelector('section') || root.querySelector('[id^="home"]') || root.querySelector('.hero');
+          
+          // Se encontrou pelo menos um desses elementos, o conteúdo está começando a aparecer
+          if (header || firstSection) {
+            const contentTime = performance.now();
+            console.log(`[⏱️ Performance] Conteúdo detectado após: ${(contentTime - pageLoadStartTime).toFixed(2)}ms`);
+            console.log(`[⏱️ Performance] Elementos chave carregados: ${header ? 'header ' : ''}${firstSection ? 'primeira seção' : ''}`);
+            
+            // Conteúdo já está visível, removemos o splash imediatamente
+            console.log("[⏱️ Performance] Conteúdo visível, iniciando remoção do splash");
+            hideSplash();
+            
+            return true;
+          }
+          
+          // Verificação alternativa baseada em elementos visíveis
+          const visibleElements = root.querySelectorAll('div:not([style*="display:none"]):not([style*="display: none"]):not([style*="visibility:hidden"]):not([style*="visibility: hidden"])');
+          
+          if (visibleElements.length > 1) {
+            const contentTime = performance.now();
+            console.log(`[⏱️ Performance] Elementos visíveis detectados após: ${(contentTime - pageLoadStartTime).toFixed(2)}ms`);
+            console.log(`[⏱️ Performance] Total de elementos visíveis: ${visibleElements.length}`);
+            
+            // Removemos o splash imediatamente
+            console.log("[⏱️ Performance] Conteúdo visível, iniciando remoção do splash");
+            hideSplash();
+            
+            return true;
+          }
+        }
+        return false;
+      }
+      
+      // Verificar a cada 25ms se o conteúdo existe (frequência ainda mais aumentada para transição mais rápida)
+      const contentCheckInterval = setInterval(function() {
+        if (checkContent()) {
+          clearInterval(contentCheckInterval);
+        }
+      }, 25);
+      
+      // Expor função de esconder splash no escopo global para que as páginas possam acessá-la
+      window.hideSplashScreen = hideSplash;
+      
+      // SOLUÇÃO DIRETA: Como estamos tendo problemas específicos com o 2FA,
+      // vamos usar um timeout muito mais agressivo e corrigir de uma vez
+      const is2FAVerifyPage = window.location.pathname === '/verificar-2fa';
+      const is2FALoginPage = window.location.pathname === '/acessar' && localStorage.getItem('pendingTwoFactor') === 'true';
+      
+      // Se é uma página de 2FA em qualquer forma, o timeout é extremamente rápido (100ms)
+      // para outras páginas, usamos 800ms para garantir remoção da splash em todos os casos
+      const timeoutDuration = (is2FAVerifyPage || is2FALoginPage) ? 100 : 800;
+      
+      // SUPER IMPORTANTE: TIMEOUT EXTRA para garantir que o splash sempre será removido
+      setTimeout(function() {
+        console.log("🚨 TIMEOUT ABSOLUTO: Forçando remoção do splash screen após 1.5s");
+        if (splash) {
+          splash.style.opacity = '0';
+          setTimeout(function() {
+            splash.style.display = 'none';
+          }, 10);
+        }
+      }, 1500); // Este é um timeout de segurança final que sempre será executado
+      
+      splashTimeout = setTimeout(function() {
+        console.log(`[⏱️ Performance] Timeout de segurança atingido após: ${(performance.now() - pageLoadStartTime).toFixed(2)}ms`);
+        console.log("Timeout de segurança atingido, removendo splash");
+        
+        // Na página de verificação 2FA, forçar a remoção do splash imediatamente 
+        const is2FAVerifyPage = window.location.pathname === '/verificar-2fa';
+        if (is2FAVerifyPage) {
+          if (splash) {
+            splash.style.opacity = '0';
+            setTimeout(() => {
+              splash.style.display = 'none';
+            }, 10);
+          }
+          return;
+        }
+        
+        // Verificar se o usuário está autenticado (para não cortar a mensagem de redirecionamento muito cedo)
+        const isAuthenticated = checkUserAuthentication();
+        
+        // Verificar uma última vez se há conteúdo antes de forçar a remoção do splash
+        if (!checkContent() && !isAuthenticated) {
+          console.log("[⏱️ Performance] Removendo splash por timeout, conteúdo ainda não detectado");
+          hideSplash();
+        }
+        
+        clearInterval(contentCheckInterval);
+      }, 8000);
+    });
+    
+    // Adicionar evento de load para capturar tempo total de carregamento
+    window.addEventListener('load', function() {
+      const loadTime = performance.now();
+      console.log(`[⏱️ Performance] Window.load (total): ${(loadTime - pageLoadStartTime).toFixed(2)}ms`);
+      
+      // Relatar as métricas de navegação
+      if (performance.getEntriesByType && typeof performance.getEntriesByType === 'function') {
+        setTimeout(function() {
+          try {
+            const navigationEntries = performance.getEntriesByType('navigation');
+            if (navigationEntries && navigationEntries.length > 0) {
+              const navEntry = navigationEntries[0];
+              console.log(`[⏱️ Performance] Métricas de navegação:`, navEntry);
+            }
+            
+            // Listar as métricas de recursos (10 mais lentos)
+            const resourceEntries = performance.getEntriesByType('resource')
+              .sort((a, b) => b.duration - a.duration)
+              .slice(0, 10);
+            
+            console.log(`[⏱️ Performance] 10 recursos mais lentos:`, resourceEntries);
+          } catch (e) {
+            console.warn("Erro ao coletar métricas de performance:", e);
+          }
+        }, 1000);
+      }
+    });
+  </script>
+  
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+</html>

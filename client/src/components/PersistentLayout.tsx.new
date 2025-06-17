@@ -1,0 +1,128 @@
+import React, { useEffect, useState } from 'react';
+import { useLocation } from 'wouter';
+import StaticSidebar from './StaticSidebar';
+import Header from './Header';
+
+interface PersistentLayoutProps {
+  children: React.ReactNode;
+}
+
+export default function PersistentLayout({ children }: PersistentLayoutProps) {
+  const [location] = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarMinimized, setSidebarMinimized] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  // Efeito para detectar mudanças no tamanho da tela e atualizar o estado de mobile
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  // Efeito para carregar o estado de minimização do sidebar do localStorage
+  useEffect(() => {
+    const savedMinimized = localStorage.getItem('sidebarMinimized');
+    if (savedMinimized !== null) {
+      setSidebarMinimized(JSON.parse(savedMinimized));
+    }
+  }, []);
+
+  // Efeito para salvar o estado de minimização do sidebar no localStorage
+  useEffect(() => {
+    localStorage.setItem('sidebarMinimized', JSON.stringify(sidebarMinimized));
+  }, [sidebarMinimized]);
+  
+  // Efeito para rolar para o topo quando a rota muda
+  useEffect(() => {
+    // Quando a location (rota) mudar, rolamos a página para o topo
+    window.scrollTo(0, 0);
+    
+    // Também rolar o container principal para o topo
+    const mainElement = document.querySelector('main');
+    if (mainElement) {
+      mainElement.scrollTop = 0;
+    }
+    
+    // Corrigir problemas de layout e scroll
+    document.body.style.overflow = 'auto';
+    document.documentElement.style.overflow = 'auto';
+    
+    // Garantir que o elemento main tenha overflow-y: auto
+    if (mainElement) {
+      mainElement.style.overflowY = 'auto';
+    }
+  }, [location]);
+
+  const toggleSidebar = () => {
+    if (isMobile) {
+      // Em mobile, abre/fecha completamente a sidebar
+      setSidebarOpen(!sidebarOpen);
+    } else {
+      // Em desktop, minimiza/maximiza a sidebar
+      setSidebarMinimized(!sidebarMinimized);
+    }
+  };
+
+  const minimizeSidebar = () => {
+    setSidebarMinimized(!sidebarMinimized);
+  };
+
+  // Aplicamos um estilo de transição apenas nos elementos que realmente mudam,
+  // não no container principal para evitar re-renderizações desnecessárias
+  return (
+    <div className="flex flex-col h-screen w-full" style={{ backgroundColor: '#f9fafb', minHeight: '100vh', overflow: 'hidden' }}>
+      <div className="flex flex-1 w-full" style={{ overflow: 'hidden' }}>
+        {/* Sempre renderizamos o sidebar, mesmo em mobile. A visibilidade será controlada por classes CSS */}
+        <StaticSidebar 
+          isOpen={sidebarOpen} 
+          isMinimized={sidebarMinimized} 
+          toggleSidebar={toggleSidebar}
+          minimizeSidebar={minimizeSidebar}
+          isMobile={isMobile}
+        />
+        
+        <div 
+          className={`flex-1 flex flex-col transition-all duration-100 ease-out ${isMobile && sidebarOpen ? 'opacity-50' : ''}`}
+          style={{ 
+            marginLeft: !isMobile ? (sidebarMinimized ? '5rem' : '16rem') : '0',
+            width: '100%',
+            backgroundColor: '#f9fafb',
+            minHeight: '100vh',
+            display: 'flex',
+            flexDirection: 'column'
+          }}
+        >
+          <Header toggleSidebar={toggleSidebar} isMinimized={sidebarMinimized} />
+          
+          <main className="flex-1 w-full overflow-y-auto overflow-x-hidden" style={{ 
+            minHeight: 'calc(100vh - 64px)',
+            height: '100%',
+            padding: '16px',
+            paddingTop: '80px',
+            paddingBottom: '20px',
+            backgroundColor: '#f9fafb',
+            flexGrow: 1,
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
+            {children}
+          </main>
+        </div>
+      </div>
+      
+      {/* Overlay para fechar o sidebar em dispositivos móveis */}
+      {sidebarOpen && isMobile && (
+        <div
+          className="fixed inset-0 z-20 bg-black bg-opacity-50 transition-opacity md:hidden"
+          onClick={toggleSidebar}
+        />
+      )}
+    </div>
+  );
+}

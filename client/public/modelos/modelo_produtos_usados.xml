@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ProdutosUsados>
+  <Produto>
+    <codigo>001</codigo>
+    <descricao>iPhone 11 Pro usado</descricao>
+    <quantidade>1</quantidade>
+    <valorCompra>1800.00</valorCompra>
+    <estado>Bom</estado>
+  </Produto>
+  <Produto>
+    <codigo>002</codigo>
+    <descricao>Macbook Pro 2019 15"</descricao>
+    <quantidade>1</quantidade>
+    <valorCompra>5000.00</valorCompra>
+    <estado>Ótimo</estado>
+  </Produto>
+  <Produto>
+    <codigo>003</codigo>
+    <descricao>PlayStation 4 usado</descricao>
+    <quantidade>1</quantidade>
+    <valorCompra>1200.00</valorCompra>
+    <estado>Regular</estado>
+  </Produto>
+  <Produto>
+    <codigo>004</codigo>
+    <descricao>Samsung Smart TV 50"</descricao>
+    <quantidade>1</quantidade>
+    <valorCompra>1500.00</valorCompra>
+    <estado>Bom</estado>
+  </Produto>
+  <Produto>
+    <codigo>005</codigo>
+    <descricao>iPad Pro 11" 2018</descricao>
+    <quantidade>1</quantidade>
+    <valorCompra>2800.00</valorCompra>
+    <estado>Excelente</estado>
+  </Produto>
+</ProdutosUsados>

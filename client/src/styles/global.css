@@ -1,0 +1,166 @@
+/* Sobrescreve o índice z do sidebars e demais menus do sistema */
+
+.onboarding-modal {
+  z-index: 9999 !important;
+}
+
+.onboarding-overlay {
+  z-index: 9998 !important;
+}
+/* Fix para visibilidade de menus */
+.sidebar,
+.landing-nav,
+[role="navigation"] {
+  visibility: visible !important;
+  opacity: 1 !important;
+  z-index: 50;
+}
+
+/* Fix para interação com menus em modais */
+[role="dialog"] .sidebar,
+[role="dialog"] .landing-nav,
+[role="dialog"] [role="navigation"] {
+  pointer-events: none;
+}
+
+/* Garantir que o menu mobile funcione corretamente */
+.mobile-menu {
+  z-index: 100;
+}
+
+/* Fix para backdrop quando menu mobile está aberto */
+.mobile-menu-open {
+  overflow: hidden;
+}
+
+#root {
+  min-height: 100vh;
+  visibility: visible !important;
+  opacity: 1 !important;
+  display: block !important;
+}
+
+/* Garantir visibilidade do conteúdo principal */
+main, [role="main"] {
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* Corrigir z-index de modais */
+.modal-backdrop {
+  z-index: 999 !important;
+  background: rgba(0, 0, 0, 0.3) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.modal-content {
+  z-index: 1000 !important;
+  background: white !important;
+}
+/* Fix para modais e dropdowns */
+[role="dialog"] {
+  z-index: 9999 !important;
+}
+
+.notifications-dropdown {
+  z-index: 100;
+}
+
+/* Garantir que o backdrop do modal fique acima do menu */
+.modal-backdrop {
+  z-index: 9998 !important;
+}
+
+/* Corrigir sobreposição do menu em modais */
+.modal-open .sidebar {
+  z-index: 40;
+}
+
+/* Regras específicas para landing page */
+body[data-current-page="landing"] {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  height: auto !important;
+  min-height: 100vh !important;
+  max-height: none !important;
+  background-color: #ffffff;
+  margin: 0;
+  padding: 0;
+}
+
+html[data-current-page="landing"] {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  height: auto !important;
+  min-height: 100vh !important;
+  max-height: none !important;
+  margin: 0;
+  padding: 0;
+}
+
+/* Root para landing page */
+body[data-current-page="landing"] #root {
+  height: auto !important;
+  min-height: 100vh !important;
+  overflow: visible !important;
+  display: block !important;
+  width: 100% !important;
+}
+
+/* Main para landing page */
+body[data-current-page="landing"] main {
+  flex: none !important;
+  overflow: visible !important;
+  height: auto !important;
+  min-height: auto !important;
+  max-height: none !important;
+  width: 100% !important;
+}
+
+/* Regras para outras páginas (não landing) */
+body:not([data-current-page="landing"]) {
+  overscroll-behavior: none;
+  background-color: #ffffff;
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  overflow-y: hidden;
+}
+
+html:not([data-current-page="landing"]) {
+  overflow-y: hidden;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
+/* Root para outras páginas */
+body:not([data-current-page="landing"]) #root {
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Main para outras páginas */
+body:not([data-current-page="landing"]) main {
+  flex: 1;
+  overflow-y: auto;
+  height: 0;
+}
+
+/* Permitir scroll interno normal nas páginas */
+.container {
+  height: auto !important;
+  overflow: visible !important;
+}
+
+/* Garantir que layouts flexíveis funcionem corretamente */
+.flex-1 {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: visible; /* Permite scroll interno quando necessário */
+}
