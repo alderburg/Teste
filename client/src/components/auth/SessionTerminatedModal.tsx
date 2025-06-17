@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -19,84 +18,119 @@ export function SessionTerminatedModal({ isOpen, onClose, message }: SessionTerm
   const [countdown, setCountdown] = useState(10);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  // Interceptar TODAS as ações quando o modal estiver aberto
+  // Garantir bloqueio total quando modal estiver aberto
   useEffect(() => {
     if (!isOpen) return;
 
-    console.log('🔒 Modal de sessão encerrada aberto - bloqueando todas as ações');
+    console.log('🔒 Modal de sessão encerrada aberto - BLOQUEIO TOTAL ATIVO');
 
-    // Interceptar requisições fetch
+    // Criar overlay de bloqueio total
+    const overlay = document.createElement('div');
+    overlay.id = 'session-terminated-overlay';
+    overlay.style.cssText = `
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      background: rgba(0, 0, 0, 0.8) !important;
+      z-index: 999998 !important;
+      pointer-events: auto !important;
+      backdrop-filter: blur(5px) !important;
+    `;
+
+    // Adicionar overlay ao body
+    document.body.appendChild(overlay);
+
+    // Bloquear scroll e interação com a página
+    const originalBodyStyle = document.body.style.cssText;
+    document.body.style.cssText = `
+      ${originalBodyStyle}
+      overflow: hidden !important;
+      position: fixed !important;
+      width: 100% !important;
+      height: 100% !important;
+      top: 0 !important;
+      left: 0 !important;
+    `;
+
+    // Interceptar TODAS as requisições
     const originalFetch = window.fetch;
-    window.fetch = async (...args) => {
-      console.log('🚫 Requisição fetch bloqueada devido ao modal de sessão encerrada:', args[0]);
-      throw new Error('Sessão encerrada - requisição bloqueada pelo modal');
-    };
-
-    // Interceptar XMLHttpRequest
     const originalXHROpen = XMLHttpRequest.prototype.open;
-    const originalXHRSend = XMLHttpRequest.prototype.send;
+
+    window.fetch = async (...args) => {
+      console.log('🚫 Fetch BLOQUEADO - modal de sessão encerrada aberto:', args[0]);
+      throw new Error('SESSÃO ENCERRADA - Acesso negado');
+    };
 
     XMLHttpRequest.prototype.open = function(...args) {
-      console.log('🚫 Requisição XHR bloqueada devido ao modal de sessão encerrada:', args[1]);
-      throw new Error('Sessão encerrada - XHR bloqueada pelo modal');
-    };
-
-    XMLHttpRequest.prototype.send = function() {
-      console.log('🚫 Envio XHR bloqueado devido ao modal de sessão encerrada');
-      throw new Error('Sessão encerrada - envio XHR bloqueado pelo modal');
+      console.log('🚫 XHR BLOQUEADO - modal de sessão encerrada aberto:', args[1]);
+      return;
     };
 
     // Bloquear navegação
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
-      e.returnValue = 'Sua sessão foi encerrada. Por favor, aguarde o redirecionamento.';
-      return 'Sua sessão foi encerrada. Por favor, aguarde o redirecionamento.';
+      e.returnValue = 'Sua sessão foi encerrada. Você será redirecionado para o login.';
     };
 
     const handlePopState = (e: PopStateEvent) => {
       e.preventDefault();
-      console.log('🚫 Navegação bloqueada devido ao modal de sessão encerrada');
-      // Forçar volta ao estado atual
+      e.stopImmediatePropagation();
+      console.log('🚫 Navegação BLOQUEADA - modal de sessão encerrada aberto');
+      // Manter na URL atual
       window.history.pushState(null, '', window.location.href);
     };
 
-    // Interceptar todos os eventos de interação
-    const blockAllInteractions = (e: Event) => {
+    // Bloquear todas as interações exceto com o modal
+    const handleGlobalClick = (e: Event) => {
       const target = e.target as HTMLElement;
-      const isModalElement = target.closest('[data-session-terminated="true"]');
-      
-      if (!isModalElement) {
-        console.log('🚫 Interação bloqueada devido ao modal de sessão encerrada:', e.type);
+      if (!target.closest('[data-session-terminated="true"]')) {
         e.preventDefault();
-        e.stopPropagation();
         e.stopImmediatePropagation();
-        return false;
+        console.log('🚫 Clique BLOQUEADO - fora do modal de sessão encerrada');
       }
     };
 
-    // Adicionar todos os listeners
-    window.addEventListener('beforeunload', handleBeforeUnload, true);
-    window.addEventListener('popstate', handlePopState, true);
-    
-    // Bloquear interações gerais
-    ['click', 'mousedown', 'mouseup', 'keydown', 'keyup', 'submit', 'input', 'change', 'focus', 'blur'].forEach(eventType => {
-      document.addEventListener(eventType, blockAllInteractions, true);
-    });
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-session-terminated="true"]')) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        console.log('🚫 Tecla BLOQUEADA - fora do modal de sessão encerrada');
+      }
+    };
+
+    // Adicionar listeners
+    window.addEventListener('beforeunload', handleBeforeUnload, { capture: true });
+    window.addEventListener('popstate', handlePopState, { capture: true });
+    document.addEventListener('click', handleGlobalClick, { capture: true });
+    document.addEventListener('keydown', handleGlobalKeyDown, { capture: true });
+
+    console.log('🔒 BLOQUEIO TOTAL IMPLEMENTADO - Apenas modal acessível');
 
     // Limpar ao fechar o modal
     return () => {
+      // Remover overlay
+      const overlayElement = document.getElementById('session-terminated-overlay');
+      if (overlayElement) {
+        overlayElement.remove();
+      }
+
+      // Restaurar estilos
+      document.body.style.cssText = originalBodyStyle;
+
+      // Restaurar funções
       window.fetch = originalFetch;
       XMLHttpRequest.prototype.open = originalXHROpen;
-      XMLHttpRequest.prototype.send = originalXHRSend;
-      
-      window.removeEventListener('beforeunload', handleBeforeUnload, true);
-      window.removeEventListener('popstate', handlePopState, true);
-      
-      ['click', 'mousedown', 'mouseup', 'keydown', 'keyup', 'submit', 'input', 'change', 'focus', 'blur'].forEach(eventType => {
-        document.removeEventListener(eventType, blockAllInteractions, true);
-      });
-      
-      console.log('🔓 Bloqueios removidos - modal de sessão encerrada fechado');
+
+      // Remover listeners
+      window.removeEventListener('beforeunload', handleBeforeUnload, { capture: true });
+      window.removeEventListener('popstate', handlePopState, { capture: true });
+      document.removeEventListener('click', handleGlobalClick, { capture: true });
+      document.removeEventListener('keydown', handleGlobalKeyDown, { capture: true });
+
+      console.log('🔓 Bloqueio do modal removido');
     };
   }, [isOpen]);
 
@@ -118,16 +152,16 @@ export function SessionTerminatedModal({ isOpen, onClose, message }: SessionTerm
 
   const handleLogout = async () => {
     if (isLoggingOut) return;
-    
+
     setIsLoggingOut(true);
-    
+
     try {
       console.log('🔒 Iniciando logout forçado devido à sessão encerrada');
-      
+
       // Invalidar e limpar todas as queries
       queryClient.invalidateQueries();
       queryClient.clear();
-      
+
       // Limpar completamente o estado local
       localStorage.removeItem('sessionToken');
       localStorage.removeItem('token');
@@ -135,28 +169,28 @@ export function SessionTerminatedModal({ isOpen, onClose, message }: SessionTerm
       localStorage.removeItem('isAuthenticated');
       localStorage.removeItem('userType');
       sessionStorage.clear();
-      
+
       // Limpar cookies
       document.cookie.split(";").forEach((c) => {
         const eqPos = c.indexOf("=");
         const name = eqPos > -1 ? c.substr(0, eqPos) : c;
         document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
       });
-      
+
       // Executar logout do hook (sem aguardar para evitar travamento)
       logout().catch(() => {
         console.log('Erro no logout, mas continuando com redirecionamento');
       });
-      
+
       // Fechar modal
       onClose();
-      
+
       // Aguardar um pouco para garantir que o modal foi fechado
       setTimeout(() => {
         // Forçar redirecionamento
         window.location.href = "/acessar?logout=true&session_terminated=true";
       }, 100);
-      
+
     } catch (error) {
       console.error('Erro durante logout forçado:', error);
       // Mesmo com erro, forçar redirecionamento
@@ -167,30 +201,37 @@ export function SessionTerminatedModal({ isOpen, onClose, message }: SessionTerm
   return (
     <Dialog open={isOpen} onOpenChange={() => {}} modal={true}>
       <DialogContent 
-        className="sm:max-w-md" 
+        className="sm:max-w-md fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" 
         hideCloseButton 
         data-session-terminated="true"
-        onInteractOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
+        style={{
+          zIndex: 9999999,
+          position: 'fixed',
+          pointerEvents: 'auto',
+          userSelect: 'auto'
+        }}
       >
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-orange-600">
+          <DialogTitle className="flex items-center gap-2 text-red-600">
             <AlertTriangle className="h-5 w-5" />
-            Sessão Encerrada
+            🔒 Sessão Encerrada
           </DialogTitle>
         </DialogHeader>
-        
-        <div className="space-y-4" data-session-terminated="true">
+
+        <div className="space-y-4">
           <div className="text-center">
-            <p className="text-slate-700 mb-2">
+            <p className="text-slate-900 mb-2 font-medium">
               {message || "Sua sessão foi encerrada por outro usuário"}
             </p>
-            <p className="text-sm text-slate-500">
-              Você será redirecionado para a página de login em {countdown} segundos
+            <p className="text-sm text-slate-600 bg-yellow-50 p-2 rounded border">
+              ⚠️ Por segurança, o acesso às funcionalidades foi bloqueado
+            </p>
+            <p className="text-sm text-slate-500 mt-2">
+              Redirecionamento automático em {countdown} segundos
             </p>
             {isLoggingOut && (
-              <p className="text-sm text-blue-600 mt-2">
-                Encerrando sessão...
+              <p className="text-sm text-blue-600 mt-2 animate-pulse">
+                🔄 Encerrando sessão...
               </p>
             )}
           </div>
@@ -198,13 +239,12 @@ export function SessionTerminatedModal({ isOpen, onClose, message }: SessionTerm
           <div className="flex justify-center gap-3">
             <Button
               onClick={handleLogout}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 bg-red-600 hover:bg-red-700"
               variant="default"
               disabled={isLoggingOut}
-              data-session-terminated="true"
             >
               <LogOut className="h-4 w-4" />
-              {isLoggingOut ? 'Saindo...' : 'Ir para Login'}
+              {isLoggingOut ? 'Saindo...' : 'Ir para Login Agora'}
             </Button>
           </div>
         </div>

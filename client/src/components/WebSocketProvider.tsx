@@ -62,13 +62,21 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
 
         // Só mostrar o modal se for a sessão atual que foi encerrada
         if (currentSessionToken === terminatedSessionToken) {
-          console.log('🔒 Sessão atual foi encerrada remotamente - mostrando modal');
-          setTerminationMessage(event.detail.message || "Sua sessão foi encerrada por outro usuário");
-          setSessionTerminated(true);
+          console.log('🔒 SESSÃO ATUAL ENCERRADA - ATIVANDO PROTEÇÃO TOTAL');
           
-          // Invalidar todas as queries para evitar requisições desnecessárias
+          // PRIMEIRO: Limpar todos os dados imediatamente
           queryClient.invalidateQueries();
           queryClient.clear();
+          
+          // SEGUNDO: Ativar estado de sessão encerrada ANTES do modal
+          setSessionTerminated(true);
+          
+          // TERCEIRO: Mostrar modal após proteção ativada
+          setTimeout(() => {
+            setTerminationMessage(event.detail.message || "Sua sessão foi encerrada por outro usuário");
+            console.log('🔒 Modal de sessão encerrada exibido');
+          }, 100);
+          
         } else {
           console.log('🔒 Outra sessão foi encerrada:', terminatedSessionToken?.substring(0, 8) + '...');
         }
@@ -86,13 +94,20 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
                                  '';
       
       if (currentSessionToken === event.detail.sessionToken) {
-        console.log('🔒 Esta é a sessão atual - mostrando modal de encerramento');
-        setTerminationMessage(event.detail.message || "Sua sessão foi encerrada por outro usuário");
-        setSessionTerminated(true);
+        console.log('🔒 ESTA É A SESSÃO ATUAL - ATIVANDO PROTEÇÃO TOTAL');
         
-        // Invalidar todas as queries para evitar requisições desnecessárias
+        // PRIMEIRO: Limpar todos os dados imediatamente
         queryClient.invalidateQueries();
         queryClient.clear();
+        
+        // SEGUNDO: Ativar estado de sessão encerrada ANTES do modal
+        setSessionTerminated(true);
+        
+        // TERCEIRO: Mostrar modal após proteção ativada
+        setTimeout(() => {
+          setTerminationMessage(event.detail.message || "Sua sessão foi encerrada por outro usuário");
+          console.log('🔒 Modal de sessão encerrada exibido via evento direto');
+        }, 100);
       }
     };
 

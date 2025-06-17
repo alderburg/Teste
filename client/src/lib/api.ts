@@ -1,4 +1,3 @@
-
 // API utility functions for interacting with the server
 import { apiRequest, queryClient } from "./queryClient";
 
@@ -26,31 +25,27 @@ function isSessionTerminated(): boolean {
   return !!sessionModal;
 }
 
-// Adicionar interceptador de requisição para verificar sessão encerrada
-api.interceptors.request.use(
-  (config) => {
-    // Verificar se há um modal de sessão encerrada aberto
-    if (isSessionTerminated()) {
-      console.log('🚫 Requisição API bloqueada - modal de sessão encerrada está aberto');
-      throw new Error('Sessão encerrada - requisição API bloqueada');
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
 // Adicionar interceptador de resposta para lidar com erros de autenticação
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Verificar se há um modal de sessão encerrada aberto
+    const sessionModal = document.querySelector('[data-session-terminated="true"]');
+    if (sessionModal) {
+      console.log('🚫 RESPOSTA BLOQUEADA - modal de sessão encerrada está aberto');
+      throw new Error('SESSÃO ENCERRADA - Acesso negado');
+    }
+    return response;
+  },
   async (error) => {
+    // Verificar se há um modal de sessão encerrada aberto
+    const sessionModal = document.querySelector('[data-session-terminated="true"]');
+    if (sessionModal) {
+      console.log('🚫 ERRO BLOQUEADO - modal de sessão encerrada está aberto');
+      return Promise.reject(new Error('SESSÃO ENCERRADA - Acesso negado'));
+    }
+
     if (error.response?.status === 401) {
-      // Verificar se há um modal de sessão encerrada aberto
-      if (isSessionTerminated()) {
-        console.log('🚫 Resposta 401 bloqueada - modal de sessão encerrada está aberto');
-        return Promise.reject(new Error('Sessão encerrada - resposta 401 bloqueada'));
-      }
+      console.log('🔒 Erro 401 detectado - removendo dados de autenticação');
 
       // Remover dados de autenticação
       localStorage.removeItem('user');
@@ -58,9 +53,31 @@ api.interceptors.response.use(
       localStorage.removeItem('sessionToken');
       localStorage.removeItem('token');
 
-      // Redirecionar para login
+      // Redirecionar para login apenas se não há modal de sessão encerrada
       window.location.href = '/acessar';
       return Promise.reject(error);
+    }
+    return Promise.reject(error);
+  }
+);
+
+// Adicionar interceptador de requisição para verificar sessão encerrada
+api.interceptors.request.use(
+  (config) => {
+    // Verificar se há um modal de sessão encerrada aberto
+    const sessionModal = document.querySelector('[data-session-terminated="true"]');
+    if (sessionModal) {
+      console.log('🚫 REQUISIÇÃO BLOQUEADA - modal de sessão encerrada está aberto');
+      throw new Error('SESSÃO ENCERRADA - Acesso negado');
+    }
+    return config;
+  },
+  (error) => {
+    // Verificar se há um modal de sessão encerrada aberto
+    const sessionModal = document.querySelector('[data-session-terminated="true"]');
+    if (sessionModal) {
+      console.log('🚫 ERRO DE REQUISIÇÃO BLOQUEADO - modal de sessão encerrada está aberto');
+      return Promise.reject(new Error('SESSÃO ENCERRADA - Acesso negado'));
     }
     return Promise.reject(error);
   }
