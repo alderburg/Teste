@@ -1,7 +1,7 @@
 import { ReactNode, createContext, useContext, useEffect, useState } from 'react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useToast } from '@/hooks/use-toast';
-import { SessionTerminatedModal } from '@/components/auth/SessionTerminatedModal';
+import SessionTerminatedModal from '@/components/SessionTerminatedModal';
 import { useAuth } from '@/hooks/use-auth';
 
 // Criar contexto para WebSocket
