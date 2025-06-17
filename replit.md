@@ -165,3 +165,13 @@ Preferred communication style: Simple, everyday language.
 - Maintains instant synchronization between tabs for related users only
 - Differentiates between 'session_terminated' (with popup) and 'data_update' (silent sync)
 - Ensures optimal performance by targeting only relevant users for data updates
+
+## Session Termination Fix (June 17, 2025)
+- Fixed critical bug in session deletion logic where sessions were not being deleted from correct tables
+- Corrected logic to identify session type and delete from appropriate table:
+  - Main user sessions deleted from `user_sessions` table
+  - Additional user sessions deleted from `user_sessions_additional` table
+- Enhanced session lookup to first check `user_sessions` table for main users before checking `user_sessions_additional`
+- WebSocket notification system for session termination properly maintained
+- Users now receive proper disconnection popup and automatic logout when sessions are terminated
+- Session cleanup from Express session store and PostgreSQL session table also improved
