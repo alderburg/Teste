@@ -3,14 +3,6 @@ import { useLocation } from 'wouter';
 import { useAuth } from '@/hooks/use-auth';
 import { useSessionGuard } from '@/hooks/use-session-guard';
 import { markSessionAsTerminated } from '@/lib/api';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Timer } from "lucide-react";
 
@@ -83,17 +75,29 @@ export function SessionTerminatedModal({ isOpen, onClose, message }: SessionTerm
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={() => {}} modal={true}>
-      <DialogContent className="sm:max-w-md z-[9999999] [&>div]:z-[9999999]" style={{zIndex: 9999999}}>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-amber-600">
-            <AlertTriangle className="h-5 w-5" />
-            Sessão Encerrada
-          </DialogTitle>
-          <DialogDescription className="text-gray-600">
-            {message || "Sua sessão foi encerrada por outro usuário"}
-          </DialogDescription>
-        </DialogHeader>
+    <div 
+      className={`fixed inset-0 ${isOpen ? 'block' : 'hidden'}`}
+      style={{ zIndex: 10000000 }}
+    >
+      {/* Overlay personalizado */}
+      <div 
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+        style={{ zIndex: 10000001 }}
+      />
+      
+      {/* Modal Content */}
+      <div 
+        className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-lg shadow-xl p-6"
+        style={{ zIndex: 10000002 }}
+      >
+        <div className="flex items-center gap-2 text-amber-600 mb-4">
+          <AlertTriangle className="h-5 w-5" />
+          <h2 className="text-lg font-semibold">Sessão Encerrada</h2>
+        </div>
+        
+        <p className="text-gray-600 mb-6">
+          {message || "Sua sessão foi encerrada por outro usuário"}
+        </p>
 
         <div className="flex flex-col items-center space-y-4 py-4">
           <div className="flex items-center gap-2 text-lg font-medium text-gray-700">
@@ -115,7 +119,7 @@ export function SessionTerminatedModal({ isOpen, onClose, message }: SessionTerm
           )}
         </div>
 
-        <DialogFooter className="flex gap-2">
+        <div className="flex gap-2 mt-6">
           <Button
             onClick={handleConfirmLogout}
             disabled={isLoggingOut}
@@ -123,12 +127,12 @@ export function SessionTerminatedModal({ isOpen, onClose, message }: SessionTerm
           >
             {isLoggingOut ? 'Saindo...' : 'Sair Agora'}
           </Button>
-        </DialogFooter>
+        </div>
 
-        <div className="text-xs text-gray-500 text-center mt-2">
+        <div className="text-xs text-gray-500 text-center mt-4">
           Por segurança, você será redirecionado automaticamente para a página de login.
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 }
