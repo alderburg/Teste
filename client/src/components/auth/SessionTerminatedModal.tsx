@@ -118,7 +118,7 @@ export function SessionTerminatedModal({ isOpen, onClose, message }: SessionTerm
       >
         <div className="flex items-center gap-2 text-amber-600 mb-4">
           <AlertTriangle className="h-5 w-5" />
-          <h2 className="text-lg font-semibold">Sessão Encerrada por Outro Usuário</h2>
+          <h2 className="text-lg font-semibold">Sessão Encerrada!</h2>
         </div>
         
         <p className="text-gray-600 mb-6">

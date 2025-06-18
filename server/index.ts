@@ -632,7 +632,7 @@ if (process.env.EXTERNAL_API_URL) {
     serveStatic(app);
   }
 
-  const port = process.env.PORT || 3000;
+  const port = process.env.PORT || 5001;
 
   if (process.env.WINDOWS_COMPAT === 'true') {
     const serverPort = parseInt(port as string, 10);
@@ -643,26 +643,44 @@ if (process.env.EXTERNAL_API_URL) {
     server.listen(port, '0.0.0.0', () => {
       log(`Server running on port ${port} (0.0.0.0 - accessible from outside)`);
 
-      // WebSocket Server Setup - usar servidor HTTP principal
-      const wss = new WebSocketServer({ 
-        server: server,
-        path: '/ws'
-      });
-
-      wss.on('connection', ws => {
-        console.log('✅ WebSocket client connected');
-        global.wsClients.add(ws);
-  
-        ws.on('close', () => {
-          console.log('❌ WebSocket client disconnected');
-          global.wsClients.delete(ws);
-        });
-      });
-  
-      console.log('🔗 WebSocket server iniciado no caminho /ws');
-
       if (process.env.REPL_ID || process.env.REPLIT_ENVIRONMENT) {
-        log(`Running on Replit - server available at: https://${process.env.REPLIT_DOMAINS}`);
+        const proxyPort = 3000;
+        const proxyApp = express();
+
+        proxyApp.use('/', createProxyMiddleware({
+          target: `http://localhost:${port}`,
+          changeOrigin: true,
+          ws: true,
+          onError: (err, req, res) => {
+            log(`Proxy error: ${err.message}`);
+            res.status(500).send('Proxy Error');
+          }
+        }));
+
+        const proxyServer = createServer(proxyApp); // Criar servidor HTTP para o proxy
+
+        // WebSocket Server Setup - usar servidor HTTP existente
+        const wss = new WebSocketServer({ 
+          server: proxyServer,
+          path: '/ws'
+        });
+
+        wss.on('connection', ws => {
+          console.log('✅ WebSocket client connected');
+          global.wsClients.add(ws);
+    
+          ws.on('close', () => {
+            console.log('❌ WebSocket client disconnected');
+            global.wsClients.delete(ws);
+          });
+        });
+    
+        console.log('🔗 WebSocket server iniciado no caminho /ws');
+
+        proxyApp.listen(proxyPort, '0.0.0.0', () => {
+          log(`Proxy server running on port ${proxyPort}, forwarding to port ${port}`);
+          log(`Running on Replit - server available at: https://${process.env.REPLIT_DOMAINS}`);
+        });
       }
     });
   }
