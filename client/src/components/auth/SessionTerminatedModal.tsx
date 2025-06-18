@@ -69,9 +69,35 @@ export function SessionTerminatedModal({ isOpen, onClose, message }: SessionTerm
     }
   };
 
-  const handleConfirmLogout = () => {
-    console.log('🔒 Usuário confirmou logout manual');
-    handleLogout();
+  const handleConfirmLogout = async () => {
+    if (isLoggingOut) return;
+    
+    console.log('🔒 Usuário confirmou logout manual - executando imediatamente');
+    setIsLoggingOut(true);
+    setCountdown(0);
+    
+    try {
+      // Limpar dados locais imediatamente
+      localStorage.removeItem('sessionToken');
+      localStorage.removeItem('token');
+      localStorage.removeItem('userId');
+      
+      // Limpar estado de sessão encerrada para permitir logout
+      localStorage.removeItem('sessionTerminated');
+      
+      // Executar logout
+      await logout();
+      
+      // Fechar modal
+      onClose();
+      
+      // Redirecionar imediatamente
+      window.location.href = "/login?logout=true&session_terminated=true";
+    } catch (error) {
+      console.error('Erro durante logout manual:', error);
+      // Forçar redirecionamento mesmo se houver erro
+      window.location.href = "/login?logout=true&session_terminated=true";
+    }
   };
 
   return (
@@ -92,11 +118,11 @@ export function SessionTerminatedModal({ isOpen, onClose, message }: SessionTerm
       >
         <div className="flex items-center gap-2 text-amber-600 mb-4">
           <AlertTriangle className="h-5 w-5" />
-          <h2 className="text-lg font-semibold">Sessão Encerrada</h2>
+          <h2 className="text-lg font-semibold">Sessão Encerrada por Outro Usuário</h2>
         </div>
         
         <p className="text-gray-600 mb-6">
-          {message || "Sua sessão foi encerrada por outro usuário"}
+          {message || "Sua sessão foi encerrada por outro usuário. Por motivos de segurança, você será desconectado automaticamente."}
         </p>
 
         <div className="flex flex-col items-center space-y-4 py-4">
