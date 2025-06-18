@@ -169,11 +169,9 @@ export function useWebSocket() {
         if (typeof window === 'undefined') return '';
 
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = window.location.hostname;
-        // No Replit, usar a mesma porta do servidor principal
-        const wsPort = process.env.NODE_ENV === 'development' ? '3000' : window.location.port || '3000';
-
-        return `${protocol}//${host}:${wsPort}/ws`;
+        const host = window.location.host; // Use host instead of hostname to include port
+        
+        return `${protocol}//${host}/ws`;
       };
 
       const wsUrl = getWebSocketUrl();

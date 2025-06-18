@@ -632,7 +632,7 @@ if (process.env.EXTERNAL_API_URL) {
     serveStatic(app);
   }
 
-  const port = process.env.PORT || 5000;
+  const port = process.env.PORT || 5001;
 
   if (process.env.WINDOWS_COMPAT === 'true') {
     const serverPort = parseInt(port as string, 10);
