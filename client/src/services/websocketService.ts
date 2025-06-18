@@ -62,10 +62,10 @@ export function initWebSocket() {
   
   try {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    // No Replit, usar a porta correta do servidor
+    // No Replit, usar o mesmo host e porta da aplicação
     const host = window.location.hostname;
-    const port = process.env.NODE_ENV === 'development' ? '3000' : window.location.port || '3000';
-    const wsUrl = `${protocol}//${host}:${port}/ws`;
+    const port = window.location.port || (window.location.protocol === "https:" ? "443" : "80");
+    const wsUrl = `${protocol}//${host}${port && port !== "80" && port !== "443" ? `:${port}` : ""}/ws`;
     
     console.log(`Conectando WebSocket em ${wsUrl}`);
     
