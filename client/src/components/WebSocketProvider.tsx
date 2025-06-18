@@ -59,15 +59,33 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
   const activateSessionProtection = (message: string) => {
     console.log('🔒 ATIVANDO PROTEÇÃO TOTAL DA SESSÃO');
     
+    // Verificar se já está protegido para evitar duplicação
+    if (sessionTerminated) {
+      console.log('🔒 Proteção já ativada - ignorando nova ativação');
+      return;
+    }
+    
     // PRIMEIRO: Limpar todos os dados imediatamente
-    queryClient.invalidateQueries();
-    queryClient.clear();
+    try {
+      queryClient.invalidateQueries();
+      queryClient.clear();
+    } catch (error) {
+      console.error('Erro ao limpar queryClient:', error);
+    }
     
     // SEGUNDO: Ativar estado de sessão encerrada IMEDIATAMENTE
     setSessionTerminated(true);
     
     // TERCEIRO: Definir mensagem
     setTerminationMessage(message);
+    
+    // QUARTO: Marcar globalmente que a sessão foi encerrada
+    localStorage.setItem('sessionTerminated', 'true');
+    
+    // QUINTO: Disparar evento global para outras abas/instâncias
+    window.dispatchEvent(new CustomEvent('session-protection-activated', {
+      detail: { message, timestamp: Date.now() }
+    }));
     
     console.log('🔒 PROTEÇÃO ATIVADA - Interface bloqueada');
   };
@@ -77,6 +95,9 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
     if (!user) return;
 
     const checkSessionStatus = async () => {
+      // Verificar se já está protegido
+      if (sessionTerminated) return;
+      
       try {
         const response = await fetch('/api/conta/check-session', {
           method: 'GET',
@@ -93,11 +114,14 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
       }
     };
 
-    // Verificar a cada 30 segundos
-    const interval = setInterval(checkSessionStatus, 30000);
+    // Verificar imediatamente ao montar
+    checkSessionStatus();
+
+    // Verificar a cada 15 segundos (mais frequente)
+    const interval = setInterval(checkSessionStatus, 15000);
 
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user, sessionTerminated]);
 
   // Verificar status da sessão quando WebSocket desconectar
   useEffect(() => {
@@ -150,7 +174,7 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
     };
   }, [user]);
 
-  // Atualizar o timestamp sempre que recebermos uma mensagem
+  // Atualizar o timestamp sempre que recebermos uma mensagem e sincronizar entre abas
   useEffect(() => {
     const handleWebSocketMessage = (event: any) => {
       setLastUpdated(new Date());
@@ -178,14 +202,47 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
       }
     };
 
+    // Manipular eventos de proteção de sessão de outras abas
+    const handleSessionProtectionActivated = (event: any) => {
+      console.log('🔒 Proteção de sessão ativada em outra aba/instância');
+      if (!sessionTerminated) {
+        activateSessionProtection(event.detail.message || "Sua sessão foi encerrada");
+      }
+    };
+
+    // Verificar localStorage na inicialização para detectar sessões já encerradas
+    const checkStorageForTermination = () => {
+      const isTerminated = localStorage.getItem('sessionTerminated') === 'true';
+      if (isTerminated && !sessionTerminated && user) {
+        console.log('🔒 Sessão já marcada como encerrada no localStorage');
+        activateSessionProtection("Sua sessão foi encerrada");
+      }
+    };
+
+    // Listener para mudanças no localStorage (sincronização entre abas)
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === 'sessionTerminated' && event.newValue === 'true' && !sessionTerminated) {
+        console.log('🔒 Encerramento de sessão detectado via localStorage');
+        activateSessionProtection("Sua sessão foi encerrada por outro usuário");
+      }
+    };
+
+    // Adicionar todos os listeners
     window.addEventListener('websocket-message-received', handleWebSocketMessage);
     window.addEventListener('session-terminated', handleSessionTerminated);
+    window.addEventListener('session-protection-activated', handleSessionProtectionActivated);
+    window.addEventListener('storage', handleStorageChange);
+
+    // Verificar estado inicial
+    checkStorageForTermination();
 
     return () => {
       window.removeEventListener('websocket-message-received', handleWebSocketMessage);
       window.removeEventListener('session-terminated', handleSessionTerminated);
+      window.removeEventListener('session-protection-activated', handleSessionProtectionActivated);
+      window.removeEventListener('storage', handleStorageChange);
     };
-  }, [user]);
+  }, [user, sessionTerminated]);
 
   // Enviar informações de autenticação quando o usuário estiver logado
   useEffect(() => {
