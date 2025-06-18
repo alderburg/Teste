@@ -169,10 +169,9 @@ export function useWebSocket() {
         if (typeof window === 'undefined') return '';
 
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = window.location.hostname;
-        const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
+        const host = window.location.host; // Use host instead of hostname to include port
         
-        return `${protocol}//${host}${port && port !== '80' && port !== '443' ? `:${port}` : ''}/ws`;
+        return `${protocol}//${host}/ws`;
       };
 
       const wsUrl = getWebSocketUrl();

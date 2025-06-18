@@ -8,7 +8,6 @@ import { NotificationProvider } from "@/context/NotificationContext";
 import { OnboardingProvider } from "@/context/OnboardingContext";
 import { AuthProvider } from "@/hooks/use-auth";
 import WebSocketProvider from "@/components/WebSocketProvider";
-import { SessionProtectionWrapper } from "@/components/auth/SessionProtectionWrapper";
 import { useState, useEffect } from "react";
 import { isMobileDevice } from "./lib/utils";
 import { initVisibilityProtection } from "./lib/ensureVisibility"; // Importar nossa solução para problemas de visibilidade
@@ -437,16 +436,14 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <WebSocketProvider>
-            <SessionProtectionWrapper>
-              <NotificationProvider>
-                <OnboardingProvider>
-                  <SearchProvider>
-                    <Router />
-                    <Toaster />
-                  </SearchProvider>
-                </OnboardingProvider>
-              </NotificationProvider>
-            </SessionProtectionWrapper>
+            <NotificationProvider>
+              <OnboardingProvider>
+                <SearchProvider>
+                  <Router />
+                  <Toaster />
+                </SearchProvider>
+              </OnboardingProvider>
+            </NotificationProvider>
           </WebSocketProvider>
         </AuthProvider>
       </QueryClientProvider>
