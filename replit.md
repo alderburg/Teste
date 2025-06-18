@@ -176,3 +176,13 @@ Preferred communication style: Simple, everyday language.
 - WebSocket notification system for session termination properly maintained
 - Users now receive proper disconnection popup and automatic logout when sessions are terminated
 - Session cleanup from Express session store and PostgreSQL session table also improved
+
+## Universal Session Protection Implementation (June 18, 2025)
+- Created `SessionProtectionWrapper` component to ensure uniform session protection across all pages
+- Fixed WebSocket URL construction to work correctly in Replit environment using relative paths
+- Enhanced `useWebSocket` hook with proper URL generation and session termination handling
+- Integrated SessionProtectionWrapper at App.tsx level to wrap all routes with consistent protection
+- Simplified WebSocketProvider to avoid duplication of session protection logic
+- All pages now have instant session termination popup functionality, not just "minha-conta"
+- System provides comprehensive protection against session hijacking and unauthorized access
+- WebSocket connections now properly handle session terminated events with immediate UI feedback
