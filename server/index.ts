@@ -632,7 +632,8 @@ if (process.env.EXTERNAL_API_URL) {
     serveStatic(app);
   }
 
-  const port = process.env.PORT || 3000;
+  const port = 3000;
+  console.log(`🔧 Configured port: ${port}`);
 
   // WebSocket Server Setup - use the main server
   const wss = new WebSocketServer({ 
