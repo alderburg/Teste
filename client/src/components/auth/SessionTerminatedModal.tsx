@@ -84,7 +84,7 @@ export function SessionTerminatedModal({ isOpen, onClose, message }: SessionTerm
 
   return (
     <Dialog open={isOpen} onOpenChange={() => {}} modal={true}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md z-[9999999] [&>div]:z-[9999999]" style={{zIndex: 9999999}}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-amber-600">
             <AlertTriangle className="h-5 w-5" />
