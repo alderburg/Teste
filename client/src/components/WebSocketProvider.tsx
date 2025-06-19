@@ -21,18 +21,7 @@ const WebSocketContext = createContext<WebSocketContextProps>({
 });
 
 // Hook para usar o contexto
-export const useWebSocketContext = () => {
-  const context = useContext(WebSocketContext);
-  if (!context) {
-    console.warn('useWebSocketContext deve ser usado dentro de um WebSocketProvider');
-    return {
-      connected: false,
-      sendMessage: () => false,
-      lastUpdated: undefined
-    };
-  }
-  return context;
-};
+export const useWebSocketContext = () => useContext(WebSocketContext);
 
 // Componente Provider
 interface WebSocketProviderProps {
@@ -47,7 +36,7 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
   const [terminationMessage, setTerminationMessage] = useState<string>("");
 
   // Ativar proteção IMEDIATAMENTE quando sessão estiver encerrada
-  // useSessionGuard(sessionTerminated); // TEMPORARIAMENTE DESABILITADO
+  useSessionGuard(sessionTerminated);
 
   // Função para verificar se a sessão atual foi encerrada
   const checkIfCurrentSession = (terminatedToken: string): boolean => {
@@ -83,8 +72,7 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
     console.log('🔒 PROTEÇÃO ATIVADA - Interface bloqueada');
   };
 
-  // Verificar periodicamente o status da sessão - TEMPORARIAMENTE DESABILITADO
-  /*
+  // Verificar periodicamente o status da sessão
   useEffect(() => {
     if (!user) return;
 
@@ -110,7 +98,6 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
 
     return () => clearInterval(interval);
   }, [user]);
-  */
 
   // Verificar status da sessão quando WebSocket desconectar
   useEffect(() => {
@@ -139,8 +126,7 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
     }
   }, [connected, user]);
 
-  // Interceptar todas as respostas HTTP para detectar 401 - TEMPORARIAMENTE DESABILITADO
-  /*
+  // Interceptar todas as respostas HTTP para detectar 401
   useEffect(() => {
     const originalFetch = window.fetch;
     
@@ -163,7 +149,6 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
       window.fetch = originalFetch;
     };
   }, [user]);
-  */
 
   // Atualizar o timestamp sempre que recebermos uma mensagem
   useEffect(() => {

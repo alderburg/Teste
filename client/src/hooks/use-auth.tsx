@@ -57,8 +57,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Efeito para checar o estado de autenticação ao carregar
   useEffect(() => {
-    console.log("useAuth: Iniciando verificação de autenticação");
-    setIsLoading(true);
     const checkAuth = async () => {
       try {
         // HOTFIX: Remover verificação de landing page temporariamente
@@ -115,10 +113,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     };
 
-    checkAuth().catch(error => {
-      console.error("useAuth: Erro na verificação inicial:", error);
-      setIsLoading(false);
-    });
+    checkAuth();
   }, [location]);
 
   // Função de login
@@ -156,7 +151,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Sistema de logout corrigido - servidor PRIMEIRO
   const logout = async () => {
     console.log("🚪 Iniciando logout...");
-
+    
     // 1. Limpar estado de sessão encerrada
     try {
       const { clearSessionTerminated } = await import('@/lib/api');
@@ -164,7 +159,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch (error) {
       console.log("⚠️ Erro ao importar clearSessionTerminated:", error);
     }
-
+    
     // 2. PRIMEIRO: Fazer logout no servidor (antes de limpar dados locais)
     try {
       await fetch('/api/logout', {
@@ -178,15 +173,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch (error) {
       console.log("⚠️ Erro no logout do servidor:", error);
     }
-
+    
     // 3. Agora limpar o estado local
     setUser(null);
     setIsLoading(false);
-
+    
     // 4. Limpar todos os dados locais
     localStorage.clear();
     sessionStorage.clear();
-
+    
     // 5. Limpar cookies
     document.cookie.split(";").forEach(cookie => {
       const cookieName = cookie.trim().split("=")[0];
@@ -194,7 +189,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
       }
     });
-
+    
     // 6. Redirecionar para login
     console.log("🔄 Redirecionando para login...");
     window.location.href = '/acessar';
