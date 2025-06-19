@@ -34,7 +34,7 @@ interface ContatoFormValues extends z.infer<typeof contatoSchema> {
   updatedAt?: string;
 }
 
-export function ContatosTabWebSocket() {
+export default function ContatosTabWebSocket() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [showAddContato, setShowAddContato] = useState(false);
@@ -465,4 +465,4 @@ export function ContatosTabWebSocket() {
   );
 }
 
-export default ContatosTabWebSocket;
+export { ContatosTabWebSocket };

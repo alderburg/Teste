@@ -279,9 +279,9 @@ const CountdownTimer = () => {
 
 import { apiRequest } from "@/lib/queryClient";
 // Import dos componentes das abas
-import { ContatosTabWebSocket } from "@/components/conta/ContatosTab-WebSocket";
-import { default as EnderecosTabWebSocket } from "@/components/conta/EnderecosTab-WebSocket";
-import { default as UsuariosTabWebSocket } from "@/components/conta/UsuariosTab-WebSocket";
+import ContatosTabWebSocket from "@/components/conta/ContatosTab-WebSocket";
+import EnderecosTabWebSocket from "@/components/conta/EnderecosTab-WebSocket";
+import UsuariosTabWebSocket from "@/components/conta/UsuariosTab-WebSocket";
 import { PaymentMethodsManager } from "@/components/conta/PaymentMethodsManager";
 import SegurancaTab from "./seguranca-tab";
 import { useCreditBalance } from "@/hooks/use-credit-balance";
