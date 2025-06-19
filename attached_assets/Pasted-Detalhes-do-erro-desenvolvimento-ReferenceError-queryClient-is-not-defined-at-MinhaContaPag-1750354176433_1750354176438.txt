@@ -1,0 +1,20 @@
+Detalhes do erro (desenvolvimento)
+ReferenceError: queryClient is not defined
+    at MinhaContaPage (https://85bd55f1-1eca-4617-9150-b0df58c4b855-00-1shpqwfhfh6yj.picard.replit.dev:3001/src/pages/conta/index.tsx:596:28)
+    at Route (https://85bd55f1-1eca-4617-9150-b0df58c4b855-00-1shpqwfhfh6yj.picard.replit.dev:3001/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=32ad411b:206:16)
+    at Switch (https://85bd55f1-1eca-4617-9150-b0df58c4b855-00-1shpqwfhfh6yj.picard.replit.dev:3001/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=32ad411b:262:17)
+    at main
+    at div
+    at div
+    at PersistentLayout (https://85bd55f1-1eca-4617-9150-b0df58c4b855-00-1shpqwfhfh6yj.picard.replit.dev:3001/src/components/PersistentLayout.tsx:22:44)
+    at RequireAuth (https://85bd55f1-1eca-4617-9150-b0df58c4b855-00-1shpqwfhfh6yj.picard.replit.dev:3001/src/hooks/use-auth.tsx:150:31)
+    at AuthenticatedRoutes
+    at Router (https://85bd55f1-1eca-4617-9150-b0df58c4b855-00-1shpqwfhfh6yj.picard.replit.dev:3001/src/App.tsx?v=dHX7H2eVGUXB9rbbqkDpZ:277:37)
+    at SearchProvider (https://85bd55f1-1eca-4617-9150-b0df58c4b855-00-1shpqwfhfh6yj.picard.replit.dev:3001/src/components/Header.tsx:56:34)
+    at OnboardingProvider (https://85bd55f1-1eca-4617-9150-b0df58c4b855-00-1shpqwfhfh6yj.picard.replit.dev:3001/src/context/OnboardingContext.tsx:30:38)
+    at NotificationProvider (https://85bd55f1-1eca-4617-9150-b0df58c4b855-00-1shpqwfhfh6yj.picard.replit.dev:3001/src/context/NotificationContext.tsx:21:40)
+    at WebSocketProvider (https://85bd55f1-1eca-4617-9150-b0df58c4b855-00-1shpqwfhfh6yj.picard.replit.dev:3001/src/components/WebSocketProvider.tsx:34:45)
+    at AuthProvider (https://85bd55f1-1eca-4617-9150-b0df58c4b855-00-1shpqwfhfh6yj.picard.replit.dev:3001/src/hooks/use-auth.tsx:30:32)
+    at QueryClientProvider (https://85bd55f1-1eca-4617-9150-b0df58c4b855-00-1shpqwfhfh6yj.picard.replit.dev:3001/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=32ad411b:2763:3)
+    at ErrorBoundary (https://85bd55f1-1eca-4617-9150-b0df58c4b855-00-1shpqwfhfh6yj.picard.replit.dev:3001/src/App.tsx?v=dHX7H2eVGUXB9rbbqkDpZ:506:5)
+    at App
