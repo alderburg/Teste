@@ -60,7 +60,9 @@ export function useWebSocket() {
       });
       
       if (currentSessionToken === data.sessionToken) {
-        console.log('🔒 Esta é a sessão atual - disparando evento de encerramento');
+        console.log('🔒 SESSÃO ATUAL DETECTADA - ATIVANDO MODAL GLOBAL IMEDIATAMENTE');
+        console.log('🔒 Página atual:', window.location.pathname);
+        console.log('🔒 URL completa:', window.location.href);
         
         // Invalidar imediatamente o queryClient para evitar requisições
         try {
@@ -70,15 +72,17 @@ export function useWebSocket() {
           console.error('Erro ao limpar queryClient:', error);
         }
         
-        // AÇÃO IMEDIATA: Forçar o popup globalmente
+        // AÇÃO IMEDIATA: Forçar o popup globalmente em QUALQUER PÁGINA
         const forceSessionTerminationPopup = () => {
-          console.log('🔒 FORÇANDO POPUP DE SESSÃO ENCERRADA');
+          console.log('🔒 FORÇANDO POPUP DE SESSÃO ENCERRADA GLOBALMENTE');
           
           // Verificar se já existe um popup
           if (document.querySelector('[data-session-terminated-modal]')) {
             console.log('🔒 Modal já existe, não duplicar');
             return;
           }
+          
+          console.log('🔒 Criando modal DOM diretamente para garantir exibição global');
           
           // Criar modal diretamente no DOM
           const modal = document.createElement('div');
@@ -178,8 +182,10 @@ export function useWebSocket() {
           }
         };
         
-        // Executar imediatamente
-        forceSessionTerminationPopup();
+        // Executar IMEDIATAMENTE e forçar exibição
+        setTimeout(() => {
+          forceSessionTerminationPopup();
+        }, 0); // Usar timeout 0 para garantir que executa no próximo tick
         
         // Disparar eventos para compatibilidade
         const sessionTerminatedEvent = new CustomEvent('session-terminated', { 
