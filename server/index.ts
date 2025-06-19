@@ -617,13 +617,11 @@ if (process.env.EXTERNAL_API_URL) {
       if (needsCleanup) {
         console.log('🧹 Executando limpeza otimizada...');
         await optimizedSessionCleanup.optimizedCleanup();
-      } else {
-        console.log('✅ Nenhuma limpeza necessária');
       }
     } catch (error) {
       console.error('Erro na limpeza otimizada:', error);
     }
-  }, 2 * 60 * 60 * 1000); // A cada 2 horas - mais frequente mas muito mais leve
+  }, 4 * 60 * 60 * 1000); // A cada 4 horas - reduzido para diminuir carga
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     if (!res.headersSent) {
