@@ -23,37 +23,7 @@ if (process.env.NODE_ENV === 'development') {
   initPerformanceMonitoring();
 }
 
-// Inicializar a conexão WebSocket para atualizações em tempo real
-initWebSocket();
-
-// Registrar tempo inicial da aplicação
-const appStartTime = performance.now();
-
-// Iniciar carregamento imediato de dados críticos antes mesmo da renderização
-// Isso permite que os dados estejam disponíveis quando os componentes são montados
-const preloadCriticalData = async () => {
-  try {
-    // Iniciar medição de tempo para o preload
-    const preloadStartTime = performance.now();
-    
-    // Carregar dados de usuário - necessário para a maioria das páginas
-    preloadDataToCache("/api/auth/user", () => 
-      fetch("/api/auth/user", { credentials: "include" }).then(res => 
-        res.ok ? res.json() : null
-      )
-    );
-    
-    // Não esperamos a conclusão do pré-carregamento - ele ocorre em paralelo
-    console.log("Pré-carregamento de dados críticos iniciado");
-    console.log(`[⏱️ Performance] Tempo para iniciar preload: ${(performance.now() - preloadStartTime).toFixed(2)}ms`);
-  } catch (error) {
-    console.warn("Erro ao pré-carregar dados críticos:", error);
-    // Não bloquear a renderização se o pré-carregamento falhar
-  }
-};
-
-// Iniciar pré-carregamento imediatamente
-preloadCriticalData();
+console.log("Main: Inicializando aplicação");
 
 // Registrar tempo antes da renderização
 const beforeRenderTime = performance.now();

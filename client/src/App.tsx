@@ -154,8 +154,7 @@ function Router() {
 
   // Efeito simplificado - apenas configuração básica
   useEffect(() => {
-    // Inicializar proteção de visibilidade
-    initVisibilityProtection();
+    console.log("App: Inicializando componente principal");
 
     // Garantir visibilidade do root
     const root = document.getElementById('root');
@@ -169,62 +168,8 @@ function Router() {
     const currentPath = window.location.pathname;
     console.log("Router: Rota atual:", currentPath);
 
-    // Redirecionamento imediato para o dashboard se a rota for /verificar-2fa e o 2FA já estiver verificado
-    if (currentPath === '/verificar-2fa') {
-      // Verificar status da sessão 2FA
-      fetch('/api/auth/2fa-session-status', {
-        credentials: 'include',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        }
-      })
-      .then(response => response.json())
-      .then(data => {
-        console.log("Status 2FA no App Router:", data);
-
-        // VERIFICAÇÃO IMPORTANTE: Se há 2FA pendente e estamos na página de login, NÃO redirecionar
-        const hasPendingTwoFactor = localStorage.getItem('pendingTwoFactor') === 'true';
-        const isLoginPage = window.location.pathname === '/acessar';
-
-        if (hasPendingTwoFactor && isLoginPage) {
-          console.log("🔒 Detecção especial: 2FA pendente na página de login - BLOQUEANDO redirecionamento automático");
-          // Não fazer nada, permitir que a página de login exiba o formulário 2FA
-          return;
-        }
-
-        // Se o usuário está autenticado e o 2FA já foi verificado ou não está habilitado
-        if (data.authenticated && (data.twoFactorVerified || !data.twoFactorEnabled)) {
-          console.log("🚀 Redirecionamento imediato: 2FA verificado, indo para dashboard");
-
-          // Verificar prioridade de redirecionamento
-          const savedRedirect = localStorage.getItem('twoFactorRedirect');
-          if (savedRedirect) {
-            console.log("Redirecionando do Router para a página original:", savedRedirect);
-            localStorage.removeItem('twoFactorRedirect'); // Limpar após uso
-            window.location.href = savedRedirect;
-            return;
-          }
-
-          // Verificar parâmetro na URL
-          const urlParams = new URLSearchParams(window.location.search);
-          const redirectParam = urlParams.get('redirect');
-          if (redirectParam) {
-            console.log("Redirecionando do Router para URL específica:", redirectParam);
-            window.location.href = decodeURIComponent(redirectParam);
-            return;
-          }
-
-          // Padrão é o dashboard
-          console.log("Redirecionando do Router para dashboard");
-          window.location.href = "/dashboard";
-        }
-      })
-      .catch(error => {
-        console.error("Erro ao verificar status 2FA no Router:", error);
-      });
-    }
+    // Redirecionamento simplificado
+    console.log("App: Rota atual:", currentPath);
 
     // Se não estamos em uma rota de autenticação e não é o root, salvamos para redirecionamento após login
     if (!['/acessar', '/cadastre-se', '/recuperar', '/esqueci-senha', '/'].includes(currentPath)) {
