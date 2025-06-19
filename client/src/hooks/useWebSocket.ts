@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { queryClient } from '@/lib/queryClient';
+import { showSessionTerminationPopup, isCurrentSession } from '@/lib/globalSessionHandler';
 
 interface WebSocketMessage {
   type: string;
@@ -18,6 +19,9 @@ export function useWebSocket() {
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const MAX_RECONNECT_ATTEMPTS = 5;
+  
+  // Evitar múltiplas conexões WebSocket
+  const connectionKey = 'primary-websocket-connection';
 
   // Função para processar mensagens recebidas
   const handleMessage = useCallback((data: WebSocketMessage) => {
@@ -43,145 +47,28 @@ export function useWebSocket() {
       return;
     }
     else if (data.type === 'session_terminated') {
-      // Tratar evento de sessão encerrada
-      console.log('🔒 Sessão encerrada pelo servidor:', data);
+      // Tratar evento de sessão encerrada usando o handler global
+      console.log('🔒 CLIENTE: Sessão encerrada pelo servidor:', data);
+      console.log(`🔔 CLIENTE: MENSAGEM DE ENCERRAMENTO RECEBIDA - Processando encerramento`);
       
-      // Verificar se é a sessão atual que foi encerrada
-      const currentSessionToken = localStorage.getItem('sessionToken') || 
-                                 localStorage.getItem('token') || 
-                                 document.cookie.split(';').find(c => c.trim().startsWith('sessionToken='))?.split('=')[1] || 
-                                 '';
-      
-      console.log('🔒 Verificando tokens:', {
-        current: currentSessionToken?.substring(0, 8) + '...',
-        terminated: data.sessionToken?.substring(0, 8) + '...',
-        match: currentSessionToken === data.sessionToken,
-        currentPage: window.location.pathname
-      });
-      
-      if (currentSessionToken === data.sessionToken) {
-        console.log('🔒 Esta é a sessão atual - disparando evento de encerramento');
+      if (isCurrentSession(data.sessionToken)) {
+        console.log('🔒 CLIENTE: Esta é a sessão atual - ativando popup global IMEDIATAMENTE');
         
-        // Invalidar imediatamente o queryClient para evitar requisições
+        // Limpar cache do queryClient imediatamente
         try {
           queryClient.invalidateQueries();
           queryClient.clear();
+          console.log('🔒 CLIENTE: Cache limpo com sucesso');
         } catch (error) {
           console.error('Erro ao limpar queryClient:', error);
         }
         
-        // AÇÃO IMEDIATA: Forçar o popup globalmente
-        const forceSessionTerminationPopup = () => {
-          console.log('🔒 FORÇANDO POPUP DE SESSÃO ENCERRADA');
-          
-          // Verificar se já existe um popup
-          if (document.querySelector('[data-session-terminated-modal]')) {
-            console.log('🔒 Modal já existe, não duplicar');
-            return;
-          }
-          
-          // Criar modal diretamente no DOM
-          const modal = document.createElement('div');
-          modal.setAttribute('data-session-terminated-modal', 'true');
-          modal.style.cssText = `
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100vw !important;
-            height: 100vh !important;
-            background: rgba(0, 0, 0, 0.8) !important;
-            z-index: 999999 !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            backdrop-filter: blur(4px) !important;
-          `;
-          
-          const modalContent = document.createElement('div');
-          modalContent.style.cssText = `
-            background: white !important;
-            padding: 32px !important;
-            border-radius: 12px !important;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1) !important;
-            max-width: 400px !important;
-            width: 90% !important;
-            text-align: center !important;
-            font-family: system-ui, -apple-system, sans-serif !important;
-          `;
-          
-          let countdown = 10;
-          modalContent.innerHTML = `
-            <div style="color: #dc2626; font-size: 48px; margin-bottom: 16px;">⚠️</div>
-            <h2 style="color: #1f2937; font-size: 24px; font-weight: 600; margin-bottom: 16px;">
-              Sessão Encerrada
-            </h2>
-            <p style="color: #6b7280; margin-bottom: 24px; line-height: 1.5;">
-              ${data.message || 'Sua sessão foi encerrada por outro usuário'}
-            </p>
-            <p style="color: #374151; font-weight: 500; margin-bottom: 24px;">
-              Redirecionando em <span id="countdown">${countdown}</span> segundos...
-            </p>
-            <button id="logout-now" style="
-              background: #dc2626;
-              color: white;
-              border: none;
-              padding: 12px 24px;
-              border-radius: 8px;
-              font-weight: 600;
-              cursor: pointer;
-              font-size: 16px;
-            ">
-              Sair Agora
-            </button>
-          `;
-          
-          modal.appendChild(modalContent);
-          document.body.appendChild(modal);
-          
-          // Countdown e logout automático
-          const countdownElement = document.getElementById('countdown');
-          const logoutButton = document.getElementById('logout-now');
-          
-          const countdownInterval = setInterval(() => {
-            countdown--;
-            if (countdownElement) {
-              countdownElement.textContent = countdown.toString();
-            }
-            
-            if (countdown <= 0) {
-              clearInterval(countdownInterval);
-              performLogout();
-            }
-          }, 1000);
-          
-          const performLogout = () => {
-            console.log('🔒 Executando logout forçado');
-            
-            // Limpar dados locais
-            localStorage.clear();
-            sessionStorage.clear();
-            
-            // Limpar cookies
-            document.cookie.split(";").forEach(function(c) { 
-              document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
-            });
-            
-            // Redirecionar
-            window.location.href = '/acessar';
-          };
-          
-          if (logoutButton) {
-            logoutButton.addEventListener('click', () => {
-              clearInterval(countdownInterval);
-              performLogout();
-            });
-          }
-        };
+        // Usar o handler global para mostrar o popup
+        console.log('🔒 CLIENTE: Chamando showSessionTerminationPopup...');
+        showSessionTerminationPopup(data.message || 'Sua sessão foi encerrada por outro usuário');
+        console.log('🔒 CLIENTE: Popup de encerramento deveria estar visível agora');
         
-        // Executar imediatamente
-        forceSessionTerminationPopup();
-        
-        // Disparar eventos para compatibilidade
+        // Disparar eventos para compatibilidade com outros componentes
         const sessionTerminatedEvent = new CustomEvent('session-terminated', { 
           detail: { 
             message: data.message || 'Sua sessão foi encerrada por outro usuário',
@@ -201,6 +88,10 @@ export function useWebSocket() {
           } 
         });
         window.dispatchEvent(webSocketEvent);
+        
+        console.log('🔒 CLIENTE: Eventos de sessão encerrada disparados');
+      } else {
+        console.log('🔒 CLIENTE: Token de sessão não corresponde à sessão atual - ignorando');
       }
       
       return;
@@ -274,6 +165,14 @@ export function useWebSocket() {
 
   // Estabelecer conexão ao montar o componente
   useEffect(() => {
+    // Verificar se já existe uma conexão global
+    if ((window as any)[connectionKey]) {
+      console.log('WebSocket já existe globalmente - usando conexão existente');
+      socketRef.current = (window as any)[connectionKey];
+      setConnected(socketRef.current?.readyState === WebSocket.OPEN);
+      return;
+    }
+
     try {
       // Definir URL do WebSocket baseado no ambiente
       const getWebSocketUrl = () => {
@@ -281,25 +180,25 @@ export function useWebSocket() {
 
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.hostname;
-        // No Replit, usar a mesma porta do servidor principal
-        const wsPort = process.env.NODE_ENV === 'development' ? '3000' : window.location.port || '3000';
+        const wsPort = window.location.port || '3000';
 
         return `${protocol}//${host}:${wsPort}/ws`;
       };
 
       const wsUrl = getWebSocketUrl();
-      console.log('Tentando conectar ao WebSocket em:', wsUrl);
+      console.log('Conectando WebSocket unificado em:', wsUrl);
 
-      // Criar conexão WebSocket com tratamento de erro
+      // Criar conexão WebSocket única
       let socket: WebSocket;
 
       try {
         socket = new WebSocket(wsUrl);
         socketRef.current = socket;
+        (window as any)[connectionKey] = socket; // Armazenar globalmente
       } catch (connectionError) {
         console.error('Erro ao criar conexão WebSocket:', connectionError);
         setConnected(false);
-        return; // Sair se não conseguir criar o socket
+        return;
       }
 
       // Configurar listeners
@@ -311,6 +210,12 @@ export function useWebSocket() {
       socket.addEventListener('message', (event) => {
         try {
           const data = JSON.parse(event.data);
+          console.log(`🔍 CLIENTE: Mensagem WebSocket recebida:`, data);
+          
+          if (data.type === 'session_terminated') {
+            console.log(`🔔 CLIENTE: MENSAGEM DE ENCERRAMENTO RECEBIDA - Token: ${data.sessionToken?.substring(0, 8)}...`);
+          }
+          
           handleMessage(data);
 
           // Disparar evento personalizado para notificar outras partes da aplicação

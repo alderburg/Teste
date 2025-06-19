@@ -11,6 +11,7 @@ import WebSocketProvider from "@/components/WebSocketProvider";
 import { useState, useEffect } from "react";
 import { isMobileDevice } from "./lib/utils";
 import { initVisibilityProtection } from "./lib/ensureVisibility"; // Importar nossa solução para problemas de visibilidade
+import "./lib/globalSessionHandler"; // Importar handler global de sessão
 
 // Componente de carregamento para transições mais suaves
 // Este componente pode ser personalizado conforme necessário

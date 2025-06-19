@@ -531,8 +531,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Notificar via WebSocket sobre o encerramento da sessão
         const targetUserId = sessionCheck.rows[0].user_id;
+        
+        console.log(`🔔 MENSAGEM DE ENCERRAMENTO SENDO ENVIADA - Usuário: ${targetUserId}, Token: ${sessionToken.substring(0, 8)}...`);
+        
         if (typeof (global as any).notifySessionTerminated === 'function') {
+          console.log(`📤 MENSAGEM DE DESCONEXÃO RECEBIDA E ENVIADA - Chamando notifySessionTerminated`);
           (global as any).notifySessionTerminated(targetUserId, sessionToken);
+          console.log(`✅ MENSAGEM DE DESCONEXÃO PROCESSADA - Notificação WebSocket enviada`);
         } else {
           console.log(`⚠️ Sistema WebSocket não disponível para notificação de sessão`);
         }

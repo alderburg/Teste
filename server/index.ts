@@ -560,7 +560,7 @@ if (process.env.EXTERNAL_API_URL) {
 
   // Função global para notificar sobre sessão encerrada via sistema WebSocket existente
   (global as any).notifySessionTerminated = (userId: number, sessionToken: string) => {
-    console.log(`🔔 Notificando encerramento da sessão ${sessionToken.substring(0, 8)}... para usuário ${userId}`);
+    console.log(`🔔 SERVIDOR: Notificando encerramento da sessão ${sessionToken.substring(0, 8)}... para usuário ${userId}`);
 
     // Usar o sistema WebSocket existente para enviar notificação
     if (global.wsClients && global.wsClients.size > 0) {
@@ -572,20 +572,28 @@ if (process.env.EXTERNAL_API_URL) {
         timestamp: new Date().toISOString()
       };
 
+      console.log(`📤 SERVIDOR: MENSAGEM DE DESCONEXÃO RECEBIDA E ENVIADA - Enviando para ${global.wsClients.size} cliente(s)`);
+      console.log(`📋 SERVIDOR: Conteúdo da mensagem:`, message);
+
       // Enviar para todos os clientes conectados - o frontend filtrará pela sessão
+      let clienteEnviado = 0;
       global.wsClients.forEach((ws: any) => {
         if (ws.readyState === 1) { // WebSocket.OPEN = 1
           try {
             ws.send(JSON.stringify(message));
+            clienteEnviado++;
+            console.log(`✅ SERVIDOR: Mensagem enviada para cliente ${clienteEnviado}`);
           } catch (error) {
-            console.error('❌ Erro ao enviar notificação de sessão:', error);
+            console.error('❌ SERVIDOR: Erro ao enviar notificação de sessão:', error);
           }
+        } else {
+          console.log(`⚠️ SERVIDOR: Cliente WebSocket não está aberto (estado: ${ws.readyState})`);
         }
       });
 
-      console.log(`✅ Notificação de sessão encerrada enviada para ${global.wsClients.size} cliente(s)`);
+      console.log(`✅ SERVIDOR: Notificação de sessão encerrada enviada para ${clienteEnviado}/${global.wsClients.size} cliente(s) conectado(s)`);
     } else {
-      console.log(`⚠️ Nenhum cliente WebSocket conectado`);
+      console.log(`⚠️ SERVIDOR: Nenhum cliente WebSocket conectado (wsClients: ${global.wsClients ? global.wsClients.size : 'undefined'})`);
     }
   };
 
