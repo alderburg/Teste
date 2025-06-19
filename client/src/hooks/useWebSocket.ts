@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { queryClient } from '@/lib/queryClient';
 import { showSessionTerminationPopup, isCurrentSession } from '@/lib/globalSessionHandler';
@@ -19,6 +20,7 @@ export function useWebSocket() {
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const MAX_RECONNECT_ATTEMPTS = 5;
+  const isConnectingRef = useRef(false);
   
   // Evitar múltiplas conexões WebSocket
   const connectionKey = 'primary-websocket-connection';
@@ -163,15 +165,43 @@ export function useWebSocket() {
     }
   }, []);
 
-  // Estabelecer conexão ao montar o componente
-  useEffect(() => {
-    // Verificar se já existe uma conexão global
-    if ((window as any)[connectionKey]) {
-      console.log('WebSocket já existe globalmente - usando conexão existente');
-      socketRef.current = (window as any)[connectionKey];
-      setConnected(socketRef.current?.readyState === WebSocket.OPEN);
+  // Função para tentar reconectar
+  const attemptReconnect = useCallback(() => {
+    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS || isConnectingRef.current) {
+      console.log('Número máximo de tentativas de reconexão atingido ou já conectando');
       return;
     }
+
+    const timeout = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
+    console.log(`Tentando reconexão em ${timeout}ms (tentativa ${reconnectAttempts + 1} de ${MAX_RECONNECT_ATTEMPTS})`);
+
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+    }
+
+    reconnectTimeoutRef.current = setTimeout(() => {
+      setReconnectAttempts(prev => prev + 1);
+      createConnection();
+    }, timeout);
+  }, [reconnectAttempts]);
+
+  // Função para criar conexão WebSocket
+  const createConnection = useCallback(() => {
+    if (isConnectingRef.current) {
+      console.log('Já conectando - ignorando nova tentativa');
+      return;
+    }
+
+    // Verificar se já existe uma conexão global ativa
+    const existingSocket = (window as any)[connectionKey];
+    if (existingSocket && existingSocket.readyState === WebSocket.OPEN) {
+      console.log('WebSocket já existe e está conectado - usando conexão existente');
+      socketRef.current = existingSocket;
+      setConnected(true);
+      return;
+    }
+
+    isConnectingRef.current = true;
 
     try {
       // Definir URL do WebSocket baseado no ambiente
@@ -189,29 +219,18 @@ export function useWebSocket() {
       };
 
       const wsUrl = getWebSocketUrl();
-      console.log('Conectando WebSocket unificado em:', wsUrl);
+      console.log('🔄 CLIENTE: Tentando conectar WebSocket em:', wsUrl);
 
-      // Criar conexão WebSocket única
-      let socket: WebSocket;
+      const socket = new WebSocket(wsUrl);
+      socketRef.current = socket;
+      (window as any)[connectionKey] = socket;
 
-      try {
-        console.log('🔄 CLIENTE: Tentando conectar WebSocket em:', wsUrl);
-        socket = new WebSocket(wsUrl);
-        socketRef.current = socket;
-        (window as any)[connectionKey] = socket; // Armazenar globalmente
-        console.log('✅ CLIENTE: WebSocket criado com sucesso');
-      } catch (connectionError) {
-        console.error('❌ CLIENTE: Erro ao criar conexão WebSocket:', connectionError);
-        setConnected(false);
-        return;
-      }
-
-      // Configurar listeners
       socket.addEventListener('open', () => {
         console.log('🔗 CLIENTE: WebSocket conectado com sucesso');
         console.log('🔗 CLIENTE: URL de conexão:', wsUrl);
         setConnected(true);
         setReconnectAttempts(0);
+        isConnectingRef.current = false;
         
         // Enviar ping inicial para confirmar conexão
         try {
@@ -249,105 +268,60 @@ export function useWebSocket() {
         console.error('❌ CLIENTE: Erro na conexão WebSocket:', error);
         console.error('❌ CLIENTE: URL que falhou:', wsUrl);
         setConnected(false);
+        isConnectingRef.current = false;
       });
 
       socket.addEventListener('close', (event) => {
         console.log('❌ CLIENTE: WebSocket desconectado:', event.code, event.reason);
         setConnected(false);
+        isConnectingRef.current = false;
+        
+        // Limpar da conexão global
+        if ((window as any)[connectionKey] === socket) {
+          delete (window as any)[connectionKey];
+        }
+        
+        // Tentar reconectar se não foi um fechamento intencional
+        if (event.code !== 1000) {
+          attemptReconnect();
+        }
       });
 
-      // Função para tentar reconectar
-      const tryReconnect = () => {
-        if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-          // Calculando tempo exponencial de backoff para reconexão
-          const timeout = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
-
-          console.log(`Tentando reconexão em ${timeout}ms (tentativa ${reconnectAttempts + 1} de ${MAX_RECONNECT_ATTEMPTS})`);
-
-          reconnectTimeoutRef.current = setTimeout(() => {
-            setReconnectAttempts(prev => prev + 1);
-
-            // Limpar referência do socket atual
-            if (socketRef.current) {
-              socketRef.current = null;
-            }
-
-            // Tentar criar uma nova conexão
-            try {
-              const newSocket = new WebSocket(wsUrl);
-              socketRef.current = newSocket;
-
-              // Configurar eventos para o novo socket (recursivamente)
-              setupSocketEvents(newSocket, wsUrl);
-            } catch (reconnectError) {
-              console.error('Erro ao reconectar WebSocket:', reconnectError);
-              // Continuamos tentando reconectar se ainda tivermos tentativas
-              tryReconnect();
-            }
-          }, timeout);
-        } else {
-          console.error('Número máximo de tentativas de reconexão atingido');
-        }
-      };
-
-      // Função para configurar eventos do socket
-      const setupSocketEvents = (socket: WebSocket, url: string) => {
-        socket.addEventListener('open', () => {
-          console.log('WebSocket conectado');
-          setConnected(true);
-          setReconnectAttempts(0); // Resetar contador de tentativas ao conectar com sucesso
-        });
-
-        socket.addEventListener('message', (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            handleMessage(data);
-
-            // Disparar evento personalizado para notificar outras partes da aplicação
-            const customEvent = new CustomEvent('websocket-message-received', { detail: data });
-            window.dispatchEvent(customEvent);
-          } catch (error) {
-            console.error('Erro ao processar mensagem do WebSocket:', error);
-          }
-        });
-
-        socket.addEventListener('close', () => {
-          console.log('WebSocket desconectado');
-          setConnected(false);
-          tryReconnect();
-        });
-
-        socket.addEventListener('error', (error) => {
-          console.error('Erro no WebSocket:', error);
-          setConnected(false);
-        });
-      };
-
-      // Inicializar configuração de eventos
-      setupSocketEvents(socket, wsUrl);
-
-      // Limpar ao desmontar
-      return () => {
-        try {
-          // Cancelar qualquer tentativa de reconexão pendente
-          if (reconnectTimeoutRef.current) {
-            clearTimeout(reconnectTimeoutRef.current);
-            reconnectTimeoutRef.current = null;
-          }
-
-          // Fechar socket se estiver aberto
-          if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-            socketRef.current.close();
-          }
-        } catch (closeError) {
-          console.error('Erro ao fechar WebSocket:', closeError);
-        }
-      };
     } catch (error) {
-      console.error('Erro geral no setup do WebSocket:', error);
+      console.error('❌ CLIENTE: Erro ao criar conexão WebSocket:', error);
       setConnected(false);
+      isConnectingRef.current = false;
+      attemptReconnect();
     }
-  }, [handleMessage]);
+  }, [handleMessage, attemptReconnect]);
+
+  // Estabelecer conexão ao montar o componente
+  useEffect(() => {
+    createConnection();
+
+    // Limpar ao desmontar
+    return () => {
+      try {
+        // Cancelar qualquer tentativa de reconexão pendente
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+          reconnectTimeoutRef.current = null;
+        }
+
+        // Fechar socket se estiver aberto
+        if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+          socketRef.current.close(1000, 'Component unmounting');
+        }
+
+        // Limpar da conexão global
+        if ((window as any)[connectionKey] === socketRef.current) {
+          delete (window as any)[connectionKey];
+        }
+      } catch (closeError) {
+        console.error('Erro ao fechar WebSocket:', closeError);
+      }
+    };
+  }, [createConnection]);
 
   // Função para enviar mensagens
   const sendMessage = useCallback((message: WebSocketMessage) => {
@@ -400,6 +374,9 @@ export function useWebSocket() {
         }
         socketRef.current = null;
       }
+
+      // Criar nova conexão
+      createConnection();
     };
 
     window.addEventListener('online', handleOnline);
@@ -407,7 +384,7 @@ export function useWebSocket() {
     return () => {
       window.removeEventListener('online', handleOnline);
     };
-  }, []);
+  }, [createConnection]);
 
   return { connected, sendMessage };
 }
