@@ -1293,10 +1293,10 @@ export default function MinhaContaPage() {
       <PaymentModal
         isOpen={isPaymentModalOpen}
         onClose={() => setIsPaymentModalOpen(false)}
-        plano={selectedPlan}
-        periodoSelecionado={periodoPlanos}
-        onPaymentSuccess={handlePaymentSuccess}
-        isRenewal={true}
+        planoSelecionado={selectedPlan}
+        periodoPlanos={periodoPlanos}
+        onSuccess={handlePaymentSuccess}
+        acaoTipo="ASSINAR"
       />
     </div>
   );
