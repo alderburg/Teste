@@ -11,7 +11,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { isMobileDevice } from "@/lib/utils";
 import MobileContaPage from "./mobile-conta";
 import InputMask from "react-input-mask";

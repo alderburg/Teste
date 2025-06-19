@@ -49,240 +49,6 @@ if (!import.meta.env.VITE_STRIPE_PUBLIC_KEY) {
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
-// Componente do formulário de pagamento do Stripe
-function CheckoutForm() {
-  const stripe = useStripe();
-  const elements = useElements();
-  const [isProcessing, setIsProcessing] = useState(false);
-  const { toast } = useToast();
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!stripe || !elements) {
-      // O Stripe.js ainda não carregou
-      return;
-    }
-
-    setIsProcessing(true);
-
-    // Confirma o pagamento com o Stripe.js
-    const { error } = await stripe.confirmPayment({
-      elements,
-      confirmParams: {
-        // Redirecionar para a página de sucesso após o pagamento
-        return_url: `${window.location.origin}/financeiro/pagamento-sucesso`,
-      },
-    });
-
-    if (error) {
-      // Mostra mensagem de erro ao usuário
-      toast({
-        variant: "destructive",
-        title: "Erro no pagamento",
-        description: error.message || "Ocorreu um erro ao processar seu pagamento. Tente novamente.",
-      });
-    }
-
-    setIsProcessing(false);
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="mt-6 space-y-6">
-      <div className="p-4 bg-secondary/30 rounded-lg">
-        <PaymentElement 
-          options={{
-            layout: {
-              type: 'tabs',
-              defaultCollapsed: false,
-            }
-          }}
-        />
-      </div>
-      
-      <div className="flex items-center space-x-2 pt-2">
-        <Shield className="h-5 w-5 text-green-500" />
-        <span className="text-sm text-muted-foreground">Seus dados de pagamento estão seguros e criptografados</span>
-      </div>
-      
-      <Button 
-        type="submit" 
-        disabled={!stripe || isProcessing} 
-        className="w-full"
-      >
-        {isProcessing ? (
-          <>
-            <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-            Processando...
-          </>
-        ) : (
-          'Confirmar pagamento'
-        )}
-      </Button>
-    </form>
-  );
-}
-
-// Componente de pagamento com Stripe
-function StripePayment() {
-  const [clientSecret, setClientSecret] = useState('');
-  const { toast } = useToast();
-  const planPrice = 87.90;
-  
-  useEffect(() => {
-    // Cria o PaymentIntent assim que o componente carrega
-    fetch('/api/create-payment-intent', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ 
-        amount: Math.round(planPrice * 100), // Converter para centavos
-        description: 'Renovação Plano Profissional'
-      }),
-    })
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error('Falha ao iniciar pagamento');
-        }
-        return res.json();
-      })
-      .then((data) => {
-        setClientSecret(data.clientSecret);
-      })
-      .catch((error) => {
-        toast({
-          variant: "destructive",
-          title: "Erro ao iniciar pagamento",
-          description: error.message || "Não foi possível iniciar o processo de pagamento. Tente novamente mais tarde.",
-        });
-      });
-  }, [toast, planPrice]);
-
-  const options = {
-    clientSecret,
-    appearance: {
-      theme: 'stripe' as 'stripe',
-      variables: {
-        colorPrimary: '#6d28d9',
-        colorBackground: '#ffffff',
-        colorText: '#1e293b',
-        colorDanger: '#ef4444',
-        fontFamily: 'ui-sans-serif, system-ui, sans-serif',
-        borderRadius: '8px',
-      },
-    },
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="bg-gradient-to-r from-purple-50 to-purple-100 p-4 rounded-lg border border-purple-200">
-        <div className="flex items-center mb-2">
-          <CreditCardIcon className="h-5 w-5 text-purple-700 mr-2" />
-          <h3 className="font-medium text-lg text-purple-800">Renovar Assinatura</h3>
-        </div>
-        <p className="text-sm text-gray-600">Realize o pagamento para renovar seu plano atual por mais um período</p>
-      </div>
-      
-      <div className="grid md:grid-cols-5 gap-6">
-        <div className="md:col-span-3">
-          <Card className="shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle>Informações de pagamento</CardTitle>
-              <CardDescription>Preencha os dados do seu cartão para realizar o pagamento</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {clientSecret ? (
-                <Elements stripe={stripePromise} options={options}>
-                  <CheckoutForm />
-                </Elements>
-              ) : (
-                <div className="flex justify-center items-center h-40">
-                  <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-        
-        <div className="md:col-span-2">
-          <Card className="shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle>Resumo do pedido</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <div className="flex justify-between mb-2">
-                    <span className="text-gray-700">Plano Profissional</span>
-                    <span className="font-medium">R$ {planPrice.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm text-gray-500">
-                    <span>Período</span>
-                    <span>Mensal</span>
-                  </div>
-                </div>
-                
-                <Separator />
-                
-                <div className="flex justify-between font-medium text-lg">
-                  <span>Total</span>
-                  <span>R$ {planPrice.toFixed(2)}</span>
-                </div>
-                
-                <div className="bg-gray-50 p-3 rounded-lg mt-4">
-                  <h4 className="font-medium text-sm mb-2">O que está incluído:</h4>
-                  <ul className="text-sm space-y-1">
-                    <li className="flex items-start">
-                      <span className="text-green-500 mr-2">✓</span>
-                      <span>Acesso a todas as funcionalidades</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="text-green-500 mr-2">✓</span>
-                      <span>Até 3 usuários simultâneos</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="text-green-500 mr-2">✓</span>
-                      <span>Suporte por e-mail</span>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const CountdownTimer = () => {
-  const [countdown, setCountdown] = useState(30);
-
-  useEffect(() => {
-    setCountdown(30 - (Math.floor(Date.now() / 1000) % 30));
-
-    const timer = setInterval(() => {
-      const newCountdown = 30 - (Math.floor(Date.now() / 1000) % 30);
-      setCountdown(newCountdown);
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  return (
-    <div className="text-center text-sm text-gray-500 mb-4">
-      Atualiza em: {countdown}s
-    </div>
-  );
-};
-
-// Import dos componentes das abas
-import ContatosTabWebSocket from "@/components/conta/ContatosTab-WebSocket";
-import EnderecosTabWebSocket from "@/components/conta/EnderecosTab-WebSocket";
-import UsuariosTabWebSocket from "@/components/conta/UsuariosTab-WebSocket";
-import { PaymentMethodsManager } from "@/components/conta/PaymentMethodsManager";
-import SegurancaTab from "./seguranca-tab";
 import { useCreditBalance } from "@/hooks/use-credit-balance";
 import { QRCodeSVG } from 'qrcode.react';
 import { 
@@ -394,6 +160,27 @@ type UsuarioFormValues = z.infer<typeof usuarioSchema>;
 type AlterarSenhaFormValues = z.infer<typeof alterarSenhaSchema>;
 type Ativar2FAFormValues = z.infer<typeof ativar2FASchema>;
 
+const CountdownTimer = () => {
+  const [countdown, setCountdown] = useState(30);
+
+  useEffect(() => {
+    setCountdown(30 - (Math.floor(Date.now() / 1000) % 30));
+
+    const timer = setInterval(() => {
+      const newCountdown = 30 - (Math.floor(Date.now() / 1000) % 30);
+      setCountdown(newCountdown);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="text-center text-sm text-gray-500 mb-4">
+      Atualiza em: {countdown}s
+    </div>
+  );
+};
+
 export default function MinhaContaPage() {
   // Verifica se o dispositivo é mobile e renderiza o componente apropriado
   if (isMobileDevice()) {
@@ -439,58 +226,6 @@ export default function MinhaContaPage() {
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [periodoPlanos, setPeriodoPlanos] = useState<"mensal" | "anual">("anual");
   
-  // Função para abrir o popup de planos (renovação)
-  const handleRenovarAssinatura = () => {
-    // Para renovação, carregar o plano atual da assinatura
-    if (displayData?.plano) {
-      // Usar os dados do plano atual para renovação
-      const planoAtual = {
-        id: displayData.plano.id,
-        nome: displayData.plano.nome,
-        descricao: displayData.plano.descricao,
-        valorMensal: displayData.plano.valorMensal,
-        valorAnual: displayData.plano.valorAnual,
-        valorAnualTotal: displayData.plano.valorAnualTotal,
-        economiaAnual: displayData.plano.economiaAnual,
-        limitesCadastro: displayData.plano.limitesCadastro || {
-          produtos: displayData.plano.limiteProdutos || 50,
-          servicos: 50,
-          categorias: 50,
-          usuarios: displayData.plano.limiteUsuarios || 1
-        }
-      };
-      
-      setSelectedPlan(planoAtual);
-      
-      // Definir período baseado na assinatura atual
-      const tipoCobranca = displayData.assinatura?.tipoCobranca || 'mensal';
-      setPeriodoPlanos(tipoCobranca === 'anual' ? 'anual' : 'mensal');
-      
-      setIsPaymentModalOpen(true);
-    } else {
-      // Se não conseguir carregar o plano atual, mostrar erro
-      toast({
-        title: "Erro",
-        description: "Não foi possível carregar os dados da sua assinatura. Tente recarregar a página.",
-        variant: "destructive"
-      });
-    }
-  };
-  
-  // Função chamada após o pagamento bem-sucedido
-  const handlePaymentSuccess = () => {
-    toast({
-      title: "Pagamento processado com sucesso!",
-      description: "Sua assinatura foi renovada. Os dados serão atualizados automaticamente.",
-      variant: "default"
-    });
-    
-    // Recarregar a página para garantir atualização dos dados
-    setTimeout(() => {
-      window.location.reload();
-    }, 1500);
-  };
-  
   // Estados para paginação do histórico de pagamentos
   const [currentPagePagamentos, setCurrentPagePagamentos] = useState(1);
   const [itemsPerPagePagamentos, setItemsPerPagePagamentos] = useState(6);
@@ -498,43 +233,11 @@ export default function MinhaContaPage() {
   // Estados para paginação do histórico de assinaturas
   const [currentPageAssinaturas, setCurrentPageAssinaturas] = useState(1);
   const [itemsPerPageAssinaturas, setItemsPerPageAssinaturas] = useState(6);
-  
-  // Efeito para resetar os formulários quando trocar de aba
-  useEffect(() => {
-    // REMOVIDO: Não fechar formulários automaticamente ao mudar de aba
-    // O usuário deve poder navegar entre abas sem perder dados inseridos
-    // if (activeTab !== 'seguranca') {
-    //   setShowPasswordSection(false);
-    //   setShow2FASection(false);
-    // }
-    
-    // Fechar formulários de outras abas ao mudar
-    if (activeTab !== 'contatos') {
-      setShowAddContact(false);
-    }
-    
-    if (activeTab !== 'enderecos') {
-      setShowAddEndereco(false);
-    }
-    
-    // Ao entrar na aba financeira, recarregar os dados da assinatura
-    if (activeTab === 'financeiro' && user?.id) {
-      console.log("Aba financeira ativada: verificando assinatura para o usuário", user.id);
-      
-      // Aplicamos a mesma lógica ao mudar de aba: limpar dados e ativar preloader
-      setFinalPlanoData(null);
-      setIsReloadingAssinatura(true);
-      setForceShowPreloader(true);
-      
-      // Resetar paginação quando entrar na aba financeira
-      setCurrentPagePagamentos(1);
-      setCurrentPageAssinaturas(1);
-      
-      // WebSocket irá atualizar automaticamente os dados da assinatura
-    } else if (activeTab !== 'financeiro') {
-      setShowAddCard(false);
-    }
-  }, [activeTab, user?.id]);
+
+  // Estados para data da assinatura
+  const [finalPlanoData, setFinalPlanoData] = useState<any>(null);
+  const [isReloadingAssinatura, setIsReloadingAssinatura] = useState(false);
+  const [forceShowPreloader, setForceShowPreloader] = useState(false);
   
   // Estados para alteração de senha
   const [senhaAtual, setSenhaAtual] = useState('');
@@ -595,6 +298,65 @@ export default function MinhaContaPage() {
     responsavelEmail: true,
     responsavelTelefone: true
   });
+
+  // WebSocket para dados da assinatura
+  const { 
+    data: assinaturaData, 
+    loading: isLoadingAssinatura,
+    error: errorAssinatura,
+    refetch: refetchAssinatura 
+  } = useWebSocketData({ endpoint: '/api/minha-assinatura' });
+
+  // WebSocket para dados do perfil
+  const { 
+    data: perfilData, 
+    loading: isLoadingPerfil,
+    error: errorPerfil,
+    refetch: refetchPerfil 
+  } = useWebSocketData({ endpoint: '/api/minha-conta/perfil' });
+
+  // WebSocket para endereços
+  const { 
+    data: enderecosData, 
+    loading: isLoadingEnderecos,
+    error: errorEnderecos,
+    refetch: refetchEnderecos 
+  } = useWebSocketData({ endpoint: '/api/enderecos' });
+
+  // WebSocket para contatos
+  const { 
+    data: contatosData, 
+    loading: isLoadingContatos,
+    error: errorContatos,
+    refetch: refetchContatos 
+  } = useWebSocketData({ endpoint: '/api/contatos' });
+
+  // WebSocket para usuários
+  const { 
+    data: usuariosData, 
+    loading: isLoadingUsuarios,
+    error: errorUsuarios,
+    refetch: refetchUsuarios 
+  } = useWebSocketData({ endpoint: '/api/usuarios' });
+
+  // WebSocket para histórico de pagamentos
+  const { 
+    data: historicoPagamentosData, 
+    loading: isLoadingHistoricoPagamentos,
+    error: errorHistoricoPagamentos,
+    refetch: refetchHistoricoPagamentos 
+  } = useWebSocketData({ endpoint: '/api/historico-pagamentos' });
+
+  // WebSocket para métodos de pagamento
+  const { 
+    data: paymentMethodsData, 
+    loading: isLoadingPaymentMethods,
+    error: errorPaymentMethods,
+    refetch: refetchPaymentMethods 
+  } = useWebSocketData({ endpoint: '/api/payment-methods' });
+
+  const displayData = Array.isArray(assinaturaData) ? assinaturaData[0] : assinaturaData;
+  const displayPerfil = Array.isArray(perfilData) ? perfilData[0] : perfilData;
 
   // Usar um objeto vazio como defaultValues inicial
   // para que não haja conflito com os dados que serão carregados da API
@@ -666,6 +428,54 @@ export default function MinhaContaPage() {
     mode: "onChange", // Alterado para onChange para evitar a validação padrão do onSubmit
   });
 
+  // Atualizar o formulário quando os dados forem carregados
+  useEffect(() => {
+    if (displayPerfil) {
+      perfilForm.reset({
+        logoUrl: displayPerfil.logoUrl || "",
+        primeiroNome: displayPerfil.primeiroNome || "",
+        ultimoNome: displayPerfil.ultimoNome || "",
+        razaoSocial: displayPerfil.razaoSocial || "",
+        nomeFantasia: displayPerfil.nomeFantasia || "",
+        tipoPessoa: displayPerfil.tipoPessoa || "fisica",
+        cpfCnpj: displayPerfil.cpfCnpj || "",
+        inscricaoEstadual: displayPerfil.inscricaoEstadual || "",
+        inscricaoMunicipal: displayPerfil.inscricaoMunicipal || "",
+        cnae: displayPerfil.cnae || "",
+        regimeTributario: displayPerfil.regimeTributario || "",
+        atividadePrincipal: displayPerfil.atividadePrincipal || "",
+        responsavelNome: displayPerfil.responsavelNome || "",
+        responsavelEmail: displayPerfil.responsavelEmail || "",
+        responsavelTelefone: displayPerfil.responsavelTelefone || "",
+        responsavelSetor: displayPerfil.responsavelSetor || "Administrativa",
+        contadorNome: displayPerfil.contadorNome || "",
+        contadorEmail: displayPerfil.contadorEmail || "",
+        contadorTelefone: displayPerfil.contadorTelefone || "",
+      });
+    }
+  }, [displayPerfil, perfilForm]);
+
+  // Atualizar endereços quando os dados forem carregados
+  useEffect(() => {
+    if (enderecosData && Array.isArray(enderecosData)) {
+      setEnderecos(enderecosData);
+    }
+  }, [enderecosData]);
+
+  // Atualizar contatos quando os dados forem carregados
+  useEffect(() => {
+    if (contatosData && Array.isArray(contatosData)) {
+      setContatos(contatosData);
+    }
+  }, [contatosData]);
+
+  // Atualizar usuários quando os dados forem carregados
+  useEffect(() => {
+    if (usuariosData && Array.isArray(usuariosData)) {
+      setUsuarios(usuariosData);
+    }
+  }, [usuariosData]);
+
   // UseEffect para carregar sessões apenas quando a aba de segurança for ativada
   useEffect(() => {
     if (activeTab === 'seguranca' && user?.id && !sessoesCarregadas && !carregandoSessoes) {
@@ -674,7 +484,36 @@ export default function MinhaContaPage() {
     }
   }, [activeTab, user?.id, sessoesCarregadas, carregandoSessoes]);
 
-
+  // Efeito para resetar os formulários quando trocar de aba
+  useEffect(() => {
+    // Fechar formulários de outras abas ao mudar
+    if (activeTab !== 'contatos') {
+      setShowAddContact(false);
+    }
+    
+    if (activeTab !== 'enderecos') {
+      setShowAddEndereco(false);
+    }
+    
+    // Ao entrar na aba financeira, recarregar os dados da assinatura
+    if (activeTab === 'financeiro' && user?.id) {
+      console.log("Aba financeira ativada: verificando assinatura para o usuário", user.id);
+      
+      // Aplicamos a mesma lógica ao mudar de aba: limpar dados e ativar preloader
+      setFinalPlanoData(null);
+      setIsReloadingAssinatura(true);
+      setForceShowPreloader(true);
+      
+      // Resetar paginação quando entrar na aba financeira
+      setCurrentPagePagamentos(1);
+      setCurrentPageAssinaturas(1);
+      
+      // Refetch da assinatura para garantir dados atualizados
+      refetchAssinatura();
+    } else if (activeTab !== 'financeiro') {
+      setShowAddCard(false);
+    }
+  }, [activeTab, user?.id]);
 
   // Função auxiliar direta para buscar as sessões ativas
   async function fetchSessoes() {
@@ -710,877 +549,92 @@ export default function MinhaContaPage() {
       setCarregandoSessoes(false);
     }
   }
-  
-  // Função para verificar o status do 2FA
-  async function verificar2FAStatus() {
-    try {
-      console.log("Verificando status do 2FA");
-      
-      const response = await fetch('/api/conta/2fa/status', {
-        method: "GET",
-        credentials: "include",
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Erro ao verificar status do 2FA: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log("Status do 2FA:", data);
-      
-      // Atualiza o estado com o status atual do 2FA
-      setIs2FAEnabled(!!data.enabled);
-      
-      return data.enabled;
-    } catch (error) {
-      console.error('Erro ao verificar status do 2FA:', error);
-      // Não mostrar toast para este erro, apenas log
-      return false;
-    }
-  }
-  
-  // Função para encerrar uma sessão
-  async function encerrarSessao(sessionId: string) {
-    try {
-      // Determinar qual endpoint usar baseado no tipo de usuário
-      const isAdditionalUser = user?.isAdditionalUser || false;
-      const endpoint = isAdditionalUser ? `/api/conta/sessoes-adicional/${sessionId}` : `/api/conta/sessoes/${sessionId}`;
-      
-      const response = await fetch(endpoint, {
-        method: "DELETE",
-        credentials: "include",
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Erro ao encerrar sessão: ${response.status}`);
-      }
-      
-      // Atualiza a lista de sessões após encerrar uma sessão
-      fetchSessoes();
-      
-      toast({
-        title: "Sessão encerrada",
-        description: "A sessão foi encerrada com sucesso",
-        variant: "default",
-      });
-    } catch (error) {
-      console.error('Erro ao encerrar sessão:', error);
-      toast({
-        title: "Erro ao encerrar sessão",
-        description: "Não foi possível encerrar a sessão. Tente novamente mais tarde.",
-        variant: "destructive",
-      });
-    }
-  }
-  
-  // Formulário para alteração de senha
-  const alterarSenhaForm = useForm<AlterarSenhaFormValues>({
-    resolver: zodResolver(alterarSenhaSchema),
-    defaultValues: {
-      senhaAtual: '',
-      novaSenha: '',
-      confirmarSenha: ''
-    }
-  });
 
-  // Função para alterar a senha
-  async function alterarSenha(data: AlterarSenhaFormValues) {
-    setErroSenha(null);
-    setSucessoSenha(false);
-    setCarregandoSenha(true);
-    
+  // Função para salvar os dados do perfil
+  const handleSavePerfil = async (data: PerfilFormValues) => {
     try {
-      const response = await fetch('/api/conta/alterar-senha', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          senhaAtual: data.senhaAtual,
-          novaSenha: data.novaSenha,
-          confirmarSenha: data.confirmarSenha
-        })
+      const response = await websocketService.sendMessage('UPDATE_PERFIL', {
+        ...data,
+        userId: user?.id
       });
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        setErroSenha(errorData.message || 'Erro ao alterar senha');
-        
+      if (response && response.success) {
         toast({
-          title: "Erro ao alterar senha",
-          description: errorData.message || 'Não foi possível alterar a senha. Tente novamente.',
-          variant: "destructive",
+          title: "Dados atualizados com sucesso",
+          description: "Suas informações pessoais foram salvas.",
         });
-        
-        // NÃO lançar exceção - apenas retornar sem fechar o formulário
-        return;
-      }
-      
-      const responseData = await response.json();
-      setSucessoSenha(true);
-      alterarSenhaForm.reset();
-      
-      toast({
-        title: "Senha alterada",
-        description: "Sua senha foi alterada com sucesso. Você será redirecionado para fazer login novamente.",
-        variant: "default",
-      });
-      
-      // Salvar a última página/aba visitada no localStorage
-      localStorage.setItem('lastVisitedTab', 'seguranca');
-      
-      // APENAS fechar o formulário quando for BEM-SUCEDIDO
-      setTimeout(() => {
-        setShowPasswordSection(false);
-        setSucessoSenha(false);
-        
-        // Usar a mesma função de logout do botão "Sair"
-        console.log('Executando logout após alteração de senha');
-        logout();
-      }, 3000);
-    } catch (error) {
-      console.error('Erro ao alterar senha:', error);
-      setErroSenha(error instanceof Error ? error.message : 'Erro ao alterar senha');
-      
-      toast({
-        title: "Erro ao alterar senha",
-        description: error instanceof Error ? error.message : 'Não foi possível alterar a senha. Tente novamente.',
-        variant: "destructive",
-      });
-      
-      // IMPORTANTE: Em caso de erro, NÃO fechar o formulário
-      // Manter setShowPasswordSection(true) ou não chamar setShowPasswordSection(false)
-      // O formulário deve permanecer aberto para que o usuário possa corrigir os erros
-    } finally {
-      setCarregandoSenha(false);
-    }
-  }
-  
-  // Função para iniciar o processo de ativação do 2FA
-  async function iniciar2FA() {
-    setCarregando2FA(true);
-    setErro2FA(null);
-    
-    try {
-      // Mostrar o formulário de 2FA para prosseguir com o processo
-      setShow2FASection(true);
-      
-      const response = await fetch('/api/conta/2fa/iniciar', {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Erro ao iniciar 2FA: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log("Resposta da API de 2FA:", data); // Log para debug
-      
-      // Garantir que temos os dados corretos e armazená-los
-      if (data.otpauthUrl && data.secret) {
-        setQrCode2FA(data.otpauthUrl);
-        setSecret2FA(data.secret);
-        
-        // Log adicional para debug
-        console.log("QR Code URL definido:", data.otpauthUrl);
-        console.log("Secret definido:", data.secret);
+        refetchPerfil();
       } else {
-        console.error("Dados inválidos recebidos da API:", data);
-        throw new Error("Dados incompletos recebidos do servidor");
+        throw new Error(response?.message || 'Erro ao salvar dados');
       }
-    } catch (error) {
-      console.error('Erro ao iniciar 2FA:', error);
-      setErro2FA('Não foi possível iniciar a configuração do 2FA. Tente novamente mais tarde.');
-    } finally {
-      setCarregando2FA(false);
-    }
-  }
-  
-  // Função para verificar e ativar o 2FA - versão adaptada para o componente SegurancaTab
-  async function ativar2FA(data: { codigo: string, secret: string }) {
-    console.log("Ativando 2FA com dados:", data);
-    
-    if (!data.codigo) {
-      setErro2FA('O código de verificação é obrigatório');
-      return;
-    }
-    
-    if (data.codigo.length !== 6) {
-      setErro2FA('O código deve ter 6 dígitos');
-      return;
-    }
-    
-    setCarregando2FA(true);
-    setErro2FA(null);
-    
-    try {
-      // Verifique se temos o secret
-      if (!data.secret) {
-        console.error('Secret não informado para ativação do 2FA');
-        throw new Error('Secret não informado para ativação do 2FA');
-      }
-      
-      console.log("Enviando requisição para ativar 2FA com:", {
-        codigo: data.codigo,
-        secret: data.secret
-      });
-      
-      const response = await fetch('/api/conta/2fa/ativar', {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          codigo: data.codigo,
-          secret: data.secret
-        })
-      });
-      
-      if (!response.ok) {
-        const responseData = await response.json();
-        throw new Error(responseData.message || `Erro ao verificar código: ${response.status}`);
-      }
-      
-      // Reseta os campos do 2FA
-      setCodigo2FA('');
-      setQrCode2FA(null);
-      setSecret2FA(null);
-      
-      // Atualiza o estado do 2FA e verifica novamente o status
-      console.log("2FA ativado com sucesso, verificando status atualizado");
-      
-      // Obtém o status atual do 2FA para garantir sincronia com o banco de dados
-      const statusAtualizado = await verificar2FAStatus();
-      console.log("Status 2FA após ativação:", statusAtualizado);
-      
-      // Atualiza a interface
-      setIs2FAEnabled(true);
-      setSucesso2FA(true);
-      setShow2FASection(false);
-      
-      toast({
-        title: "2FA ativado",
-        description: "A autenticação em dois fatores foi ativada com sucesso",
-        variant: "default",
-      });
     } catch (error: any) {
-      console.error('Erro ao verificar código 2FA:', error);
-      setErro2FA(error.message || 'Código inválido ou expirado. Tente novamente.');
-    } finally {
-      setCarregando2FA(false);
-    }
-  }
-  
-  // Função para desativar o 2FA
-  async function desativar2FA() {
-    setCarregando2FA(true);
-    setErro2FA(null);
-    
-    try {
-      console.log("Enviando requisição para desativar 2FA");
-      
-      const response = await fetch('/api/conta/2fa/desativar', {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Erro ao desativar 2FA: ${response.status}`);
-      }
-      
-      // Verifica o status atualizado do 2FA após a desativação
-      console.log("2FA desativado com sucesso, verificando status atualizado");
-      
-      // Obtém o status atual do 2FA para garantir sincronia com o banco de dados
-      const statusAtualizado = await verificar2FAStatus();
-      console.log("Status 2FA após desativação:", statusAtualizado);
-      
-      // Atualiza o estado do 2FA
-      setIs2FAEnabled(false);
-      
+      console.error('Erro ao salvar perfil:', error);
       toast({
-        title: "2FA desativado",
-        description: "A autenticação em dois fatores foi desativada com sucesso",
-        variant: "default",
-      });
-    } catch (error) {
-      console.error('Erro ao desativar 2FA:', error);
-      setErro2FA('Não foi possível desativar o 2FA. Tente novamente mais tarde.');
-    } finally {
-      setCarregando2FA(false);
-    }
-  }
-  
-  // Função auxiliar direta para buscar os dados do perfil
-  async function fetchPerfilData(userId: number) {
-    console.log("Chamando diretamente fetchPerfilData para userId:", userId);
-    
-    const response = await fetch(`/api/minha-conta/perfil?userId=${userId}`, {
-      method: "GET",
-      credentials: "include",
-      cache: "no-cache",
-      headers: {
-        'Accept': 'application/json',
-        'Cache-Control': 'no-cache'
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Erro ao buscar perfil: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    console.log("Dados do perfil obtidos diretamente:", data);
-    return data;
-  }
-
-  // Função WebSocket para salvar perfil
-  async function handleSavePerfilWebSocket(data: PerfilFormValues) {
-    try {
-      console.log("Salvando perfil via WebSocket:", data);
-      
-      const response = await fetch(`/api/minha-conta/perfil/${user?.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(data),
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        throw new Error(`Erro ao atualizar perfil: ${response.status}`);
-      }
-
-      const updatedData = await response.json();
-      
-      toast({
-        title: "Perfil atualizado",
-        description: "Seus dados foram atualizados com sucesso",
-        variant: "default",
-        className: "bg-white border-gray-200",
-      });
-      
-      // Notificar outros clientes via WebSocket
-      if (websocketService) {
-        websocketService.notify('perfil', 'update', updatedData, user?.id);
-      }
-      
-      return updatedData;
-    } catch (error: any) {
-      toast({
-        title: "Erro ao atualizar perfil",
-        description: error.message,
-        variant: "destructive",
-      });
-      throw error;
-    }
-  }
-
-  // Usar WebSocket para dados do perfil
-  const {
-    data: perfilData,
-    loading: isLoadingPerfil,
-    refetch: refetchPerfil
-  } = useWebSocketData<any>({
-    endpoint: `/api/minha-conta/perfil?userId=${userId}`,
-    resource: 'perfil',
-    enabled: !!userId,
-    singleItem: true
-  });
-
-  // Referenciar serviço WebSocket (já importado no início do arquivo)
-
-  
-
-  // Efeito para escutar mudanças na URL e atualizar a aba ativa
-  useEffect(() => {
-    const handlePopState = () => {
-      setActiveTab(getActiveTabFromURL());
-    };
-    
-    // Adiciona um listener para eventos de navegação
-    window.addEventListener('popstate', handlePopState);
-    
-    // Limpa o listener quando o componente for desmontado
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, []);
-  
-  // Efeito adicional para monitorar mudanças nos parâmetros da URL
-  useEffect(() => {
-    // Atualiza a aba ativa sempre que a URL mudar
-    const novaAba = getActiveTabFromURL();
-    setActiveTab(novaAba);
-    
-    // Verificar o status do 2FA quando a página carregar
-    if (user?.id) {
-      console.log("Verificando status do 2FA ao carregar o componente");
-      verificar2FAStatus();
-    }
-    
-    // Ao mudar de aba, recarregue os dados do perfil para garantir que os campos estejam preenchidos
-    if (user?.id) {
-      refetchPerfil();
-    }
-    
-    // Observe mudanças no URL (history pushState/replaceState)
-    const originalPushState = window.history.pushState;
-    const originalReplaceState = window.history.replaceState;
-    
-    window.history.pushState = function() {
-      originalPushState.apply(this, arguments as any);
-      setActiveTab(getActiveTabFromURL());
-    };
-    
-    window.history.replaceState = function() {
-      originalReplaceState.apply(this, arguments as any);
-      setActiveTab(getActiveTabFromURL());
-    };
-    
-    // Escutar o evento personalizado de mudança de aba
-    const handleTabChange = (event: any) => {
-      if (event.detail) {
-        setActiveTab(event.detail);
-      }
-    };
-    
-    window.addEventListener('tab-change', handleTabChange);
-    
-    return () => {
-      // Restaura os métodos originais quando o componente for desmontado
-      window.history.pushState = originalPushState;
-      window.history.replaceState = originalReplaceState;
-      window.removeEventListener('tab-change', handleTabChange);
-    };
-  }, []);
-  
-  // Quando o componente montar, fazer uma busca direta por dados de perfil
-  useEffect(() => {
-    // Buscar dados diretamente se tivermos o ID do usuário
-    const loadPerfilDiretamente = async () => {
-      try {
-        // Forçar o uso do ID do localStorage se disponível
-        const idToUse = userId;
-        
-        if (!idToUse || idToUse <= 0) {
-          console.error("ID do usuário inválido para busca direta:", idToUse);
-          return;
-        }
-        
-        console.log("Carregando perfil diretamente ao montar para userId:", idToUse);
-        const dadosPerfil = await fetchPerfilData(idToUse);
-        
-        if (dadosPerfil) {
-          console.log("Perfil carregado diretamente:", dadosPerfil);
-          // Atualizar o formulário imediatamente
-          await atualizarFormularioComDados(dadosPerfil);
-        }
-      } catch (error) {
-        console.error("Erro ao carregar perfil diretamente:", error);
-      }
-    };
-    
-    // Executar imediatamente
-    if (userId > 0) {
-      loadPerfilDiretamente();
-    }
-  }, [userId]); // Dependência no userId (que inclui localStorage)
-  
-  // Função para atualizar o formulário com os dados recebidos
-  const atualizarFormularioComDados = async (dadosPerfil: any) => {
-    if (!dadosPerfil || typeof dadosPerfil !== 'object') {
-      console.error("Dados de perfil inválidos:", dadosPerfil);
-      return;
-    }
-    
-    console.log("Atualizando formulário com dados:", dadosPerfil);
-    
-    try {
-      // Função auxiliar para garantir valores string ou padrões
-      const getPropSafely = (obj: any, prop: string, defaultValue: string = ""): string => {
-        return obj && obj[prop] !== undefined && obj[prop] !== null ? String(obj[prop]) : defaultValue;
-      };
-      
-      // Forçar a redefinição completa do formulário com os dados do backend
-      const newValues = {
-        logoUrl: getPropSafely(dadosPerfil, 'logoUrl'),
-        primeiroNome: getPropSafely(dadosPerfil, 'primeiroNome'),
-        ultimoNome: getPropSafely(dadosPerfil, 'ultimoNome'),
-        razaoSocial: getPropSafely(dadosPerfil, 'razaoSocial'),
-        nomeFantasia: getPropSafely(dadosPerfil, 'nomeFantasia'),
-        tipoPessoa: getPropSafely(dadosPerfil, 'tipoPessoa', "fisica"),
-        cpfCnpj: getPropSafely(dadosPerfil, 'cpfCnpj'),
-        inscricaoEstadual: getPropSafely(dadosPerfil, 'inscricaoEstadual'),
-        inscricaoMunicipal: getPropSafely(dadosPerfil, 'inscricaoMunicipal'),
-        cnae: getPropSafely(dadosPerfil, 'cnae'),
-        regimeTributario: getPropSafely(dadosPerfil, 'regimeTributario'),
-        atividadePrincipal: getPropSafely(dadosPerfil, 'atividadePrincipal'),
-        responsavelNome: getPropSafely(dadosPerfil, 'responsavelNome'),
-        responsavelEmail: getPropSafely(dadosPerfil, 'responsavelEmail'),
-        responsavelTelefone: getPropSafely(dadosPerfil, 'responsavelTelefone'),
-        responsavelSetor: getPropSafely(dadosPerfil, 'responsavelSetor', "Administrativa"),
-        contadorNome: getPropSafely(dadosPerfil, 'contadorNome'),
-        contadorEmail: getPropSafely(dadosPerfil, 'contadorEmail'),
-        contadorTelefone: getPropSafely(dadosPerfil, 'contadorTelefone'),
-      };
-      
-      console.log("Valores para formulário:", newValues);
-      
-      // Resetar o formulário com os valores corretos
-      await perfilForm.reset(newValues);
-      
-      // Forçar atualização de campos importantes
-      perfilForm.setValue("tipoPessoa", getPropSafely(dadosPerfil, 'tipoPessoa', "fisica"));
-      perfilForm.setValue("primeiroNome", getPropSafely(dadosPerfil, 'primeiroNome'));
-      perfilForm.setValue("ultimoNome", getPropSafely(dadosPerfil, 'ultimoNome'));
-      perfilForm.setValue("cpfCnpj", getPropSafely(dadosPerfil, 'cpfCnpj'));
-      
-      // Forçar recálculo/renderização de campos
-      await perfilForm.trigger();
-      
-      console.log("Dados carregados no formulário com sucesso.");
-      
-      // Mostrar apenas uma notificação de dados carregados ao abrir a página
-      // usando uma flag para evitar notificações repetidas
-      if (!window.localStorage.getItem('notificacaoExibida')) {
-        toast({
-          title: "Dados carregados",
-          description: "Seus dados de cadastro foram carregados com sucesso.",
-          variant: "default",
-          className: "bg-white border-gray-200",
-        });
-        // Definir a flag no localStorage para evitar mostrar novamente durante a sessão
-        window.localStorage.setItem('notificacaoExibida', 'true');
-        
-        // Limpar a flag após 5 minutos para permitir que a notificação seja mostrada novamente
-        // se o usuário recarregar a página depois de um tempo
-        setTimeout(() => {
-          window.localStorage.removeItem('notificacaoExibida');
-        }, 5 * 60 * 1000);
-      }
-    } catch (error) {
-      console.error("Erro ao atualizar formulário:", error);
-      toast({
-        title: "Erro ao carregar dados",
-        description: "Ocorreu um erro ao carregar seus dados. Tente recarregar a página.",
+        title: "Erro ao salvar dados",
+        description: error.message || "Ocorreu um erro ao salvar suas informações. Tente novamente.",
         variant: "destructive",
       });
     }
   };
-  
-  // Atualiza o formulário quando os dados do perfil são carregados via React Query
-  useEffect(() => {
-    if (perfilData) {
-      atualizarFormularioComDados(perfilData);
-    } else {
-      console.log("Não há dados de perfil para carregar, ou os dados estão vazios");
-    }
-  }, [perfilData]);
-  
-  // Usar WebSocket para buscar dados das outras abas
-  const {
-    data: enderecosData,
-    loading: isLoadingEnderecos
-  } = useWebSocketData<EnderecoFormValues>({
-    endpoint: '/api/enderecos',
-    resource: 'enderecos'
-  });
 
-  const {
-    data: contatosData,
-    loading: isLoadingContatos
-  } = useWebSocketData<ContatoFormValues>({
-    endpoint: '/api/contatos',
-    resource: 'contatos'
-  });
-
-  const {
-    data: usuariosData,
-    loading: isLoadingUsuarios
-  } = useWebSocketData<UsuarioFormValues>({
-    endpoint: '/api/usuarios-adicionais',
-    resource: 'usuarios_adicionais'
-  });
-
-  const {
-    data: historicoAssinaturas,
-    loading: isLoadingHistoricoAssinaturas
-  } = useWebSocketData<any>({
-    endpoint: '/api/historico-assinaturas',
-    resource: 'historico_assinaturas',
-    enabled: showHistoricoAssinaturas
-  });
-
-  const {
-    data: historicoPagamentos,
-    loading: isLoadingHistoricoPagamentos,
-    refetch: refetchHistoricoPagamentos
-  } = useWebSocketData<any>({
-    endpoint: '/api/historico-pagamentos',
-    resource: 'historico_pagamentos',
-    enabled: showHistoricoPagamentos
-  });
-
-  // Efeito para buscar dados quando o histórico for exibido
-  useEffect(() => {
-    if (showHistoricoPagamentos && user?.id) {
-      console.log('🔄 Forçando busca de histórico de pagamentos...');
-      refetchHistoricoPagamentos();
-    }
-  }, [showHistoricoPagamentos, user?.id, refetchHistoricoPagamentos]);
-  
-  // Interface para tipagem dos dados da assinatura
-  interface AssinaturaResponse {
-    temAssinatura: boolean;
-    loggedIn: boolean;
-    plano?: {
-      id: number;
-      nome: string;
-      descricao: string;
-      valorMensal: string;
-      valorAnual: string;
-      valorAnualTotal: string;
-      economiaAnual: string;
-      limitesCadastro: {
-        produtos: string | number;
-        servicos: string | number;
-        categorias: string | number;
-        usuarios: string | number;
-      };
-    } | null;
-    estatisticas?: {
-      produtosCadastrados: number;
-      servicosCadastrados: number;
-      categoriasCadastradas: number;
-      usuariosCadastrados: number;
-    };
-    assinatura?: {
-      id: number;
-      userId: number;
-      planoId: number;
-      dataInicio: string;
-      dataFim: string | null;
-      statusPagamento: string;
-      dataProximaCobranca: string;
-      tipoCobranca: string;
-      valorPago: string;
-    };
-    user?: {
-      id: number;
-      username: string;
-    };
-  }
-  
-  // Estado para controlar manualmente o estado de carregamento ao trocar de aba
-  const [isReloadingAssinatura, setIsReloadingAssinatura] = useState(false);
-  
-  // Estado para armazenar dados finalizados após um recarregamento completo
-  const [finalPlanoData, setFinalPlanoData] = useState<AssinaturaResponse | null>(null);
-  
-  // Usar WebSocket para assinatura
-  const {
-    data: assinaturaData,
-    loading: isLoadingAssinaturaOriginal,
-    refetch: refetchAssinatura
-  } = useWebSocketData<AssinaturaResponse>({
-    endpoint: '/api/minha-assinatura',
-    resource: 'assinatura',
-    singleItem: true
-  });
-
-
-  
-  // Não precisamos mais de uma função para obter a data de próxima cobrança
-  // Vamos deixar o código mais simples e usar diretamente o campo dataFim da tabela
-
-  // Efeito para atualizar dados quando a query terminar com sucesso
-  useEffect(() => {
-    if (assinaturaData && !isReloadingAssinatura) {
-      // Apenas atualiza os dados finais se o plano estiver realmente carregado
-      if (assinaturaData.plano) {
-        console.log("Atualizado dados no carregamento inicial:", assinaturaData.plano.nome);
-        
-        // Vamos garantir que a dataProximaCobranca esteja preenchida com a dataFim
-        if (assinaturaData.assinatura && assinaturaData.assinatura.dataFim) {
-          assinaturaData.assinatura.dataProximaCobranca = assinaturaData.assinatura.dataFim;
-        }
-        
-        setFinalPlanoData(assinaturaData);
-      } else {
-        console.log("Recebidos dados incompletos no carregamento inicial (sem plano)");
-        // Não atualiza dados finais, pois o plano não foi carregado corretamente
-        // Em vez disso, agenda uma nova tentativa
-        const timer = setTimeout(() => {
-          refetchAssinatura();
-        }, 500);
-        
-        return () => clearTimeout(timer);
-      }
-    }
-  }, [assinaturaData, isReloadingAssinatura, refetchAssinatura]);
-  
-  // Para garantir que o preloader seja exibido por tempo suficiente
-  const [forceShowPreloader, setForceShowPreloader] = useState(false);
-  
-  // Efeito para gerenciar o estado de carregamento quando a query é finalizada
-  useEffect(() => {
-    // Verifica se a requisição terminou mas ainda estamos em modo de recarregamento
-    if (!isLoadingAssinaturaOriginal && isReloadingAssinatura && assinaturaData) {
-      // Verifica se o plano está presente nos dados da assinatura
-      if (assinaturaData && assinaturaData.plano) {
-        console.log("Atualizando dados finais após recarregamento:", assinaturaData.plano.nome);
-        
-        // Vamos garantir que a dataProximaCobranca esteja preenchida com a dataFim
-        if (assinaturaData.assinatura && assinaturaData.assinatura.dataFim) {
-          assinaturaData.assinatura.dataProximaCobranca = assinaturaData.assinatura.dataFim;
-        }
-        
-        // Plano carregado corretamente, atualiza os dados finais
-        setFinalPlanoData(assinaturaData);
-        
-        // Depois de atualizar os dados, remove os estados de carregamento
-        setIsReloadingAssinatura(false);
-        setForceShowPreloader(false);
-      } else {
-        // Se o plano não estiver presente, mantém o preloader e tenta novamente
-        console.log("Dados recebidos sem plano, tentando novamente...");
-        
-        // Agenda nova tentativa após 500ms
-        const timer = setTimeout(() => {
-          refetchAssinatura();
-        }, 500);
-        
-        return () => clearTimeout(timer);
-      }
-    }
-  }, [isLoadingAssinaturaOriginal, isReloadingAssinatura, assinaturaData, refetchAssinatura]);
-  
-  // Combinando os estados de carregamento
-  const isLoadingAssinatura = isLoadingAssinaturaOriginal || isReloadingAssinatura || forceShowPreloader;
-  
-  // Dados a serem usados na renderização - durante carregamento, não mostramos NENHUM dado
-  // e quando o carregamento terminar, mostramos APENAS os dados finais atualizados
-  const displayData = isLoadingAssinatura ? null : finalPlanoData;
-  
-  // Efeito para logs com finalidade de diagnóstico
-  useEffect(() => {
-    if (assinaturaData) {
-      console.log("Dados da assinatura carregados com sucesso:", assinaturaData);
-    }
-  }, [assinaturaData]);
-  
-  // Já temos um useEffect para preencher o formulário mais acima no código
-  // Não precisamos de dois useEffects fazendo a mesma coisa
-  
-  // Atualizar o estado local quando os dados de endereços forem carregados
-  useEffect(() => {
-    if (enderecosData && Array.isArray(enderecosData)) {
-      console.log("Dados de endereços carregados:", enderecosData);
-      setEnderecos(enderecosData);
-    }
-  }, [enderecosData]);
-  
-  // Atualizar o estado local quando os dados de contatos forem carregados
-  useEffect(() => {
-    if (contatosData && Array.isArray(contatosData)) {
-      console.log("Dados de contatos carregados:", contatosData);
-      setContatos(contatosData);
-    }
-  }, [contatosData]);
-  
-  // Atualizar o estado local quando os dados de usuários adicionais forem carregados
-  useEffect(() => {
-    if (usuariosData && Array.isArray(usuariosData)) {
-      console.log("Dados de usuários adicionais carregados:", usuariosData);
-      setUsuarios(usuariosData);
-    }
-  }, [usuariosData]);
-
-  // Função para lidar com upload de imagem via WebSocket
+  // Função para fazer upload da logo
   const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validação de tipo e tamanho
-    const validTypes = ['image/jpeg', 'image/png', 'image/gif'];
-    const maxSize = 5 * 1024 * 1024; // 5MB
-
-    if (!validTypes.includes(file.type)) {
-      toast({
-        title: "Formato inválido",
-        description: "Por favor, envie uma imagem nos formatos JPG, PNG ou GIF.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (file.size > maxSize) {
+    // Validar tamanho do arquivo (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
       toast({
         title: "Arquivo muito grande",
-        description: "O tamanho máximo permitido é 5MB.",
+        description: "A imagem deve ter no máximo 2MB.",
         variant: "destructive",
       });
       return;
     }
 
-    // Upload do arquivo
+    // Validar tipo do arquivo
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Tipo de arquivo inválido",
+        description: "Por favor, selecione uma imagem.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsUploading(true);
-    
+
     try {
       const formData = new FormData();
       formData.append('logo', file);
-      formData.append('userId', user?.id?.toString() || "0");
 
-      const response = await fetch('/api/minha-conta/upload-logo', {
+      const response = await fetch('/api/upload-logo', {
         method: 'POST',
         body: formData,
-        credentials: 'include'
+        credentials: 'include',
       });
 
       if (!response.ok) {
-        throw new Error(`Erro no upload: ${response.status}`);
+        throw new Error('Falha no upload');
       }
 
-      const data = await response.json();
+      const result = await response.json();
+      
+      // Atualizar o formulário com a nova URL da logo
+      perfilForm.setValue('logoUrl', result.logoUrl);
       
       toast({
-        title: "Logo atualizado",
-        description: "Seu logo foi atualizado com sucesso",
-        variant: "default",
-        className: "bg-white border-gray-200",
+        title: "Logo atualizada com sucesso",
+        description: "Sua nova logo foi carregada.",
       });
-      
-      perfilForm.setValue("logoUrl", data.logoUrl);
-      
-      // Notificar via WebSocket
-      if (websocketService) {
-        websocketService.notify('perfil', 'update', data, user?.id);
-      }
-    } catch (error: any) {
+
+      // Refetch dos dados para atualizar a interface
+      refetchPerfil();
+    } catch (error) {
+      console.error('Erro no upload:', error);
       toast({
-        title: "Erro ao fazer upload do logo",
-        description: error.message,
+        title: "Erro no upload",
+        description: "Não foi possível fazer upload da logo. Tente novamente.",
         variant: "destructive",
       });
     } finally {
@@ -1588,1509 +642,969 @@ export default function MinhaContaPage() {
     }
   };
 
-  // Função para remover o logo
-  const handleRemoveLogo = () => {
-    if (window.confirm("Tem certeza que deseja remover seu logo?")) {
-      perfilForm.setValue("logoUrl", "");
-      const data = perfilForm.getValues();
-      handleSavePerfilWebSocket(data);
-    }
-  };
-
-  // Função para validar os campos do perfil
-  const handleValidatePerfilForm = (): boolean => {
-    const formValues = perfilForm.getValues();
-    const isFisica = formValues.tipoPessoa === "fisica";
-    const isJuridica = formValues.tipoPessoa === "juridica";
-    
-    // Validações específicas por tipo de pessoa
-    const validacoes = {
-      primeiroNome: isFisica ? formValues.primeiroNome.trim() !== '' : true,
-      ultimoNome: isFisica ? formValues.ultimoNome.trim() !== '' : true,
-      razaoSocial: isJuridica ? (formValues.razaoSocial || '').trim() !== '' : true,
-      tipoPessoa: formValues.tipoPessoa.trim() !== '',
-      cpfCnpj: formValues.cpfCnpj.trim() !== '',
-      responsavelNome: formValues.responsavelNome.trim() !== '',
-      responsavelEmail: isValidEmail(formValues.responsavelEmail),
-      responsavelTelefone: formValues.responsavelTelefone.trim() !== ''
-    };
-    
-    // Atualiza o estado de validação dos campos
-    setCamposPerfilValidados(validacoes);
-    
-    // Verifica se há algum campo inválido
-    const camposInvalidos = Object.entries(validacoes)
-      .filter(([_, valido]) => !valido)
-      .map(([campo, _]) => campo);
-    
-    // Se houver campos inválidos, exibe um toast com os erros
-    if (camposInvalidos.length > 0) {
-      const camposFormatados = camposInvalidos.map(campo => {
-        switch(campo) {
-          case 'primeiroNome': return 'Primeiro Nome';
-          case 'ultimoNome': return 'Último Nome';
-          case 'razaoSocial': return 'Razão Social';
-          case 'tipoPessoa': return 'Tipo de Pessoa';
-          case 'cpfCnpj': return isFisica ? 'CPF' : 'CNPJ';
-          case 'responsavelNome': return 'Nome do Responsável';
-          case 'responsavelEmail': return 'Email do Responsável (formato inválido)';
-          case 'responsavelTelefone': return 'Telefone do Responsável';
-          default: return campo;
+  // Função para abrir o popup de planos (renovação)
+  const handleRenovarAssinatura = () => {
+    // Para renovação, carregar o plano atual da assinatura
+    if (displayData?.plano) {
+      // Usar os dados do plano atual para renovação
+      const planoAtual = {
+        id: displayData.plano.id,
+        nome: displayData.plano.nome,
+        descricao: displayData.plano.descricao,
+        valorMensal: displayData.plano.valorMensal,
+        valorAnual: displayData.plano.valorAnual,
+        valorAnualTotal: displayData.plano.valorAnualTotal,
+        economiaAnual: displayData.plano.economiaAnual,
+        limitesCadastro: displayData.plano.limitesCadastro || {
+          produtos: 50,
+          servicos: 50,
+          categorias: 50,
+          usuarios: 1
         }
-      });
+      };
       
+      setSelectedPlan(planoAtual);
+      
+      // Definir período baseado na assinatura atual
+      const tipoCobranca = displayData.assinatura?.tipoCobranca || 'mensal';
+      setPeriodoPlanos(tipoCobranca === 'anual' ? 'anual' : 'mensal');
+      
+      setIsPaymentModalOpen(true);
+    } else {
+      // Se não conseguir carregar o plano atual, mostrar erro
       toast({
-        title: "Erro de validação",
-        description: `Preencha os campos obrigatórios: ${camposFormatados.join(', ')}`,
-        variant: "destructive",
+        title: "Erro",
+        description: "Não foi possível carregar os dados da sua assinatura. Tente recarregar a página.",
+        variant: "destructive"
       });
-      
-      return false;
     }
-    
-    return true;
   };
   
-  // Função para lidar com o evento onBlur dos campos de perfil
-  const handlePerfilInputBlur = () => {
-    const formValues = perfilForm.getValues();
-    const isFisica = formValues.tipoPessoa === "fisica";
-    const isJuridica = formValues.tipoPessoa === "juridica";
+  // Função chamada após o pagamento bem-sucedido
+  const handlePaymentSuccess = () => {
+    refetchAssinatura();
     
-    // Atualize o estado de validação com base no tipo de pessoa, garantindo que valores undefined sejam tratados
-    setCamposPerfilValidados({
-      primeiroNome: isFisica ? (formValues.primeiroNome || '').trim() !== '' : true,
-      ultimoNome: isFisica ? (formValues.ultimoNome || '').trim() !== '' : true, 
-      razaoSocial: isJuridica ? (formValues.razaoSocial || '').trim() !== '' : true,
-      tipoPessoa: (formValues.tipoPessoa || '').trim() !== '',
-      cpfCnpj: (formValues.cpfCnpj || '').trim() !== '',
-      responsavelNome: (formValues.responsavelNome || '').trim() !== '',
-      responsavelEmail: isValidEmail(formValues.responsavelEmail || ''),
-      responsavelTelefone: (formValues.responsavelTelefone || '').trim() !== ''
+    toast({
+      title: "Pagamento processado com sucesso!",
+      description: "Sua assinatura foi renovada. Os dados serão atualizados automaticamente.",
+      variant: "default"
     });
-  };
-
-  // Função para salvar o formulário de perfil
-  const handleSavePerfil = handleSavePerfilWebSocket;
-
-  
-  
-  // Função para verificar se o email é válido
-  const isValidEmail = (email: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
-
-  
-  
-  // Função para manipular validação de campos do usuário
-  const handleUsuarioInputBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
     
-    if (name === 'nome') {
-      setCamposUsuarioValidados(prev => ({
-        ...prev,
-        nome: value.trim() !== ''
-      }));
-    } else if (name === 'email') {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      // Campo vazio também é considerado inválido para mostrar mensagem de erro
-      setCamposUsuarioValidados(prev => ({
-        ...prev,
-        email: emailRegex.test(value) && value.trim() !== ''
-      }));
-    } else if (name === 'setor') {
-      setCamposUsuarioValidados(prev => ({
-        ...prev,
-        setor: value.trim() !== ''
-      }));
-    }
-  };
-  
-  
-
-  // Função para renderizar ícone da aba
-  const renderTabIcon = (tab: string) => {
-    switch (tab) {
-      case "dados":
-        return <User className="h-4 w-4" />;
-      case "enderecos":
-        return <MapPin className="h-4 w-4" />;
-      case "contatos":
-        return <Phone className="h-4 w-4" />;
-      case "usuarios":
-        return <Users className="h-4 w-4" />;
-      case "financeiro":
-        return <CreditCard className="h-4 w-4" />;
-      case "seguranca":
-        return <Shield className="h-4 w-4" />;
-      default:
-        return <FileText className="h-4 w-4" />;
-    }
+    // Recarregar a página para garantir atualização dos dados
+    setTimeout(() => {
+      window.location.reload();
+    }, 1500);
   };
 
-  // Componente de loading elegante para a página de conta
-  const LoadingComponent = () => (
-    <div className="flex-1 bg-gradient-to-br from-gray-50 via-white to-purple-50">
-      <div className="container mx-auto px-4 py-6 max-w-6xl">
-        <div className="space-y-6">
-          {/* Cabeçalho skeleton */}
-          <div className="flex items-center justify-between">
-            <div className="space-y-2">
-              <div className="h-8 bg-gray-200 rounded w-48 animate-pulse"></div>
-              <div className="h-4 bg-gray-200 rounded w-80 animate-pulse"></div>
-            </div>
-          </div>
-
-          {/* Tabs skeleton */}
-          <div className="space-y-4">
-            <div className="grid grid-cols-6 gap-4 border-b pb-2">
-              {[0, 1, 2, 3, 4, 5].map((i) => (
-                <div
-                  key={i}
-                  className="h-10 bg-gray-200 rounded animate-pulse"
-                  style={{ animationDelay: `${i * 0.1}s` }}
-                ></div>
-              ))}
-            </div>
-
-            {/* Card skeleton principal */}
-            <div className="bg-white rounded-lg shadow-sm border p-6 space-y-6 animate-pulse">
-              {/* Avatar e formulário skeleton */}
-              <div className="flex gap-6">
-                <div className="w-40 h-24 bg-gray-200 rounded-lg"></div>
-                <div className="flex-1 space-y-4">
-                  <div className="h-6 bg-gray-200 rounded w-32"></div>
-                  <div className="h-10 bg-gray-200 rounded"></div>
-                </div>
-              </div>
-
-              {/* Campos de formulário skeleton */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[0, 1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="space-y-2">
-                    <div className="h-4 bg-gray-200 rounded w-24"></div>
-                    <div 
-                      className="h-10 bg-gray-200 rounded animate-pulse"
-                      style={{ animationDelay: `${i * 0.2}s` }}
-                    ></div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Botões skeleton */}
-              <div className="flex gap-3">
-                <div className="h-10 bg-purple-200 rounded w-24 animate-pulse"></div>
-                <div className="h-10 bg-gray-200 rounded w-20 animate-pulse"></div>
-              </div>
-            </div>
-
-            {/* Cards adicionais skeleton */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {[0, 1].map((i) => (
-                <div
-                  key={i}
-                  className="bg-white rounded-lg shadow-sm border p-6 space-y-4 animate-pulse"
-                  style={{ animationDelay: `${i * 0.3}s` }}
-                >
-                  <div className="h-5 bg-gray-200 rounded w-32"></div>
-                  <div className="space-y-3">
-                    <div className="h-4 bg-gray-200 rounded"></div>
-                    <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-                    <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Indicador de progresso */}
-          <div className="flex justify-center items-center space-x-2 mt-8">
-            <Loader2 className="h-5 w-5 text-purple-600 animate-spin" />
-            <span className="text-sm text-gray-500">Carregando informações da conta...</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  // Verificar se qualquer query principal ainda está carregando
-  const isAnyLoading = isLoadingPerfil || isLoadingEnderecos || isLoadingContatos || isLoadingUsuarios;
-
-  // Se ainda está carregando, mostrar o componente de loading
-  if (isAnyLoading) {
-    return <LoadingComponent />;
-  }
+  const handleTabChange = (newTab: string) => {
+    setActiveTab(newTab);
+    
+    // Atualizar a URL sem recarregar a página
+    const newUrl = new URL(window.location.href);
+    newUrl.searchParams.set('tab', newTab);
+    window.history.pushState({}, '', newUrl.toString());
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Minha Conta</h2>
-        <p className="text-gray-500">
-          Gerencie seus dados pessoais, segurança e configurações
-        </p>
+    <div className="container mx-auto p-6 max-w-7xl">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Minha Conta</h1>
+        <p className="text-gray-600 dark:text-gray-300 mt-2">Gerencie suas informações pessoais e configurações da conta</p>
       </div>
 
-      {/* Conteúdo das abas */}
-      <Tabs 
-            defaultValue="dados" 
-            value={activeTab} 
-            onValueChange={(value) => {
-              setActiveTab(value);
-              
-              // REMOVIDO: Não resetar formulários ao mudar de aba
-              // O usuário deve poder navegar sem perder dados inseridos
-              // if (value !== 'seguranca') {
-              //   setShowPasswordSection(false);
-              //   setShow2FASection(false);
-              //   if (alterarSenhaForm) {
-              //     alterarSenhaForm.reset();
-              //   }
-              // }
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-6">
+          <TabsTrigger value="dados" className="flex items-center gap-2">
+            <User className="h-4 w-4" />
+            Dados
+          </TabsTrigger>
+          <TabsTrigger value="enderecos" className="flex items-center gap-2">
+            <MapPin className="h-4 w-4" />
+            Endereços
+          </TabsTrigger>
+          <TabsTrigger value="contatos" className="flex items-center gap-2">
+            <Phone className="h-4 w-4" />
+            Contatos
+          </TabsTrigger>
+          <TabsTrigger value="usuarios" className="flex items-center gap-2">
+            <UserCheck className="h-4 w-4" />
+            Usuários
+          </TabsTrigger>
+          <TabsTrigger value="financeiro" className="flex items-center gap-2">
+            <CreditCard className="h-4 w-4" />
+            Financeiro
+          </TabsTrigger>
+          <TabsTrigger value="seguranca" className="flex items-center gap-2">
+            <Shield className="h-4 w-4" />
+            Segurança
+          </TabsTrigger>
+        </TabsList>
 
-              // Refetch data based on active tab
-              if (value === "dados" && user?.id) {
-                refetchPerfil();
-              } else if (value === "enderecos" && user?.id) {
-                // Dados de endereços são gerenciados via WebSocket
-                console.log("Mudando para aba endereços");
-              } else if (value === "contatos" && user?.id) {
-                // Dados de contatos são gerenciados via WebSocket
-                console.log("Mudando para aba contatos");
-              } else if (value === "usuarios" && user?.id) {
-                // Dados de usuários são gerenciados via WebSocket
-                console.log("Mudando para aba usuários");
-              } else if (value === "financeiro" && user?.id) {
-                setFinalPlanoData(null);
-                setIsReloadingAssinatura(true);
-                setForceShowPreloader(true);
-                refetchAssinatura();
-                refetchCredits(); // Recarregar créditos também
-                // Histórico financeiro é gerenciado via WebSocket
-                console.log("Mudando para aba financeiro");
-              }
-            }}
-            className="w-full"
-          >
-            <TabsList className="grid grid-cols-1 md:grid-cols-6 w-full mb-4 h-auto border-b rounded-none bg-transparent">
-              <TabsTrigger 
-                value="dados" 
-                className="flex items-center gap-2 data-[state=active]:border-b-2 data-[state=active]:border-purple-600 data-[state=active]:text-purple-600 rounded-none bg-transparent hover:bg-transparent data-[state=active]:bg-transparent px-4 py-3"
-                onClick={() => {
-                  // Atualiza a URL
-                  const url = new URL(window.location.href);
-                  url.searchParams.delete('tab');
-                  window.history.pushState({}, '', url.toString());
-                }}
-              >
-                {renderTabIcon("dados")}
-                <span>Dados de Cadastro</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="enderecos" 
-                className="flex items-center gap-2 data-[state=active]:border-b-2 data-[state=active]:border-purple-600 data-[state=active]:text-purple-600 rounded-none bg-transparent hover:bg-transparent data-[state=active]:bg-transparent px-4 py-3"
-                onClick={() => {
-                  // Atualiza a URL
-                  const url = new URL(window.location.href);
-                  url.searchParams.set('tab', 'enderecos');
-                  window.history.pushState({}, '', url.toString());
-                }}
-              >
-                <MapPin className="h-4 w-4" />
-                <span>Endereços</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="contatos" 
-                className="flex items-center gap-2 data-[state=active]:border-b-2 data-[state=active]:border-purple-600 data-[state=active]:text-purple-600 rounded-none bg-transparent hover:bg-transparent data-[state=active]:bg-transparent px-4 py-3"
-                onClick={() => {
-                  // Atualiza a URL
-                  const url = new URL(window.location.href);
-                  url.searchParams.set('tab', 'contatos');
-                  window.history.pushState({}, '', url.toString());
-                }}
-              >
-                <Phone className="h-4 w-4" />
-                <span>Contatos</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="usuarios" 
-                className="flex items-center gap-2 data-[state=active]:border-b-2 data-[state=active]:border-purple-600 data-[state=active]:text-purple-600 rounded-none bg-transparent hover:bg-transparent data-[state=active]:bg-transparent px-4 py-3"
-                onClick={() => {
-                  // Atualiza a URL
-                  const url = new URL(window.location.href);
-                  url.searchParams.set('tab', 'usuarios');
-                  window.history.pushState({}, '', url.toString());
-                }}
-              >
-                {renderTabIcon("usuarios")}
-                <span>Usuários</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="financeiro" 
-                className="flex items-center gap-2 data-[state=active]:border-b-2 data-[state=active]:border-purple-600 data-[state=active]:text-purple-600 rounded-none bg-transparent hover:bg-transparent data-[state=active]:bg-transparent px-4 py-3"
-                onClick={() => {
-                  // Atualiza a URL
-                  const url = new URL(window.location.href);
-                  url.searchParams.set('tab', 'financeiro');
-                  window.history.pushState({}, '', url.toString());
-                  
-                  // Início do carregamento
-                  if (user?.id) {
-                    // Limpar dados e ativar preloader
-                    setIsReloadingAssinatura(true);
-                    
-                    // Forçar refetch da API de assinatura
-                    refetchAssinatura();
-                  }
-                }}
-              >
-                {renderTabIcon("financeiro")}
-                <span>Financeiro</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="seguranca" 
-                className="flex items-center gap-2 data-[state=active]:border-b-2 data-[state=active]:border-purple-600 data-[state=active]:text-purple-600 rounded-none bg-transparent hover:bg-transparent data-[state=active]:bg-transparent px-4 py-3"
-                onClick={() => {
-                  // Atualiza a URL
-                  const url = new URL(window.location.href);
-                  url.searchParams.set('tab', 'seguranca');
-                  window.history.pushState({}, '', url.toString());
-                }}
-              >
-                {renderTabIcon("seguranca")}
-                <span>Segurança</span>
-              </TabsTrigger>
-            </TabsList>
-
-            {/* Tab: Dados de Cadastro */}
-            <TabsContent value="dados" className="space-y-4">
-              <Card className="shadow-sm">
-                <CardContent className="pt-6">
-                  {/* Removido o indicador de carregamento conforme solicitado */}
-                  
-                  {/* Se não houver dados do perfil, permitiremos que o formulário seja preenchido sem mostrar erro */}
-                  
-                  {/* Toast de erro é mostrado na função de erro da query */}
-                  
-                  <Form {...perfilForm}>
-                    <form className="space-y-4" noValidate 
-                      onSubmit={perfilForm.handleSubmit((data) => {
-                        console.log("Formulário submetido com dados:", data);
-                        handleSavePerfil(data);
-                      })}>
-                      <div>
-                        <div className="bg-white p-6 rounded-lg border border-gray-200 mb-4">
-                          <h3 className="text-lg font-medium mb-4 flex items-center text-gray-800">
-                            <Landmark className="h-5 w-5 mr-2 text-purple-600" />
-                            Dados da Empresa
-                          </h3>
-                          
-                          <div className="space-y-4">
-                            <div className="flex flex-row gap-4 items-start">
-                              <div className="relative inline-block">
-                                <label htmlFor="logo-upload" className="cursor-pointer">
-                                  <Avatar className="w-40 h-24 rounded-lg shadow-sm hover:opacity-90 transition-opacity">
-                                    {perfilForm.watch("logoUrl") ? (
-                                      <AvatarImage src={perfilForm.watch("logoUrl")} alt="Logo" className="object-contain" />
-                                    ) : (
-                                      <AvatarFallback className="bg-purple-100 text-purple-600 text-2xl rounded-lg">
-                                        {perfilData?.primeiroNome?.charAt(0) || "U"}
-                                      </AvatarFallback>
-                                    )}
-                                  </Avatar>
-                                  <div 
-                                    className="absolute -right-3 -bottom-3 bg-purple-600 rounded-full p-2 hover:bg-purple-700 transition-colors shadow-sm"
-                                  >
-                                    <Camera className="h-4 w-4 text-white" />
-                                  </div>
-                                  <input 
-                                    id="logo-upload" 
-                                    type="file" 
-                                    accept="image/*" 
-                                    className="hidden" 
-                                    onChange={handleLogoUpload}
-                                  />
-                                </label>
-                              </div>
-                              
-                              <div className="flex-1">
-                                <div className="bg-purple-50 p-4 rounded-md border-l-4 border-purple-500">
-                                  <FormField
-                                    control={perfilForm.control}
-                                    name="tipoPessoa"
-                                    render={({ field }) => (
-                                      <FormItem className="mb-0">
-                                        <FormLabel className="text-purple-700 font-medium">
-                                          Tipo de Pessoa: <span className="text-red-500">*</span>
-                                        </FormLabel>
-                                        <Select 
-                                          value={field.value} 
-                                          onValueChange={(val) => {
-                                            field.onChange(val);
-                                            // Limpar o regime tributário quando mudar para pessoa física
-                                            if (val === "fisica") {
-                                              perfilForm.setValue("regimeTributario", "");
-                                            }
-                                          }}
-                                        >
-                                          <SelectTrigger className="bg-white">
-                                            <SelectValue placeholder="Selecione o tipo" />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="fisica">Física</SelectItem>
-                                            <SelectItem value="juridica">Jurídica</SelectItem>
-                                          </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                      </FormItem>
-                                    )}
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                            
-                            {perfilForm.watch("tipoPessoa") === "fisica" && (
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <FormField
-                                  control={perfilForm.control}
-                                  name="primeiroNome"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel className={!camposPerfilValidados.primeiroNome ? "text-destructive" : ""}>
-                                        Primeiro Nome: <span className="text-red-500">*</span>
-                                      </FormLabel>
-                                      <FormControl>
-                                        <Input 
-                                          {...field} 
-                                          className={!camposPerfilValidados.primeiroNome ? "border-destructive" : ""}
-                                          onChange={(e) => {
-                                            field.onChange(e.target.value);
-                                            setCamposPerfilValidados(prev => ({
-                                              ...prev,
-                                              primeiroNome: e.target.value.trim() !== ''
-                                            }));
-                                          }}
-                                          onBlur={handlePerfilInputBlur}
-                                        />
-                                      </FormControl>
-                                      <FormMessage />
-                                      {!camposPerfilValidados.primeiroNome && (
-                                        <FormErrorMessage message="Primeiro nome é obrigatório" />
-                                      )}
-                                    </FormItem>
-                                  )}
-                                />
-                                <FormField
-                                  control={perfilForm.control}
-                                  name="ultimoNome"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel className={!camposPerfilValidados.ultimoNome ? "text-destructive" : ""}>
-                                        Último Nome: <span className="text-red-500">*</span>
-                                      </FormLabel>
-                                      <FormControl>
-                                        <Input 
-                                          {...field} 
-                                          className={!camposPerfilValidados.ultimoNome ? "border-destructive" : ""}
-                                          onChange={(e) => {
-                                            field.onChange(e.target.value);
-                                            setCamposPerfilValidados(prev => ({
-                                              ...prev,
-                                              ultimoNome: e.target.value.trim() !== ''
-                                            }));
-                                          }}
-                                          onBlur={handlePerfilInputBlur}
-                                        />
-                                      </FormControl>
-                                      <FormMessage />
-                                      {!camposPerfilValidados.ultimoNome && (
-                                        <FormErrorMessage message="Último nome é obrigatório" />
-                                      )}
-                                    </FormItem>
-                                  )}
-                                />
-                              </div>
-                            )}
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                              <FormField
-                                control={perfilForm.control}
-                                name="cpfCnpj"
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel className={!camposPerfilValidados.cpfCnpj ? "text-destructive" : ""}>
-                                      {perfilForm.watch("tipoPessoa") === "fisica" ? "CPF" : "CNPJ"}: <span className="text-red-500">*</span>
-                                    </FormLabel>
-                                    <FormControl>
-                                      <InputMask
-                                        mask={perfilForm.watch("tipoPessoa") === "fisica" ? "999.999.999-99" : "99.999.999/9999-99"}
-                                        value={field.value}
-                                        onChange={(e) => {
-                                          field.onChange(e.target.value);
-                                          setCamposPerfilValidados(prev => ({
-                                            ...prev,
-                                            cpfCnpj: e.target.value.trim() !== ''
-                                          }));
-                                        }}
-                                        onBlur={handlePerfilInputBlur}
-                                        className={cn(
-                                          "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
-                                          !camposPerfilValidados.cpfCnpj && "border-destructive"
-                                        )}
-                                      >
-                                        {(inputProps) => <Input {...inputProps} type="text" />}
-                                      </InputMask>
-                                    </FormControl>
-                                    <FormMessage />
-                                    {!camposPerfilValidados.cpfCnpj && (
-                                      <FormErrorMessage message={perfilForm.watch("tipoPessoa") === "fisica" ? "CPF é obrigatório" : "CNPJ é obrigatório"} />
-                                    )}
-                                  </FormItem>
-                                )}
-                              />
-                              
-                              {perfilForm.watch("tipoPessoa") === "juridica" && (
-                                <FormField
-                                  control={perfilForm.control}
-                                  name="inscricaoEstadual"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel>Inscrição Estadual:</FormLabel>
-                                      <FormControl>
-                                        <Input {...field} />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                              )}
-                            </div>
-
-                            {perfilForm.watch("tipoPessoa") === "juridica" && (
-                              <>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                  <FormField
-                                    control={perfilForm.control}
-                                    name="razaoSocial"
-                                    render={({ field }) => (
-                                      <FormItem>
-                                        <FormLabel className={!camposPerfilValidados.razaoSocial ? "text-destructive" : ""}>
-                                          Razão Social: <span className="text-red-500">*</span>
-                                        </FormLabel>
-                                        <FormControl>
-                                          <Input 
-                                            {...field} 
-                                            className={!camposPerfilValidados.razaoSocial ? "border-destructive" : ""}
-                                            onChange={(e) => {
-                                              field.onChange(e.target.value);
-                                              setCamposPerfilValidados(prev => ({
-                                                ...prev,
-                                                razaoSocial: e.target.value.trim() !== ''
-                                              }));
-                                            }}
-                                            onBlur={handlePerfilInputBlur}
-                                          />
-                                        </FormControl>
-                                        <FormMessage />
-                                        {!camposPerfilValidados.razaoSocial && (
-                                          <FormErrorMessage message="Razão Social é obrigatória" />
-                                        )}
-                                      </FormItem>
-                                    )}
-                                  />
-                                  <FormField
-                                    control={perfilForm.control}
-                                    name="nomeFantasia"
-                                    render={({ field }) => (
-                                      <FormItem>
-                                        <FormLabel>Nome Fantasia:</FormLabel>
-                                        <FormControl>
-                                          <Input {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                      </FormItem>
-                                    )}
-                                  />
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                  <FormField
-                                    control={perfilForm.control}
-                                    name="inscricaoMunicipal"
-                                    render={({ field }) => (
-                                      <FormItem>
-                                        <FormLabel>Inscrição Municipal:</FormLabel>
-                                        <FormControl>
-                                          <Input {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                      </FormItem>
-                                    )}
-                                  />
-                                  <FormField
-                                    control={perfilForm.control}
-                                    name="cnae"
-                                    render={({ field }) => (
-                                      <FormItem>
-                                        <FormLabel>CNAE:</FormLabel>
-                                        <FormControl>
-                                          <Input {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                      </FormItem>
-                                    )}
-                                  />
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                  <FormField
-                                    control={perfilForm.control}
-                                    name="regimeTributario"
-                                    render={({ field }) => (
-                                      <FormItem>
-                                        <FormLabel>
-                                          Regime Tributário:
-                                        </FormLabel>
-                                        <Select 
-                                          value={field.value} 
-                                          onValueChange={field.onChange}
-                                        >
-                                          <SelectTrigger>
-                                            <SelectValue placeholder="Selecione o regime" />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="mei">MEI</SelectItem>
-                                            <SelectItem value="simples_nacional">Simples Nacional</SelectItem>
-                                            <SelectItem value="lucro_presumido">Lucro Presumido</SelectItem>
-                                            <SelectItem value="lucro_real">Lucro Real</SelectItem>
-                                          </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                      </FormItem>
-                                    )}
-                                  />
-                                  <FormField
-                                    control={perfilForm.control}
-                                    name="atividadePrincipal"
-                                    render={({ field }) => (
-                                      <FormItem>
-                                        <FormLabel>Atividade Principal:</FormLabel>
-                                        <FormControl>
-                                          <Input {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                      </FormItem>
-                                    )}
-                                  />
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="bg-white p-6 rounded-lg border border-gray-200 mb-4">
-                          <h3 className="text-lg font-medium mb-4 flex items-center text-gray-800">
-                            <UserCog className="h-5 w-5 mr-2 text-purple-600" />
-                            Responsável Legal
-                          </h3>
-                          <div className="space-y-4">
-                            <FormField
-                              control={perfilForm.control}
-                              name="responsavelNome"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel className={!camposPerfilValidados.responsavelNome ? "text-destructive" : ""}>
-                                    Nome do Responsável: <span className="text-red-500">*</span>
-                                  </FormLabel>
-                                  <FormControl>
-                                    <Input 
-                                      {...field} 
-                                      className={!camposPerfilValidados.responsavelNome ? "border-destructive" : ""}
-                                      onChange={(e) => {
-                                        field.onChange(e.target.value);
-                                        setCamposPerfilValidados(prev => ({
-                                          ...prev,
-                                          responsavelNome: e.target.value.trim() !== ''
-                                        }));
-                                      }}
-                                      onBlur={handlePerfilInputBlur}
-                                    />
-                                  </FormControl>
-                                  <FormMessage />
-                                  {!camposPerfilValidados.responsavelNome && (
-                                    <FormErrorMessage message="Nome do responsável é obrigatório" />
-                                  )}
-                                </FormItem>
-                              )}
+        <TabsContent value="dados" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Dados Cadastrais</CardTitle>
+              <CardDescription>
+                Mantenha suas informações pessoais atualizadas
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingPerfil ? (
+                <div className="flex justify-center items-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : (
+                <Form {...perfilForm}>
+                  <form onSubmit={perfilForm.handleSubmit(handleSavePerfil)} className="space-y-6">
+                    {/* Logo da empresa */}
+                    <div className="space-y-2">
+                      <FormLabel>Logo da Empresa</FormLabel>
+                      <div className="flex items-center space-x-4">
+                        <div className="w-24 h-24 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center">
+                          {perfilForm.watch('logoUrl') ? (
+                            <img 
+                              src={perfilForm.watch('logoUrl')} 
+                              alt="Logo" 
+                              className="w-full h-full object-contain rounded-lg"
                             />
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <FormField
-                                control={perfilForm.control}
-                                name="responsavelEmail"
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel className={!camposPerfilValidados.responsavelEmail ? "text-destructive" : ""}>
-                                      Email: <span className="text-red-500">*</span>
-                                    </FormLabel>
-                                    <FormControl>
-                                      <Input 
-                                        {...field} 
-                                        type="text" 
-                                        className={!camposPerfilValidados.responsavelEmail ? "border-destructive" : ""}
-                                        onChange={(e) => {
-                                          field.onChange(e.target.value);
-                                          setCamposPerfilValidados(prev => ({
-                                            ...prev,
-                                            responsavelEmail: isValidEmail(e.target.value)
-                                          }));
-                                        }}
-                                        onBlur={handlePerfilInputBlur}
-                                      />
-                                    </FormControl>
-                                    <FormMessage />
-                                    {!camposPerfilValidados.responsavelEmail && (
-                                      <FormErrorMessage 
-                                        message={field.value ? "Formato de email inválido" : "Email do responsável é obrigatório"} 
-                                      />
-                                    )}
-                                  </FormItem>
-                                )}
-                              />
-                              <FormField
-                                control={perfilForm.control}
-                                name="responsavelTelefone"
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel className={!camposPerfilValidados.responsavelTelefone ? "text-destructive" : ""}>
-                                      Telefone: <span className="text-red-500">*</span>
-                                    </FormLabel>
-                                    <FormControl>
-                                      <InputMask
-                                        mask="(99) 99999-9999"
-                                        value={field.value}
-                                        onChange={(e) => {
-                                          field.onChange(e.target.value);
-                                          setCamposPerfilValidados(prev => ({
-                                            ...prev,
-                                            responsavelTelefone: e.target.value.trim() !== ''
-                                          }));
-                                        }}
-                                        onBlur={handlePerfilInputBlur}
-                                        className={cn(
-                                          "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
-                                          !camposPerfilValidados.responsavelTelefone && "border-destructive"
-                                        )}
-                                      >
-                                        {(inputProps) => <Input {...inputProps} type="text" />}
-                                      </InputMask>
-                                    </FormControl>
-                                    <FormMessage />
-                                    {!camposPerfilValidados.responsavelTelefone && (
-                                      <FormErrorMessage message="Telefone do responsável é obrigatório" />
-                                    )}
-                                  </FormItem>
-                                )}
-                              />
-                            </div>
-
-                            <FormField
-                              control={perfilForm.control}
-                              name="responsavelSetor"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Setor:</FormLabel>
-                                  <Select
-                                    value={field.value}
-                                    onValueChange={field.onChange}
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Selecione o setor" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="comercial">Comercial</SelectItem>
-                                      <SelectItem value="financeiro">Financeiro</SelectItem>
-                                      <SelectItem value="operacional">Operacional</SelectItem>
-                                      <SelectItem value="ti">TI</SelectItem>
-                                      <SelectItem value="administrativo">Administrativo</SelectItem>
-                                      <SelectItem value="outro">Outro</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
+                          ) : (
+                            <Building className="h-8 w-8 text-gray-400" />
+                          )}
                         </div>
-
-                        {perfilForm.watch("tipoPessoa") === "juridica" && (
-                          <div className="bg-white p-6 rounded-lg border border-gray-200 mb-4">
-                            <h3 className="text-lg font-medium mb-4 flex items-center text-gray-800">
-                              <ReceiptIcon className="h-5 w-5 mr-2 text-purple-600" />
-                              Contador Responsável
-                            </h3>
-                            <div className="space-y-4">
-                              <FormField
-                                control={perfilForm.control}
-                                name="contadorNome"
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel>Nome do Contador:</FormLabel>
-                                    <FormControl>
-                                      <Input {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
+                        <div>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleLogoUpload}
+                            className="hidden"
+                            id="logo-upload"
+                            disabled={isUploading}
+                          />
+                          <label htmlFor="logo-upload">
+                            <Button 
+                              type="button" 
+                              variant="outline" 
+                              disabled={isUploading}
+                              asChild
+                            >
+                              <span>
+                                {isUploading ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    Enviando...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Upload className="h-4 w-4 mr-2" />
+                                    Escolher arquivo
+                                  </>
                                 )}
-                              />
+                              </span>
+                            </Button>
+                          </label>
+                          <p className="text-sm text-gray-500 mt-1">PNG, JPG até 2MB</p>
+                        </div>
+                      </div>
+                    </div>
 
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <FormField
-                                  control={perfilForm.control}
-                                  name="contadorEmail"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel>Email:</FormLabel>
-                                      <FormControl>
-                                        <Input 
-                                          {...field} 
-                                          type="text"
-                                          onChange={(e) => {
-                                            field.onChange(e.target.value);
-                                            // Como é campo opcional, não precisamos validar se estiver vazio
-                                            if (e.target.value.trim() !== '' && !isValidEmail(e.target.value)) {
-                                              // Poderíamos adicionar um estado para validação, mas como é opcional
-                                              // só validamos se não estiver vazio
-                                            }
-                                          }}
-                                        />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                                <FormField
-                                  control={perfilForm.control}
-                                  name="contadorTelefone"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel>Telefone:</FormLabel>
-                                      <FormControl>
-                                        <InputMask
-                                          mask="(99) 99999-9999"
-                                          value={field.value}
-                                          onChange={(e) => {
-                                            field.onChange(e.target.value);
-                                          }}
-                                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                        >
-                                          {(inputProps) => <Input {...inputProps} type="text" />}
-                                        </InputMask>
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                              </div>
-                            </div>
-                          </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={perfilForm.control}
+                        name="primeiroNome"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Primeiro Nome *</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Digite seu primeiro nome" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
                         )}
-                      </div>
+                      />
 
-                      <div className="flex justify-end mt-2 mb-6">
-                        <Button 
-                          type="button" 
-                          className="bg-purple-600 hover:bg-purple-700 transition-all px-6"
-                          size="lg"
-                          disabled={isLoadingPerfil}
-                          onClick={() => {
-                            if (handleValidatePerfilForm()) {
-                              perfilForm.handleSubmit(handleSavePerfil)();
-                            }
-                          }}
-                        >
-                          <Save className="mr-2 h-5 w-5" />
-                          Salvar Alterações
-                        </Button>
-                      </div>
-                    </form>
-                  </Form>
-                </CardContent>
-              </Card>
-            </TabsContent>
+                      <FormField
+                        control={perfilForm.control}
+                        name="ultimoNome"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Último Nome *</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Digite seu último nome" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
 
-            {/* Tab: Endereços */}
-            <TabsContent value="enderecos" className="space-y-4">
-              <EnderecosTabWebSocket />
-            </TabsContent>
-            
-            {/* Tab: Contatos */}
-            <TabsContent value="contatos" className="space-y-4">
-              <ContatosTabWebSocket />
-            </TabsContent>
-            {/* Tab: Usuários */}
-            <TabsContent value="usuarios" className="space-y-4">
-              <UsuariosTabWebSocket />
-            </TabsContent>
-            {/* Tab: Financeiro */}
-            <TabsContent value="financeiro" className="space-y-4 relative">
-              
-              {/* Grid para posicionar boxes lado a lado */}
-              <div className="grid md:grid-cols-2 gap-4">
-                {/* Box de Informações Financeiras (à esquerda) */}
-                <div>
-                  {!showAddCard ? (
-                    <Card className="shadow-sm h-full">
-                      <CardHeader className="pb-2">
-                        <CardTitle>Informações Financeiras</CardTitle>
-                        <CardDescription>
-                          Gerencie sua assinatura
-                        </CardDescription>
-                        <div className="mt-3 border-b border-gray-200"></div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-6">
-                          <div className="flex items-center justify-between">
-                            <h3 className="text-lg font-medium">Assinatura Atual</h3>
-                            {!isLoadingAssinatura && (
-                              <Button 
-                                variant="outline" 
-                                onClick={handleRenovarAssinatura}
-                              >
-                                <CreditCardIcon className="mr-2 h-4 w-4" />
-                                Renovar Assinatura
-                              </Button>
+                    <FormField
+                      control={perfilForm.control}
+                      name="tipoPessoa"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Tipo de Pessoa *</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione o tipo" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="fisica">Pessoa Física</SelectItem>
+                              <SelectItem value="juridica">Pessoa Jurídica</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {perfilForm.watch('tipoPessoa') === 'juridica' && (
+                      <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <FormField
+                            control={perfilForm.control}
+                            name="razaoSocial"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Razão Social</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Digite a razão social" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
                             )}
-                          </div>
+                          />
 
-                          <div className="border rounded-lg p-4 plano-box">
-                            {isLoadingAssinatura ? (
-                              <div className="plano-spinner"></div>
-                            ) : displayData?.plano ? (
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <div className="font-medium text-xl text-purple-800">
-                                    Plano {displayData.plano.nome || 'Atual'}
-                                  </div>
-                                  <div className="text-sm text-gray-600 mt-1">
-                                    Faturamento {displayData.assinatura.tipoCobranca === 'anual' ? 'Anual' : 'Mensal'}
-                                  </div>
-                                </div>
-                                <div className="text-right">
-                                  <div className="text-2xl font-bold text-purple-700">
-                                    R$ {displayData.assinatura.tipoCobranca === 'anual' ? 
-                                      parseFloat(displayData.assinatura.valorPago).toFixed(2).replace('.', ',') :
-                                      (displayData.plano.valorMensal ? 
-                                        parseFloat(displayData.plano.valorMensal).toFixed(2).replace('.', ',') : 
-                                        "87,90")
-                                    }<span className="text-sm font-normal text-gray-600">
-                                      {displayData.assinatura.tipoCobranca === 'anual' ? '/ano' : '/mês'}
-                                    </span>
-                                  </div>
-                                  <div className="text-sm text-green-600 mt-1">
-                                    {displayData.plano.nome === 'ESSENCIAL' ? 'Acesso aos recursos essenciais' : 
-                                     displayData.plano.nome === 'PROFISSIONAL' ? 'Acesso a todos os recursos' :
-                                     displayData.plano.nome === 'EMPRESARIAL' ? 'Acesso a recursos avançados' : 
-                                     'Acesso total ao sistema'}
-                                  </div>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-between animate-pulse">
-                                <div>
-                                  <div className="h-7 w-36 bg-gray-200 rounded"></div>
-                                  <div className="h-4 w-28 bg-gray-200 rounded mt-2"></div>
-                                </div>
-                                <div className="text-right">
-                                  <div className="h-8 w-28 bg-gray-200 rounded ml-auto"></div>
-                                  <div className="h-4 w-36 bg-gray-200 rounded mt-2 ml-auto"></div>
-                                </div>
-                              </div>
+                          <FormField
+                            control={perfilForm.control}
+                            name="nomeFantasia"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Nome Fantasia</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Digite o nome fantasia" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
                             )}
-
-                            <div className="mt-4 flex items-center">
-                              <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
-                              {isLoadingAssinatura ? (
-                                <div className="flex items-center">
-                                  <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
-                                </div>
-                              ) : displayData && displayData.assinatura && displayData.assinatura.dataFim ? (
-                                <p className="text-sm text-gray-600">
-                                  Validade do plano: {new Date(displayData.assinatura.dataFim).toLocaleDateString('pt-BR')}
-                                </p>
-                              ) : (
-                                <p className="text-sm text-gray-600">Data de vencimento não disponível</p>
-                              )}
-                            </div>
-
-                            {/* Seção de Créditos da Conta - só mostra quando há créditos e tudo está carregado */}
-                            {!isLoadingAssinatura && !isLoadingCredits && hasCredits && (
-                              <div className="mt-4 pt-4 border-t border-gray-200">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center">
-                                    <Gift className="h-5 w-5 text-green-600 mr-2" />
-                                    <span className="text-sm font-medium text-gray-700">Créditos para próximo ciclo</span>
-                                  </div>
-                                  <span className="text-sm font-semibold text-green-600">{formattedBalance}</span>
-                                </div>
-                                <p className="text-xs text-gray-500 mt-1">
-                                  Estes créditos serão aplicados automaticamente na sua próxima cobrança
-                                </p>
-                              </div>
-                            )}
-
-                            <div className="mt-4 pt-4 border-t border-gray-200 flex justify-between items-center">
-                              <div className="flex space-x-2">
-                                <Button 
-                                  variant={showHistoricoPagamentos ? "default" : "outline"}
-                                  size="sm"
-                                  onClick={() => {
-                                    setShowHistoricoPagamentos(true);
-                                    setShowHistoricoAssinaturas(false);
-                                  }}
-                                >
-                                  <DollarSign className="mr-2 h-4 w-4" />
-                                  Ver Pagamentos
-                                </Button>
-                                <Button 
-                                  variant={showHistoricoAssinaturas ? "default" : "outline"}
-                                  size="sm"
-                                  onClick={() => {
-                                    setShowHistoricoAssinaturas(true);
-                                    setShowHistoricoPagamentos(false);
-                                  }}
-                                >
-                                  <FileText className="mr-2 h-4 w-4" />
-                                  Ver Assinaturas
-                                </Button>
-                              </div>
-
-                            </div>
-                          </div>
+                          />
                         </div>
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    <div>
-                      <div className="flex items-center mb-4">
-                        <Button 
-                          variant="ghost" 
-                          className="p-0 h-auto mr-3" 
-                          onClick={() => setShowAddCard(false)}
-                        >
-                          <ArrowLeft className="h-5 w-5" />
-                        </Button>
-                        <h3 className="text-xl font-semibold">Renovar Assinatura</h3>
-                      </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <FormField
+                            control={perfilForm.control}
+                            name="inscricaoEstadual"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Inscrição Estadual</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Digite a IE" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={perfilForm.control}
+                            name="inscricaoMunicipal"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Inscrição Municipal</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Digite a IM" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={perfilForm.control}
+                            name="cnae"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>CNAE</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Digite o CNAE" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <FormField
+                            control={perfilForm.control}
+                            name="regimeTributario"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Regime Tributário</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Selecione o regime" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="simples">Simples Nacional</SelectItem>
+                                    <SelectItem value="lucro_presumido">Lucro Presumido</SelectItem>
+                                    <SelectItem value="lucro_real">Lucro Real</SelectItem>
+                                    <SelectItem value="mei">MEI</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={perfilForm.control}
+                            name="atividadePrincipal"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Atividade Principal</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Digite a atividade principal" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    <FormField
+                      control={perfilForm.control}
+                      name="cpfCnpj"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{perfilForm.watch('tipoPessoa') === 'juridica' ? 'CNPJ' : 'CPF'} *</FormLabel>
+                          <FormControl>
+                            <InputMask
+                              mask={perfilForm.watch('tipoPessoa') === 'juridica' ? "99.999.999/9999-99" : "999.999.999-99"}
+                              value={field.value}
+                              onChange={field.onChange}
+                            >
+                              {(inputProps: any) => (
+                                <Input 
+                                  {...inputProps} 
+                                  placeholder={perfilForm.watch('tipoPessoa') === 'juridica' ? "00.000.000/0000-00" : "000.000.000-00"} 
+                                />
+                              )}
+                            </InputMask>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {/* Seção do Responsável */}
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold">Dados do Responsável</h3>
                       
-                      <StripePayment />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField
+                          control={perfilForm.control}
+                          name="responsavelNome"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Nome do Responsável *</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Digite o nome do responsável" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={perfilForm.control}
+                          name="responsavelEmail"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Email do Responsável *</FormLabel>
+                              <FormControl>
+                                <Input type="email" placeholder="Digite o email do responsável" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField
+                          control={perfilForm.control}
+                          name="responsavelTelefone"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Telefone do Responsável *</FormLabel>
+                              <FormControl>
+                                <InputMask
+                                  mask="(99) 99999-9999"
+                                  value={field.value}
+                                  onChange={field.onChange}
+                                >
+                                  {(inputProps: any) => (
+                                    <Input {...inputProps} placeholder="(00) 00000-0000" />
+                                  )}
+                                </InputMask>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={perfilForm.control}
+                          name="responsavelSetor"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Setor</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Digite o setor" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Seção do Contador */}
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold">Dados do Contador (Opcional)</h3>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <FormField
+                          control={perfilForm.control}
+                          name="contadorNome"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Nome do Contador</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Digite o nome do contador" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={perfilForm.control}
+                          name="contadorEmail"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Email do Contador</FormLabel>
+                              <FormControl>
+                                <Input type="email" placeholder="Digite o email do contador" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={perfilForm.control}
+                          name="contadorTelefone"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Telefone do Contador</FormLabel>
+                              <FormControl>
+                                <InputMask
+                                  mask="(99) 99999-9999"
+                                  value={field.value}
+                                  onChange={field.onChange}
+                                >
+                                  {(inputProps: any) => (
+                                    <Input {...inputProps} placeholder="(00) 00000-0000" />
+                                  )}
+                                </InputMask>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end">
+                      <Button type="submit" disabled={perfilForm.formState.isSubmitting}>
+                        {perfilForm.formState.isSubmitting ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Salvando...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="h-4 w-4 mr-2" />
+                            Salvar Dados
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="enderecos">
+          <Card>
+            <CardHeader>
+              <CardTitle>Endereços</CardTitle>
+              <CardDescription>Gerencie os endereços cadastrados</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingEnderecos ? (
+                <div className="flex justify-center items-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <p className="text-gray-600">
+                      {enderecos.length} endereço(s) cadastrado(s)
+                    </p>
+                    <Button onClick={() => setShowAddEndereco(true)}>
+                      <PlusCircle className="h-4 w-4 mr-2" />
+                      Adicionar Endereço
+                    </Button>
+                  </div>
+
+                  {enderecos.length === 0 ? (
+                    <div className="text-center py-8">
+                      <MapPin className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                      <p className="text-gray-500">Nenhum endereço cadastrado</p>
+                    </div>
+                  ) : (
+                    <div className="grid gap-4">
+                      {enderecos.map((endereco: any, index) => (
+                        <Card key={index}>
+                          <CardContent className="p-4">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="font-medium">
+                                  {endereco.logradouro}, {endereco.numero}
+                                  {endereco.complemento && ` - ${endereco.complemento}`}
+                                </p>
+                                <p className="text-gray-600">
+                                  {endereco.bairro}, {endereco.cidade} - {endereco.estado}
+                                </p>
+                                <p className="text-gray-600">CEP: {endereco.cep}</p>
+                                {endereco.principal && (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
+                                    Principal
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex space-x-2">
+                                <Button variant="outline" size="sm">
+                                  <Edit3 className="h-4 w-4" />
+                                </Button>
+                                <Button variant="outline" size="sm">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
                     </div>
                   )}
                 </div>
-                
-                {/* Box de Métodos de Pagamento (à direita) */}
-                <div>
-                  <PaymentMethodsManager />
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="contatos">
+          <Card>
+            <CardHeader>
+              <CardTitle>Contatos</CardTitle>
+              <CardDescription>Gerencie os contatos da empresa</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingContatos ? (
+                <div className="flex justify-center items-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <p className="text-gray-600">
+                      {contatos.length} contato(s) cadastrado(s)
+                    </p>
+                    <Button onClick={() => setShowAddContact(true)}>
+                      <PlusCircle className="h-4 w-4 mr-2" />
+                      Adicionar Contato
+                    </Button>
+                  </div>
+
+                  {contatos.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Phone className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                      <p className="text-gray-500">Nenhum contato cadastrado</p>
+                    </div>
+                  ) : (
+                    <div className="grid gap-4">
+                      {contatos.map((contato: any, index) => (
+                        <Card key={index}>
+                          <CardContent className="p-4">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="font-medium">{contato.nome}</p>
+                                <p className="text-gray-600">{contato.cargo} - {contato.setor}</p>
+                                <div className="mt-2 space-y-1">
+                                  <p className="text-sm text-gray-600">
+                                    <Phone className="h-4 w-4 inline mr-1" />
+                                    {contato.telefone}
+                                  </p>
+                                  <p className="text-sm text-gray-600">
+                                    <Mail className="h-4 w-4 inline mr-1" />
+                                    {contato.email}
+                                  </p>
+                                </div>
+                                {contato.principal && (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800 mt-2">
+                                    Principal
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex space-x-2">
+                                <Button variant="outline" size="sm">
+                                  <Edit3 className="h-4 w-4" />
+                                </Button>
+                                <Button variant="outline" size="sm">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="usuarios">
+          <Card>
+            <CardHeader>
+              <CardTitle>Usuários</CardTitle>
+              <CardDescription>Gerencie os usuários do sistema</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingUsuarios ? (
+                <div className="flex justify-center items-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <p className="text-gray-600">
+                      {usuarios.length} usuário(s) cadastrado(s)
+                    </p>
+                    <Button onClick={() => setShowAddUsuario(true)}>
+                      <PlusCircle className="h-4 w-4 mr-2" />
+                      Adicionar Usuário
+                    </Button>
+                  </div>
+
+                  {usuarios.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Users className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                      <p className="text-gray-500">Nenhum usuário adicional cadastrado</p>
+                    </div>
+                  ) : (
+                    <div className="grid gap-4">
+                      {usuarios.map((usuario: any, index) => (
+                        <Card key={index}>
+                          <CardContent className="p-4">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="font-medium">{usuario.nome}</p>
+                                <p className="text-gray-600">{usuario.email}</p>
+                                <div className="mt-2">
+                                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${
+                                    usuario.status === 'ativo' 
+                                      ? 'bg-green-100 text-green-800' 
+                                      : 'bg-red-100 text-red-800'
+                                  }`}>
+                                    {usuario.status}
+                                  </span>
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-800 ml-2">
+                                    {usuario.perfil}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex space-x-2">
+                                <Button variant="outline" size="sm">
+                                  <Edit3 className="h-4 w-4" />
+                                </Button>
+                                <Button variant="outline" size="sm">
+                                  <Ban className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="financeiro">
+          <Card>
+            <CardHeader>
+              <CardTitle>Informações Financeiras</CardTitle>
+              <CardDescription>Acompanhe sua assinatura e histórico de pagamentos</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingAssinatura ? (
+                <div className="flex justify-center items-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : displayData ? (
+                <div className="space-y-6">
+                  {/* Informações da assinatura */}
+                  <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-6 rounded-lg border border-blue-200">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-xl font-semibold text-blue-900">
+                          {displayData.plano?.nome || 'Plano Básico'}
+                        </h3>
+                        <p className="text-blue-700 mt-1">
+                          {displayData.plano?.descricao || 'Seu plano atual'}
+                        </p>
+                        <div className="mt-4 grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-sm text-blue-600">Valor Mensal</p>
+                            <p className="text-lg font-bold text-blue-900">
+                              R$ {displayData.plano?.valorMensal || '0,00'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-blue-600">Status</p>
+                            <p className="text-lg font-bold text-green-600">Ativo</p>
+                          </div>
+                        </div>
+                      </div>
+                      <Button onClick={handleRenovarAssinatura} className="bg-blue-600 hover:bg-blue-700">
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Renovar Assinatura
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Saldo de créditos */}
+                  {hasCredits && (
+                    <div className="bg-gradient-to-r from-green-50 to-green-100 p-6 rounded-lg border border-green-200">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-lg font-semibold text-green-900">Saldo de Créditos</h3>
+                          <p className="text-2xl font-bold text-green-700 mt-2">
+                            {formattedBalance}
+                          </p>
+                        </div>
+                        <Coins className="h-12 w-12 text-green-600" />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Limites do plano */}
+                  {displayData.plano?.limitesCadastro && (
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div className="bg-white p-4 rounded-lg border">
+                        <h4 className="font-medium text-gray-900">Produtos</h4>
+                        <p className="text-2xl font-bold text-gray-600">
+                          {displayData.plano.limitesCadastro.produtos === 'Ilimitado' 
+                            ? '∞' 
+                            : displayData.plano.limitesCadastro.produtos}
+                        </p>
+                      </div>
+                      <div className="bg-white p-4 rounded-lg border">
+                        <h4 className="font-medium text-gray-900">Serviços</h4>
+                        <p className="text-2xl font-bold text-gray-600">
+                          {displayData.plano.limitesCadastro.servicos === 'Ilimitado' 
+                            ? '∞' 
+                            : displayData.plano.limitesCadastro.servicos}
+                        </p>
+                      </div>
+                      <div className="bg-white p-4 rounded-lg border">
+                        <h4 className="font-medium text-gray-900">Categorias</h4>
+                        <p className="text-2xl font-bold text-gray-600">
+                          {displayData.plano.limitesCadastro.categorias === 'Ilimitado' 
+                            ? '∞' 
+                            : displayData.plano.limitesCadastro.categorias}
+                        </p>
+                      </div>
+                      <div className="bg-white p-4 rounded-lg border">
+                        <h4 className="font-medium text-gray-900">Usuários</h4>
+                        <p className="text-2xl font-bold text-gray-600">
+                          {displayData.plano.limitesCadastro.usuarios === 'Ilimitado' 
+                            ? '∞' 
+                            : displayData.plano.limitesCadastro.usuarios}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Histórico de pagamentos */}
+                  <div className="space-y-4">
+                    <div className="flex items-center space-x-4">
+                      <Button
+                        variant={showHistoricoPagamentos ? "default" : "outline"}
+                        onClick={() => {
+                          setShowHistoricoPagamentos(true);
+                          setShowHistoricoAssinaturas(false);
+                        }}
+                      >
+                        <ReceiptIcon className="h-4 w-4 mr-2" />
+                        Histórico de Pagamentos
+                      </Button>
+                      <Button
+                        variant={showHistoricoAssinaturas ? "default" : "outline"}
+                        onClick={() => {
+                          setShowHistoricoAssinaturas(true);
+                          setShowHistoricoPagamentos(false);
+                        }}
+                      >
+                        <Calendar className="h-4 w-4 mr-2" />
+                        Histórico de Assinaturas
+                      </Button>
+                    </div>
+
+                    {showHistoricoPagamentos && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Histórico de Pagamentos</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          {isLoadingHistoricoPagamentos ? (
+                            <div className="flex justify-center items-center py-8">
+                              <Loader2 className="h-8 w-8 animate-spin" />
+                            </div>
+                          ) : (
+                            <div className="space-y-4">
+                              <CountdownTimer />
+                              <p className="text-gray-500 text-center">
+                                Histórico de pagamentos será carregado aqui
+                              </p>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">Nenhuma assinatura encontrada</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="seguranca">
+          <Card>
+            <CardHeader>
+              <CardTitle>Segurança</CardTitle>
+              <CardDescription>Gerencie a segurança da sua conta</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                {/* Alterar senha */}
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div>
+                    <h3 className="font-medium">Alterar Senha</h3>
+                    <p className="text-sm text-gray-600">Mantenha sua senha segura</p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowPasswordSection(!showPasswordSection)}
+                  >
+                    <Key className="h-4 w-4 mr-2" />
+                    Alterar Senha
+                  </Button>
+                </div>
+
+                {/* Autenticação em dois fatores */}
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div>
+                    <h3 className="font-medium">Autenticação em Dois Fatores</h3>
+                    <p className="text-sm text-gray-600">
+                      {is2FAEnabled ? 'Ativada' : 'Adicione uma camada extra de segurança'}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShow2FASection(!show2FASection)}
+                  >
+                    <Smartphone className="h-4 w-4 mr-2" />
+                    {is2FAEnabled ? 'Gerenciar' : 'Ativar'} 2FA
+                  </Button>
+                </div>
+
+                {/* Sessões ativas */}
+                <div className="space-y-4">
+                  <h3 className="font-medium">Sessões Ativas</h3>
+                  {carregandoSessoes ? (
+                    <div className="flex justify-center items-center py-4">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                    </div>
+                  ) : erroSessoes ? (
+                    <p className="text-red-500 text-sm">{erroSessoes}</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {sessoes.length === 0 ? (
+                        <p className="text-gray-500">Nenhuma sessão ativa encontrada</p>
+                      ) : (
+                        sessoes.map((sessao: any, index) => (
+                          <div key={index} className="flex items-center justify-between p-3 border rounded">
+                            <div>
+                              <p className="font-medium">{sessao.userAgent || 'Navegador'}</p>
+                              <p className="text-sm text-gray-600">
+                                {sessao.ip} - {new Date(sessao.lastAccess).toLocaleString()}
+                              </p>
+                            </div>
+                            <Button variant="outline" size="sm">
+                              <LogOut className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
-              {/* Histórico de Pagamentos */}
-              {showHistoricoPagamentos && (
-                <Card className="shadow-sm mt-6">
-                  <CardHeader>
-                    <CardTitle>Histórico de Pagamentos</CardTitle>
-                    <CardDescription>
-                      Visualize todos os seus pagamentos realizados
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {isLoadingHistoricoPagamentos ? (
-                      <div className="space-y-4">
-                        {[1, 2, 3].map((i) => (
-                          <div key={i} className="border rounded-lg p-4">
-                            <div className="animate-pulse">
-                              <div className="flex justify-between items-start">
-                                <div className="space-y-2">
-                                  <div className="h-4 bg-gray-200 rounded w-32"></div>
-                                  <div className="h-3 bg-gray-200 rounded w-24"></div>
-                                  <div className="h-3 bg-gray-200 rounded w-20"></div>
-                                </div>
-                                <div className="space-y-2">
-                                  <div className="h-6 bg-gray-200 rounded w-24"></div>
-                                  <div className="h-3 bg-gray-200 rounded w-20"></div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      // Verificar diferentes estruturas de dados possíveis
-                      (() => {
-                        const pagamentos = historicoPagamentos?.data || 
-                                         (Array.isArray(historicoPagamentos) ? historicoPagamentos : []);
-                        
-                        if (pagamentos.length > 0) {
-                          // Calcular paginação
-                          const totalPagesPagamentos = Math.ceil(pagamentos.length / itemsPerPagePagamentos);
-                          const startIndexPagamentos = (currentPagePagamentos - 1) * itemsPerPagePagamentos;
-                          const endIndexPagamentos = startIndexPagamentos + itemsPerPagePagamentos;
-                          const paginatedPagamentos = pagamentos.slice(startIndexPagamentos, endIndexPagamentos);
-                          
-                          return (
-                            <>
-                              <div className="space-y-4">
-                                {paginatedPagamentos.map((pagamento: any, index: number) => (
-                                <div key={pagamento.id || index} className={`border rounded-lg p-6 shadow-sm transition-all duration-200 hover:shadow-md ${
-                                  pagamento.status === 'paid' || pagamento.status === 'Pago' ? 'bg-green-50 border-green-200' : 
-                                  pagamento.status === 'failed' || pagamento.status === 'Falhado' ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'
-                                }`}>
-                                  <div className="flex justify-between items-start mb-4">
-                                    <div className="space-y-2">
-                                      <div className={`font-semibold text-lg flex items-center gap-2 ${
-                                        pagamento.status === 'paid' || pagamento.status === 'Pago' ? 'text-green-800' : 
-                                        pagamento.status === 'failed' || pagamento.status === 'Falhado' ? 'text-red-800' : 'text-yellow-800'
-                                      }`}>
-                                        {pagamento.status === 'paid' || pagamento.status === 'Pago' && <CheckCircle className="h-5 w-5 text-green-500" />}
-                                        {pagamento.status === 'paid' || pagamento.status === 'Pago' ? 'Pagamento Confirmado' : 
-                                         pagamento.status === 'failed' || pagamento.status === 'Falhado' ? 'Pagamento Falhado' : 'Pagamento Pendente'}
-                                      </div>
-                                      <div className="text-sm font-medium text-gray-700">{pagamento.planoNome || pagamento.plan_name || 'Plano não identificado'}</div>
-                                      <div className="text-sm text-gray-500 flex items-center gap-1">
-                                        <Calendar className="h-4 w-4" />
-                                        {pagamento.dataPagamento || pagamento.data_pagamento || new Date(pagamento.created * 1000).toLocaleDateString('pt-BR')}
-                                      </div>
-                                    </div>
-                                    <div className="text-right">
-                                      <div className={`text-2xl font-bold ${
-                                        pagamento.status === 'paid' || pagamento.status === 'Pago' ? 'text-green-700' : 
-                                        pagamento.status === 'failed' || pagamento.status === 'Falhado' ? 'text-red-700' : 'text-yellow-700'
-                                      }`}>
-                                        R$ {(pagamento.valor || pagamento.amount_total || pagamento.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                      </div>
-                                      <div className="text-sm text-gray-500">{pagamento.metodoPagamento || pagamento.payment_method_type || 'Cartão'}</div>
-                                    </div>
-                                  </div>
-                                  
-                                  {/* Detalhes do Pagamento */}
-                                  <div className="bg-white/70 rounded-lg p-4 border">
-                                    <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                                      <DollarSign className="h-4 w-4 text-purple-600" />
-                                      Detalhes do Pagamento
-                                    </h4>
-                                    
-                                    <div className="space-y-2">
-                                      {/* Sempre mostrar saldo de tempo primeiro, quando existe */}
-                                      {pagamento.valor_diferenca !== null && 
-                                       pagamento.valor_diferenca !== undefined && 
-                                       pagamento.valor_diferenca !== 0 &&
-                                       Number(pagamento.valor_diferenca) > 0 && (
-                                        <div className="flex justify-between items-center py-1">
-                                          <div className="flex items-center gap-2 text-sm">
-                                            <RefreshCw className="h-4 w-4 text-blue-600" />
-                                            <span className="text-blue-600">Saldo de tempo de uso do plano anterior:</span>
-                                          </div>
-                                          <span className="text-sm font-medium text-blue-700">
-                                            R$ {Number(pagamento.valor_diferenca).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                          </span>
-                                        </div>
-                                      )}
-
-                                      {/* Verificar se é pagamento híbrido */}
-                                      {pagamento.temCredito && (pagamento.valorCartao > 0 && pagamento.valorCredito > 0) ? (
-                                        <>
-                                          {/* Pagamento Híbrido */}
-                                          <div className="flex justify-between items-center py-1">
-                                            <div className="flex items-center gap-2 text-sm text-gray-600">
-                                              <CreditCard className="h-4 w-4" />
-                                              <span>Pago no cartão:</span>
-                                            </div>
-                                            <span className="text-sm font-medium text-gray-800">
-                                              R$ {(pagamento.valorCartao || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                            </span>
-                                          </div>
-                                          <div className="flex justify-between items-center py-1">
-                                            <div className="flex items-center gap-2 text-sm text-green-600">
-                                              <Coins className="h-4 w-4" />
-                                              <span>Pago com saldo do plano anterior:</span>
-                                            </div>
-                                            <span className="text-sm font-medium text-green-700">
-                                              R$ {(pagamento.valorCredito || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                            </span>
-                                          </div>
-                                          {pagamento.detalhesCredito && (
-                                            <div className="text-xs text-gray-500 italic mt-1 pl-6">
-                                              {pagamento.detalhesCredito}
-                                            </div>
-                                          )}
-                                        </>
-                                      ) : pagamento.temCredito && pagamento.isFullCredit ? (
-                                        <>
-                                          {/* Pagamento 100% com créditos */}
-                                          <div className="flex justify-between items-center py-1">
-                                            <div className="flex items-center gap-2 text-sm text-green-600">
-                                              <Coins className="h-4 w-4" />
-                                              <span>Pago com saldo em conta:</span>
-                                            </div>
-                                            <span className="text-sm font-medium text-green-700">
-                                              R$ {(pagamento.valorCredito || pagamento.valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                            </span>
-                                          </div>
-                                          {pagamento.detalhesCredito && (
-                                            <div className="text-xs text-gray-500 italic mt-1 pl-6">
-                                              {pagamento.detalhesCredito}
-                                            </div>
-                                          )}
-                                        </>
-                                      ) : (
-                                        <>
-                                          {/* Pagamento 100% no cartão */}
-                                          <div className="flex justify-between items-center py-1">
-                                            <div className="flex items-center gap-2 text-sm text-gray-600">
-                                              <CreditCard className="h-4 w-4" />
-                                              <span>Pago no cartão:</span>
-                                            </div>
-                                            <span className="text-sm font-medium text-gray-800">
-                                              R$ {(pagamento.valorCartao || pagamento.valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                            </span>
-                                          </div>
-                                        </>
-                                      )}
-
-                                      {/* Mostrar credito_gerado quando existe e é diferente de zero */}
-                                      {pagamento.credito_gerado !== null && 
-                                       pagamento.credito_gerado !== undefined && 
-                                       pagamento.credito_gerado !== 0 &&
-                                       Number(pagamento.credito_gerado) > 0 && (
-                                        <>
-                                          {/* Linha divisória */}
-                                          <div className="border-t border-gray-200 my-2"></div>
-                                          <div className="flex justify-between items-center py-1">
-                                            <div className="flex items-center gap-2 text-sm">
-                                              <Gift className="h-4 w-4 text-green-600" />
-                                              <span className="text-green-600">Créditos gerados:</span>
-                                            </div>
-                                            <span className="text-sm font-medium text-green-700">
-                                              R$ {Number(pagamento.credito_gerado).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                            </span>
-                                          </div>
-                                        </>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  <div className="mt-4 flex justify-between items-center">
-                                    <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-sm font-medium shadow-sm ${
-                                      pagamento.status === 'paid' || pagamento.status === 'Pago' ? 'bg-green-100 text-green-700 border border-green-200' : 
-                                      pagamento.status === 'failed' || pagamento.status === 'Falhado' ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-yellow-100 text-yellow-700 border border-yellow-200'
-                                    }`}>
-                                      {pagamento.status === 'paid' || pagamento.status === 'Pago' && <CheckCircle className="w-4 h-4 mr-2" />}
-                                      {pagamento.status === 'paid' || pagamento.status === 'Pago' ? 'Pago' : 
-                                       pagamento.status === 'failed' || pagamento.status === 'Falhado' ? 'Falhado' : pagamento.status}
-                                    </span>
-                                    {(pagamento.faturaUrl || pagamento.invoice_pdf) && (
-                                      <Button variant="ghost" size="sm" className="text-gray-500 hover:text-purple-600" onClick={() => window.open(pagamento.faturaUrl || pagamento.invoice_pdf, '_blank')}>
-                                        <Download className="w-4 h-4 mr-2" />
-                                        Download da Fatura
-                                      </Button>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                              </div>
-                              
-                              {/* Componente de Paginação para Pagamentos */}
-                              {pagamentos.length > 0 && (
-                                <Pagination
-                                  currentPage={currentPagePagamentos}
-                                  totalPages={totalPagesPagamentos}
-                                  onPageChange={setCurrentPagePagamentos}
-                                  itemsPerPage={itemsPerPagePagamentos}
-                                  onItemsPerPageChange={setItemsPerPagePagamentos}
-                                  totalItems={pagamentos.length}
-                                />
-                              )}
-                            </>
-                          );
-                        } else {
-                          return (
-                            <div className="text-center py-8">
-                              <div className="text-gray-500 mb-2">Nenhum pagamento encontrado</div>
-                              <div className="text-sm text-gray-400">Seus pagamentos aparecerão aqui quando forem processados</div>
-                            </div>
-                          );
-                        }
-                      })()
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Histórico de Assinaturas */}
-              {showHistoricoAssinaturas && (
-                <Card className="shadow-sm mt-6">
-                  <CardHeader>
-                    <CardTitle>Histórico de Assinaturas</CardTitle>
-                    <CardDescription>
-                      Visualize todas as suas assinaturas e mudanças de plano
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {isLoadingHistoricoAssinaturas ? (
-                      <div className="space-y-4">
-                        {[1, 2, 3].map((i) => (
-                          <div key={i} className="border rounded-lg p-4">
-                            <div className="animate-pulse">
-                              <div className="flex justify-between items-start">
-                                <div className="space-y-2">
-                                  <div className="h-4 bg-gray-200 rounded w-32"></div>
-                                  <div className="h-3 bg-gray-200 rounded w-24"></div>
-                                  <div className="h-3 bg-gray-200 rounded w-20"></div>
-                                </div>
-                                <div className="space-y-2">
-                                  <div className="h-6 bg-gray-200 rounded w-24"></div>
-                                  <div className="h-3 bg-gray-200 rounded w-20"></div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : historicoAssinaturas?.success && historicoAssinaturas?.data?.length > 0 ? (
-                      (() => {
-                        const assinaturas = historicoAssinaturas.data;
-                        
-                        // Calcular paginação
-                        const totalPagesAssinaturas = Math.ceil(assinaturas.length / itemsPerPageAssinaturas);
-                        const startIndexAssinaturas = (currentPageAssinaturas - 1) * itemsPerPageAssinaturas;
-                        const endIndexAssinaturas = startIndexAssinaturas + itemsPerPageAssinaturas;
-                        const paginatedAssinaturas = assinaturas.slice(startIndexAssinaturas, endIndexAssinaturas);
-                        
-                        return (
-                          <>
-                            <div className="space-y-4">
-                              {paginatedAssinaturas.map((assinatura: any) => (
-                          <div key={assinatura.id} className={`border rounded-lg p-6 shadow-sm transition-all duration-200 hover:shadow-md ${
-                            assinatura.planoNome === 'ESSENCIAL' ? 'bg-gradient-to-r from-blue-50 to-sky-50 border-blue-200' :
-                            assinatura.planoNome === 'PROFISSIONAL' ? 'bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200' :
-                            assinatura.planoNome === 'EMPRESARIAL' ? 'bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-200' :
-                            assinatura.planoNome === 'PREMIUM' ? 'bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-200' : 
-                            'bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200'
-                          }`}>
-                            <div className="flex justify-between items-start">
-                              <div className="space-y-2">
-                                <div className={`font-semibold text-xl flex items-center gap-2 ${
-                                  assinatura.planoNome === 'ESSENCIAL' ? 'text-blue-700' :
-                                  assinatura.planoNome === 'PROFISSIONAL' ? 'text-purple-700' :
-                                  assinatura.planoNome === 'EMPRESARIAL' ? 'text-emerald-700' :
-                                  assinatura.planoNome === 'PREMIUM' ? 'text-amber-700' :
-                                  'text-gray-700'
-                                }`}>
-                                  {assinatura.status === 'Ativo' && <CheckCircle className="h-5 w-5 text-emerald-500" />}
-                                  {assinatura.planoNome}
-                                </div>
-                                <div className="text-sm font-medium text-gray-700 flex items-center gap-1">
-                                  <Calendar className="h-4 w-4 text-gray-500" />
-                                  {assinatura.dataInicio} {assinatura.dataFim && `- ${assinatura.dataFim}`}
-                                </div>
-                                <div className="text-sm text-gray-600 flex items-center gap-1">
-                                  <RefreshCw className="h-4 w-4" />
-                                  Período: {assinatura.periodo}
-                                </div>
-                              </div>
-                              <div className="text-right space-y-1">
-                                <div className={`text-2xl font-bold tracking-tight ${
-                                  assinatura.planoNome === 'ESSENCIAL' ? 'text-blue-600' :
-                                  assinatura.planoNome === 'PROFISSIONAL' ? 'text-purple-600' :
-                                  assinatura.planoNome === 'EMPRESARIAL' ? 'text-emerald-600' :
-                                  assinatura.planoNome === 'PREMIUM' ? 'text-amber-600' :
-                                  'text-gray-600'
-                                }`}>
-                                  R$ {parseFloat(assinatura.valor).toFixed(2)}
-                                </div>
-                                <div className="text-sm font-medium text-gray-500 capitalize">{assinatura.periodo}</div>
-                              </div>
-                            </div>
-                            <div className="mt-4 flex justify-between items-center">
-                              <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-sm font-medium shadow-sm ${
-                                assinatura.status === 'Ativo' ? 'bg-purple-100 text-purple-700 border border-purple-200' : 
-                                assinatura.status === 'Cancelado' ? 'bg-gray-100 text-gray-700 border border-gray-200' : 
-                                assinatura.status === 'Pausado' ? 'bg-orange-100 text-orange-700 border border-orange-200' : 'bg-gray-100 text-gray-700 border border-gray-200'
-                              }`}>
-                                {assinatura.status === 'Ativo' && <CheckCircle className="w-4 h-4 mr-2" />}
-                                {assinatura.status === 'Cancelado' && <XCircle className="w-4 h-4 mr-2" />}
-                                {assinatura.status === 'Pausado' && <Clock className="w-4 h-4 mr-2" />}
-                                {assinatura.status}
-                              </span>
-                            </div>
-                          </div>
-                                ))}
-                              </div>
-                              
-                              {/* Componente de Paginação para Assinaturas */}
-                              {assinaturas.length > 0 && (
-                                <Pagination
-                                  currentPage={currentPageAssinaturas}
-                                  totalPages={totalPagesAssinaturas}
-                                  onPageChange={setCurrentPageAssinaturas}
-                                  itemsPerPage={itemsPerPageAssinaturas}
-                                  onItemsPerPageChange={setItemsPerPageAssinaturas}
-                                  totalItems={assinaturas.length}
-                                />
-                              )}
-                          </>
-                        );
-                      })()
-                    ) : (
-                      <div className="text-center py-8">
-                        <div className="text-gray-500 mb-2">Nenhuma assinatura encontrada</div>
-                        <div className="text-sm text-gray-400">Seu histórico de assinaturas aparecerá aqui</div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-
-            {/* Tab: Segurança da Conta */}
-            <TabsContent value="seguranca" className="space-y-4">
-              <SegurancaTab 
-                usuarioAtual={{id: perfilData?.userId || 1}}
-                sessoes={sessoes}
-                is2FAEnabled={is2FAEnabled}
-                qrCode2FA={qrCode2FA}
-                secret2FA={secret2FA}
-                erroSenha={erroSenha}
-                sucessoSenha={sucessoSenha}
-                carregandoSenha={carregandoSenha}
-                erro2FA={erro2FA}
-                sucesso2FA={sucesso2FA}
-                carregando2FA={carregando2FA}
-                carregandoSessoes={carregandoSessoes}
-                showPasswordSection={showPasswordSection}
-                show2FASection={show2FASection}
-                setShowPasswordSection={setShowPasswordSection}
-                setShow2FASection={setShow2FASection}
-                alterarSenha={alterarSenha}
-                iniciar2FA={iniciar2FA}
-                ativar2FA={ativar2FA}
-                desativar2FA={desativar2FA}
-                encerrarSessao={encerrarSessao}
-                recarregarSessoes={fetchSessoes}
-              />
-            </TabsContent>
-          </Tabs>
-
-          {/* Modal de Pagamento para Renovação de Assinatura */}
-          <PaymentModal
-            isOpen={isPaymentModalOpen}
-            onClose={() => setIsPaymentModalOpen(false)}
-            planoSelecionado={selectedPlan}
-            periodoPlanos={periodoPlanos}
-            onSuccess={handlePaymentSuccess}
-            acaoTipo="ASSINAR"
-          />
+      {/* Modal de pagamento */}
+      <PaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        selectedPlan={selectedPlan}
+        periodoSelecionado={periodoPlanos}
+        onPaymentSuccess={handlePaymentSuccess}
+        isRenewal={true}
+      />
     </div>
   );
 }
