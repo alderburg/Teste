@@ -696,19 +696,48 @@ if (process.env.EXTERNAL_API_URL) {
           path: '/ws'
         });
 
-        wss.on('connection', ws => {
-          console.log('✅ WebSocket client connected');
+        wss.on('connection', (ws, req) => {
+          console.log('✅ WebSocket client connected from:', req.socket.remoteAddress);
           global.wsClients.add(ws);
+
+          // Enviar mensagem de confirmação
+          ws.send(JSON.stringify({
+            type: 'connection_established',
+            message: 'WebSocket conectado com sucesso',
+            timestamp: new Date().toISOString()
+          }));
+
+          ws.on('message', (message) => {
+            try {
+              const data = JSON.parse(message.toString());
+              console.log('📨 Mensagem recebida do WebSocket:', data.type);
+              
+              // Responder a pings
+              if (data.type === 'ping') {
+                ws.send(JSON.stringify({ 
+                  type: 'pong', 
+                  timestamp: new Date().toISOString() 
+                }));
+              }
+            } catch (error) {
+              console.error('❌ Erro ao processar mensagem WebSocket:', error);
+            }
+          });
     
           ws.on('close', () => {
             console.log('❌ WebSocket client disconnected');
+            global.wsClients.delete(ws);
+          });
+
+          ws.on('error', (error) => {
+            console.error('❌ Erro no WebSocket:', error);
             global.wsClients.delete(ws);
           });
         });
     
         console.log('🔗 WebSocket server iniciado no caminho /ws');
 
-        proxyApp.listen(proxyPort, '0.0.0.0', () => {
+        proxyServer.listen(proxyPort, '0.0.0.0', () => {
           log(`Proxy server running on port ${proxyPort}, forwarding to port ${port}`);
           log(`Running on Replit - server available at: https://${process.env.REPLIT_DOMAINS}`);
         });

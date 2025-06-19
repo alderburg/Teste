@@ -315,8 +315,8 @@ export function useWebSocket() {
 
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.hostname;
-        // No Replit, usar a mesma porta do servidor principal
-        const wsPort = process.env.NODE_ENV === 'development' ? '3000' : window.location.port || '3000';
+        // No Replit, sempre usar a porta do proxy (3000) que é onde o WebSocket está sendo servido
+        const wsPort = '3000';
 
         return `${protocol}//${host}:${wsPort}/ws`;
       };
@@ -338,8 +338,9 @@ export function useWebSocket() {
 
       // Configurar listeners
       socket.addEventListener('open', () => {
-        console.log('WebSocket conectado');
+        console.log('✅ WebSocket conectado com sucesso em:', wsUrl);
         setConnected(true);
+        setReconnectAttempts(0); // Resetar contador de tentativas
       });
 
       socket.addEventListener('message', (event) => {
@@ -410,14 +411,14 @@ export function useWebSocket() {
           }
         });
 
-        socket.addEventListener('close', () => {
-          console.log('WebSocket desconectado');
+        socket.addEventListener('close', (event) => {
+          console.log('❌ WebSocket desconectado - Código:', event.code, 'Razão:', event.reason);
           setConnected(false);
           tryReconnect();
         });
 
         socket.addEventListener('error', (error) => {
-          console.error('Erro no WebSocket:', error);
+          console.error('❌ Erro no WebSocket:', error, 'URL:', wsUrl);
           setConnected(false);
         });
       };
