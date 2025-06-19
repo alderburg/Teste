@@ -314,11 +314,10 @@ export function useWebSocket() {
         if (typeof window === 'undefined') return '';
 
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = window.location.hostname;
-        // No Replit, sempre usar a porta do proxy (3000) que é onde o WebSocket está sendo servido
-        const wsPort = '3000';
-
-        return `${protocol}//${host}:${wsPort}/ws`;
+        const host = window.location.host; // Usar host completo com porta
+        
+        // No Replit, usar o mesmo host da página atual
+        return `${protocol}//${host}/ws`;
       };
 
       const wsUrl = getWebSocketUrl();
