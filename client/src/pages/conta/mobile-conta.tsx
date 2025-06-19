@@ -15,8 +15,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 // Import dos componentes das abas
-import ContatosTab from "@/components/conta/ContatosTab";
-import EnderecosTab from "@/components/conta/EnderecosTab";
+import ContatosTab from "@/components/conta/ContatosTab-WebSocket";
+import EnderecosTab from "@/components/conta/EnderecosTab-WebSocket";
 import { 
   User, Camera, Save, Upload, ArrowLeft, Loader2, 
   MapPin, CreditCard, FileText, Shield, Edit3,
