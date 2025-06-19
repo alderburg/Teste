@@ -682,8 +682,7 @@ if (process.env.EXTERNAL_API_URL) {
 
         // WebSocket Server Setup - usar servidor HTTP existente
         const wss = new WebSocketServer({ 
-          server: proxyServer,
-          path: '/ws'
+          noServer: true
         });
 
         // Configurar upgrade de WebSocket no servidor proxy
