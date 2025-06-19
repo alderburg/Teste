@@ -23,8 +23,9 @@ export function useWebSocket() {
   const isConnectingRef = useRef(false);
   const shouldReconnectRef = useRef(true);
   
-  // Evitar múltiplas conexões WebSocket
+  // Evitar múltiplas conexões WebSocket - usar key único por instância
   const connectionKey = 'primary-websocket-connection';
+  const instanceId = useRef(Math.random().toString(36).substr(2, 9));
 
   // Função para processar mensagens recebidas
   const handleMessage = useCallback((data: WebSocketMessage) => {
@@ -198,11 +199,17 @@ export function useWebSocket() {
     // Verificar se já existe uma conexão global ativa
     const existingSocket = (window as any)[connectionKey];
     if (existingSocket && existingSocket.readyState === WebSocket.OPEN) {
-      console.log('WebSocket já existe e está conectado - usando conexão existente');
+      console.log(`🔄 WebSocket já existe (${instanceId.current}) - usando conexão existente`);
       socketRef.current = existingSocket;
       setConnected(true);
       setReconnectAttempts(0);
       return;
+    }
+    
+    // Limpar conexão anterior se estiver fechada
+    if (existingSocket && existingSocket.readyState !== WebSocket.OPEN) {
+      delete (window as any)[connectionKey];
+      console.log(`🧹 Removendo conexão WebSocket antiga (${instanceId.current})`);
     }
 
     isConnectingRef.current = true;
@@ -215,14 +222,14 @@ export function useWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.hostname;
         
-        // No Replit, sempre usar a porta padrão (sem especificar porta)
-        // O proxy já redireciona corretamente para o WebSocket
+        // Configuração simplificada para o Replit
         let wsUrl;
-        if (process.env.NODE_ENV === 'development' && host === 'localhost') {
+        if (host === 'localhost') {
+          // Desenvolvimento local - conectar diretamente na porta do servidor
           wsUrl = `${protocol}//localhost:5001/ws`;
         } else {
-          // Para produção no Replit, usar o domínio sem porta específica
-          wsUrl = `${protocol}//${host}/ws`;
+          // Replit - usar a porta padrão (3000) que é redirecionada
+          wsUrl = `${protocol}//${host}:3000/ws`;
         }
         
         console.log('🔍 CLIENTE: URL WebSocket calculada:', wsUrl);
@@ -230,7 +237,8 @@ export function useWebSocket() {
       };
 
       const wsUrl = getWebSocketUrl();
-      console.log('🔄 CLIENTE: Tentando conectar WebSocket em:', wsUrl);
+      console.log(`🔄 CLIENTE: Tentando conectar WebSocket (${instanceId.current}) em:`, wsUrl);
+      console.log(`🔍 CLIENTE: Protocolo: ${protocol}, Host: ${host}`);
 
       const socket = new WebSocket(wsUrl);
       socketRef.current = socket;
@@ -247,7 +255,7 @@ export function useWebSocket() {
 
       socket.addEventListener('open', () => {
         clearTimeout(connectionTimeout);
-        console.log('🔗 CLIENTE: WebSocket conectado com sucesso');
+        console.log(`🔗 CLIENTE: WebSocket conectado com sucesso (${instanceId.current}) - URL: ${wsUrl}`);
         setConnected(true);
         setReconnectAttempts(0);
         isConnectingRef.current = false;

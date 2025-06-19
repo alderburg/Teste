@@ -663,11 +663,9 @@ if (process.env.EXTERNAL_API_URL) {
           }
         }));
 
-        // WebSocket Server Setup - configurar no servidor proxy para evitar conflitos de porta
-        const proxyServer = createServer(proxyApp);
-        
+        // WebSocket Server Setup - usar servidor HTTP principal
         const wss = new WebSocketServer({ 
-          server: proxyServer,
+          server: server,
           path: '/ws'
         });
 
@@ -709,8 +707,11 @@ if (process.env.EXTERNAL_API_URL) {
           });
         });
     
-        console.log('🔗 WebSocket server iniciado no caminho /ws (porta 3000)');
+        console.log('🔗 WebSocket server iniciado no caminho /ws (porta 5001)');
 
+        // Criar servidor proxy após WebSocket
+        const proxyServer = createServer(proxyApp);
+        
         proxyServer.listen(proxyPort, '0.0.0.0', () => {
           log(`Proxy server running on port ${proxyPort}, forwarding to port ${port}`);
           log(`Running on Replit - server available at: https://${process.env.REPLIT_DOMAINS}`);
