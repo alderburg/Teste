@@ -4,8 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
-import { Textarea } from "@/components/ui/textarea";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage} from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { z } from "zod";
@@ -496,8 +495,8 @@ export default function MinhaContaPage() {
 
   const fetchAssinaturaDataWS = async () => {
     try {
-      setIsLoadingAssinatura(true);
-      const response = await fetch(`/api/minha-assinatura`, {
+      setIsLoadingAssinaturaOriginal(true);
+      const response = await fetch('/api/minha-assinatura', {
         credentials: 'include'
       });
       if (response.ok) {
@@ -507,9 +506,8 @@ export default function MinhaContaPage() {
     } catch (error) {
       console.error("Erro ao buscar assinatura:", error);
     } finally {
-      setIsLoadingAssinatura(false);
+      setIsLoadingAssinaturaOriginal(false);
     }
-  };
 
   const fetchHistoricoAssinaturasWS = async () => {
     try {
