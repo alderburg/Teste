@@ -52,11 +52,16 @@ const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 export default function MinhaContaPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { displayData } = useWebSocketData();
   
-  // Dados vêm via WebSocket
-  const perfilData = displayData?.perfil || null;
-  const isLoadingPerfil = false;
+  // Buscar dados do perfil via WebSocket
+  const { data: perfilArray, loading: isLoadingPerfil } = useWebSocketData({
+    endpoint: '/api/auth/user',
+    resource: 'perfil',
+    autoFetch: true
+  });
+  
+  // Extrair primeiro item do array (perfil é único)
+  const perfilData = perfilArray && perfilArray.length > 0 ? perfilArray[0] : null;
 
   // Função para salvar perfil via WebSocket
   const handleSavePerfilWebSocket = async (data: any) => {
