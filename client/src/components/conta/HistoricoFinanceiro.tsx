@@ -4,8 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { useWebSocketData } from "@/hooks/useWebSocketData";
 import { 
   CreditCard, 
   Download, 
@@ -58,97 +57,25 @@ interface Assinatura {
 export function HistoricoFinanceiro() {
   const { toast } = useToast();
 
-  // Query para buscar histórico de pagamentos
+  // WebSocket data for histórico de pagamentos
   const { 
     data: pagamentos = [], 
-    isLoading: loadingPagamentos, 
-    refetch: refetchPagamentos,
-    error: errorPagamentos
-  } = useQuery<Pagamento[]>({
-    queryKey: ['historico-pagamentos'],
-    queryFn: async () => {
-      console.log('🔍 Fazendo requisição para histórico de pagamentos...');
-      try {
-        const response = await apiRequest('/api/historico-pagamentos');
-        console.log('📋 Resposta completa da API:', response);
-        console.log('📋 Tipo da resposta:', typeof response);
-        console.log('📋 response.success:', response?.success);
-        console.log('📋 response.data:', response?.data);
-        console.log('📋 Total de pagamentos:', response?.data?.length || 0);
-
-        let pagamentosData = [];
-
-        if (response?.success && response?.data) {
-          console.log('✅ Formato: response.success + response.data');
-          pagamentosData = Array.isArray(response.data) ? response.data : [response.data];
-        } else if (Array.isArray(response)) {
-          console.log('✅ Resposta é array direto:', response.length, 'itens');
-          pagamentosData = response;
-        } else if (response?.data && Array.isArray(response.data)) {
-          console.log('✅ Formato: response.data como array');
-          pagamentosData = response.data;
-        } else {
-          console.log('❌ Formato de resposta não esperado:', response);
-          pagamentosData = [];
-        }
-
-        console.log('📊 Total de pagamentos processados:', pagamentosData.length);
-        if (pagamentosData.length > 0) {
-          console.log('📊 Primeiro pagamento:', pagamentosData[0]);
-          console.log('📊 valor_diferenca no primeiro pagamento:', pagamentosData[0]?.valor_diferenca);
-        }
-
-        // Debug específico para valor_diferenca
-        pagamentosData.forEach((pag: any, index: number) => {
-          if (pag.valor_diferenca !== undefined && pag.valor_diferenca !== null) {
-            console.log(`💰 Pagamento ${index + 1} tem valor_diferenca:`, pag.valor_diferenca);
-          }
-        });
-
-        return pagamentosData;
-      } catch (error) {
-        console.error('❌ Erro na requisição de pagamentos:', error);
-        throw error;
-      }
-    },
-    retry: 3,
-    retryDelay: 1000,
-    staleTime: 0,
-    refetchOnMount: true,
-    refetchOnWindowFocus: true
+    loading: loadingPagamentos, 
+    error: errorPagamentos,
+    refetch: refetchPagamentos
+  } = useWebSocketData({
+    endpoint: '/api/historico-pagamentos',
+    resource: 'historico-pagamentos'
   });
 
-  // Query para buscar histórico de assinaturas
+  // WebSocket data for histórico de assinaturas
   const { 
     data: assinaturas = [], 
-    isLoading: loadingAssinaturas, 
-    refetch: refetchAssinaturas 
-  } = useQuery({
-    queryKey: ['historico-assinaturas'],
-    queryFn: async () => {
-      console.log('🔍 Buscando histórico de assinaturas...');
-      try {
-        const response = await apiRequest('/api/historico-assinaturas');
-        console.log('📋 Resposta completa do backend:', response);
-
-        let assinaturasData = [];
-
-        if (response?.success && response?.data) {
-          assinaturasData = Array.isArray(response.data) ? response.data : [response.data];
-        } else if (Array.isArray(response)) {
-          assinaturasData = response;
-        } else if (response?.data && Array.isArray(response.data)) {
-          assinaturasData = response.data;
-        } else {
-          assinaturasData = [];
-        }
-
-        return assinaturasData;
-      } catch (error) {
-        console.error('❌ Erro ao buscar assinaturas:', error);
-        return [];
-      }
-    },
+    loading: loadingAssinaturas,
+    refetch: refetchAssinaturas
+  } = useWebSocketData({
+    endpoint: '/api/historico-assinaturas',
+    resource: 'historico-assinaturas'
   });
 
   const handleRefresh = async () => {
@@ -279,7 +206,7 @@ export function HistoricoFinanceiro() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {pagamentos.map((pagamento) => {
+                      {Array.isArray(pagamentos) && pagamentos.flat().map((pagamento: any) => {
                         console.log('🔍 Renderizando pagamento:', pagamento.id, 'valor_diferenca:', pagamento.valor_diferenca);
 
                         return (

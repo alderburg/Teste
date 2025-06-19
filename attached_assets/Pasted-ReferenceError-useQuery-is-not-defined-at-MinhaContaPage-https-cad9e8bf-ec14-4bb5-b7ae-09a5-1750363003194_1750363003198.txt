@@ -1,0 +1,19 @@
+ReferenceError: useQuery is not defined
+    at MinhaContaPage (https://cad9e8bf-ec14-4bb5-b7ae-09a5cb8a6f01-00-ekaiqb3b0ui.worf.replit.dev:3001/src/pages/conta/index.tsx:596:28)
+    at Route (https://cad9e8bf-ec14-4bb5-b7ae-09a5cb8a6f01-00-ekaiqb3b0ui.worf.replit.dev:3001/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=32ad411b:206:16)
+    at Switch (https://cad9e8bf-ec14-4bb5-b7ae-09a5cb8a6f01-00-ekaiqb3b0ui.worf.replit.dev:3001/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=32ad411b:262:17)
+    at main
+    at div
+    at div
+    at PersistentLayout (https://cad9e8bf-ec14-4bb5-b7ae-09a5cb8a6f01-00-ekaiqb3b0ui.worf.replit.dev:3001/src/components/PersistentLayout.tsx:22:44)
+    at RequireAuth (https://cad9e8bf-ec14-4bb5-b7ae-09a5cb8a6f01-00-ekaiqb3b0ui.worf.replit.dev:3001/src/hooks/use-auth.tsx:150:31)
+    at AuthenticatedRoutes
+    at Router (https://cad9e8bf-ec14-4bb5-b7ae-09a5cb8a6f01-00-ekaiqb3b0ui.worf.replit.dev:3001/src/App.tsx?v=vrSpWT6fyMjpvjniyzLOj:277:37)
+    at SearchProvider (https://cad9e8bf-ec14-4bb5-b7ae-09a5cb8a6f01-00-ekaiqb3b0ui.worf.replit.dev:3001/src/components/Header.tsx:56:34)
+    at OnboardingProvider (https://cad9e8bf-ec14-4bb5-b7ae-09a5cb8a6f01-00-ekaiqb3b0ui.worf.replit.dev:3001/src/context/OnboardingContext.tsx:30:38)
+    at NotificationProvider (https://cad9e8bf-ec14-4bb5-b7ae-09a5cb8a6f01-00-ekaiqb3b0ui.worf.replit.dev:3001/src/context/NotificationContext.tsx:21:40)
+    at WebSocketProvider (https://cad9e8bf-ec14-4bb5-b7ae-09a5cb8a6f01-00-ekaiqb3b0ui.worf.replit.dev:3001/src/components/WebSocketProvider.tsx:34:45)
+    at AuthProvider (https://cad9e8bf-ec14-4bb5-b7ae-09a5cb8a6f01-00-ekaiqb3b0ui.worf.replit.dev:3001/src/hooks/use-auth.tsx:30:32)
+    at QueryClientProvider (https://cad9e8bf-ec14-4bb5-b7ae-09a5cb8a6f01-00-ekaiqb3b0ui.worf.replit.dev:3001/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=32ad411b:2763:3)
+    at ErrorBoundary (https://cad9e8bf-ec14-4bb5-b7ae-09a5cb8a6f01-00-ekaiqb3b0ui.worf.replit.dev:3001/src/App.tsx?v=vrSpWT6fyMjpvjniyzLOj:506:5)
+    at App
