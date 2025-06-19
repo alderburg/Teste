@@ -19,8 +19,9 @@ export function useWebSocket() {
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
-  const MAX_RECONNECT_ATTEMPTS = 5;
+  const MAX_RECONNECT_ATTEMPTS = 3;
   const isConnectingRef = useRef(false);
+  const shouldReconnectRef = useRef(true);
   
   // Evitar múltiplas conexões WebSocket
   const connectionKey = 'primary-websocket-connection';
@@ -167,12 +168,12 @@ export function useWebSocket() {
 
   // Função para tentar reconectar
   const attemptReconnect = useCallback(() => {
-    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS || isConnectingRef.current) {
-      console.log('Número máximo de tentativas de reconexão atingido ou já conectando');
+    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS || isConnectingRef.current || !shouldReconnectRef.current) {
+      console.log('Reconexão cancelada: limite atingido, já conectando ou desabilitada');
       return;
     }
 
-    const timeout = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
+    const timeout = Math.min(3000 * Math.pow(2, reconnectAttempts), 15000);
     console.log(`Tentando reconexão em ${timeout}ms (tentativa ${reconnectAttempts + 1} de ${MAX_RECONNECT_ATTEMPTS})`);
 
     if (reconnectTimeoutRef.current) {
@@ -180,15 +181,17 @@ export function useWebSocket() {
     }
 
     reconnectTimeoutRef.current = setTimeout(() => {
-      setReconnectAttempts(prev => prev + 1);
-      createConnection();
+      if (shouldReconnectRef.current && !isConnectingRef.current) {
+        setReconnectAttempts(prev => prev + 1);
+        createConnection();
+      }
     }, timeout);
   }, [reconnectAttempts]);
 
   // Função para criar conexão WebSocket
   const createConnection = useCallback(() => {
-    if (isConnectingRef.current) {
-      console.log('Já conectando - ignorando nova tentativa');
+    if (isConnectingRef.current || !shouldReconnectRef.current) {
+      console.log('Criação de conexão cancelada: já conectando ou desabilitada');
       return;
     }
 
@@ -198,6 +201,7 @@ export function useWebSocket() {
       console.log('WebSocket já existe e está conectado - usando conexão existente');
       socketRef.current = existingSocket;
       setConnected(true);
+      setReconnectAttempts(0);
       return;
     }
 
@@ -225,9 +229,18 @@ export function useWebSocket() {
       socketRef.current = socket;
       (window as any)[connectionKey] = socket;
 
+      // Timeout para conexão
+      const connectionTimeout = setTimeout(() => {
+        if (socket.readyState === WebSocket.CONNECTING) {
+          console.log('❌ CLIENTE: Timeout na conexão WebSocket');
+          socket.close();
+          isConnectingRef.current = false;
+        }
+      }, 10000);
+
       socket.addEventListener('open', () => {
+        clearTimeout(connectionTimeout);
         console.log('🔗 CLIENTE: WebSocket conectado com sucesso');
-        console.log('🔗 CLIENTE: URL de conexão:', wsUrl);
         setConnected(true);
         setReconnectAttempts(0);
         isConnectingRef.current = false;
@@ -281,8 +294,8 @@ export function useWebSocket() {
           delete (window as any)[connectionKey];
         }
         
-        // Tentar reconectar se não foi um fechamento intencional
-        if (event.code !== 1000) {
+        // Tentar reconectar apenas se não foi fechamento intencional e ainda deve reconectar
+        if (event.code !== 1000 && event.code !== 1001 && shouldReconnectRef.current) {
           attemptReconnect();
         }
       });
@@ -302,6 +315,9 @@ export function useWebSocket() {
     // Limpar ao desmontar
     return () => {
       try {
+        shouldReconnectRef.current = false;
+        isConnectingRef.current = false;
+
         // Cancelar qualquer tentativa de reconexão pendente
         if (reconnectTimeoutRef.current) {
           clearTimeout(reconnectTimeoutRef.current);

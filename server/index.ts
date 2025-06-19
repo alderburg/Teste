@@ -670,38 +670,38 @@ if (process.env.EXTERNAL_API_URL) {
         });
 
         wss.on('connection', (ws, req) => {
-          console.log('✅ SERVIDOR: WebSocket client conectado de:', req.socket.remoteAddress);
-          console.log(`📊 SERVIDOR: Total de clientes conectados: ${global.wsClients.size + 1}`);
+          console.log('✅ SERVIDOR: WebSocket client conectado');
           global.wsClients.add(ws);
           
-          // Enviar ping inicial para confirmar conexão
-          ws.send(JSON.stringify({
-            type: 'connection_confirmed',
-            message: 'WebSocket conectado com sucesso',
-            timestamp: new Date().toISOString()
-          }));
+          // Confirmar conexão
+          try {
+            ws.send(JSON.stringify({
+              type: 'connection_confirmed',
+              message: 'WebSocket conectado',
+              timestamp: new Date().toISOString()
+            }));
+          } catch (error) {
+            console.error('❌ SERVIDOR: Erro ao enviar confirmação:', error);
+          }
     
           ws.on('message', (data) => {
             try {
               const message = JSON.parse(data.toString());
-              console.log('📥 SERVIDOR: Mensagem recebida do cliente:', message);
-              
               if (message.type === 'auth') {
                 console.log(`🔐 SERVIDOR: Cliente autenticado - Usuário: ${message.userId}`);
               }
             } catch (error) {
-              console.error('❌ SERVIDOR: Erro ao processar mensagem do cliente:', error);
+              // Ignorar erros de parsing
             }
           });
     
           ws.on('close', () => {
-            console.log('❌ SERVIDOR: WebSocket client desconectado');
             global.wsClients.delete(ws);
-            console.log(`📊 SERVIDOR: Total de clientes restantes: ${global.wsClients.size}`);
+            console.log(`📊 SERVIDOR: Cliente desconectado (${global.wsClients.size} restantes)`);
           });
           
-          
           ws.on('error', (error) => {
+            global.wsClients.delete(ws);
             console.error('❌ SERVIDOR: Erro no WebSocket:', error);
           });
         });

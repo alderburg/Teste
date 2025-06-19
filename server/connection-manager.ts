@@ -55,10 +55,10 @@ class ConnectionManager {
       connectionTimeoutMillis: 15000, // Aumentado para conexões mais estáveis
       idleTimeoutMillis: 30000, // 30 segundos de timeout para conexões ociosas
 
-      // Configurações de pool ajustadas - mais conservadoras
-      max: 5, // Reduzido drasticamente para evitar sobrecarga
+      // Configurações de pool muito conservadoras
+      max: 3, // Apenas 3 conexões máximo
       min: 1, // Manter conexão mínima
-      acquireTimeoutMillis: 20000, // Timeout maior
+      acquireTimeoutMillis: 15000, // 15 segundos
 
       // Configurações de comportamento
       allowExitOnIdle: false, // Mudado para false para manter conexões
@@ -66,8 +66,8 @@ class ConnectionManager {
     };
 
     this.pool = new Pool(config);
-    this.connectionTimeout = parseInt(process.env.DB_CONNECTION_TIMEOUT || '10000');
-    this.queryTimeout = 30000; // 30 segundos para timeout de queries
+    this.connectionTimeout = parseInt(process.env.DB_CONNECTION_TIMEOUT || '20000');
+    this.queryTimeout = 45000; // 45 segundos para timeout de queries
     this.activeClients = new Map();
 
     // Inicializar estatísticas
