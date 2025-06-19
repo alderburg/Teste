@@ -42,8 +42,6 @@ export default function ContatosTab() {
   const [contatos, setContatos] = useState<ContatoFormValues[]>([]);
   const [showAddContato, setShowAddContato] = useState(false);
   const [editingContato, setEditingContato] = useState<ContatoFormValues | null>(null);
-  const [isLoadingAfterSave, setIsLoadingAfterSave] = useState(false);
-  
   // Estado para pesquisa
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -56,11 +54,8 @@ export default function ContatosTab() {
   
   // Get the current user from localStorage
   const [currentUserId, setCurrentUserId] = useState<number | undefined>();
-  // Estado para controlar se já verificamos os dados
-  const [dataVerified, setDataVerified] = useState(false);
   
-  // Estado adicional para controlar a exibição de loading entre abas
-  // Isso garante que sempre exibimos um loader ao trocar de aba
+  // Estado para controlar a exibição de loading inicial ao trocar de aba
   const [initialLoading, setInitialLoading] = useState(true);
   
   useEffect(() => {
@@ -120,35 +115,9 @@ export default function ContatosTab() {
     }
   }, [contatosData]);
   
-  // Função global para desativar carregamento e limpar estados
-  const resetLoadingStates = useCallback(() => {
-    setIsLoadingAfterSave(false);
-    setDataVerified(true);
-    setInitialLoading(false);
-  }, []);
-  
-  // Timeout global para garantir que loading NUNCA fica preso
-  useEffect(() => {
-    const globalTimer = setTimeout(() => {
-      resetLoadingStates();
-    }, 8000); // Timeout final de emergência
-    
-    return () => clearTimeout(globalTimer);
-  }, [resetLoadingStates]);
-  
-  // Effect específico para monitorar e limpar loading após salvar
-  useEffect(() => {
-    if (isLoadingAfterSave) {
-      const timer = setTimeout(() => {
-        resetLoadingStates();
-      }, 3000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [isLoadingAfterSave, resetLoadingStates]);
+
   
   // Effect para atualizar o estado local quando os dados são carregados 
-  // Simplificado para evitar problemas de renderização cíclica
   useEffect(() => {
     if (contatosData) {
       console.log("Dados de contatos carregados:", contatosData);
@@ -174,7 +143,6 @@ export default function ContatosTab() {
       }));
       
       // Reordenar para colocar o contato principal no topo
-      // E depois manter a ordem original por ID (mais antigos primeiro)
       const contatosOrdenados = [...formattedContatos].sort((a, b) => {
         if (a.principal && !b.principal) return -1; // a é principal, vai para o topo
         if (!a.principal && b.principal) return 1;  // b é principal, vai para o topo
@@ -185,10 +153,6 @@ export default function ContatosTab() {
       // Atualizar o estado
       setContatos(contatosOrdenados);
       
-      // Definir que os dados foram verificados e desativar o loading
-      setDataVerified(true);
-      setIsLoadingAfterSave(false);
-      
       console.log(`Contatos atualizados: ${contatosArray.length} contatos carregados`);
     }
   }, [contatosData]);
@@ -197,28 +161,22 @@ export default function ContatosTab() {
   const firstMountRef = useRef<boolean>(true);
   const lastUpdateTimeRef = useRef<number>(Date.now());
   
-  // Inicializa o dataVerified e configura o initialLoading para mostrar o splash ao trocar de aba
-  // Implementação EXATAMENTE igual à aba de Endereços para garantir o mesmo comportamento
+  // Configuração inicial do loading ao trocar de aba
   useEffect(() => {
-    // Primeiro definimos todos os estados necessários para que a UI não mostre
-    // dados antigos ou inconsistentes durante a troca de aba
-    setDataVerified(false);
     setInitialLoading(true);
     
     // Forçar a revalidação dos dados ao trocar de aba
     refetchContatos().then(() => {
-      // Assim que os dados chegarem, desativamos o loading imediatamente
       setInitialLoading(false);
-      setDataVerified(true);
     });
     
     // Prevenção contra longos tempos de resposta
     const timer = setTimeout(() => {
       setInitialLoading(false);
-    }, 300); // Tempo máximo reduzido para tornar a experiência mais instantânea - IGUAL À ABA DE ENDEREÇOS
+    }, 300);
     
     return () => clearTimeout(timer);
-  }, [refetchContatos]); // Dependência em refetchContatos - IGUAL À ABA DE ENDEREÇOS
+  }, [refetchContatos]);
   
   const contatoForm = useForm<ContatoFormValues>({
     resolver: zodResolver(contatoSchema),
@@ -291,20 +249,8 @@ export default function ContatosTab() {
         className: "bg-white border-gray-200",
       });
       
-      // Ativar o estado de carregamento
-      setIsLoadingAfterSave(true);
-      
-      // Resetar dataVerified quando os dados forem alterados
-      setDataVerified(false);
-      
       // Invalidar a query para refrescar os dados
-      queryClient.invalidateQueries({ queryKey: ["/api/contatos"] });
-      
-      // Resetar estados após um breve tempo para feedback visual
-      setTimeout(() => {
-        setIsLoadingAfterSave(false);
-        setDataVerified(true);
-      }, 500);
+      queryClient.invalidateQueries(["/api/contatos"]);
     },
     onError: (error: any) => {
       console.error("Erro completo ao adicionar contato:", error);
@@ -313,9 +259,6 @@ export default function ContatosTab() {
         description: error.message || "Erro ao salvar contato no banco de dados",
         variant: "destructive",
       });
-      
-      // Garantir que loading seja desativado em caso de erro
-      setIsLoadingAfterSave(false);
     },
   });
   
@@ -362,20 +305,8 @@ export default function ContatosTab() {
         className: "bg-white border-gray-200",
       });
       
-      // Ativar o estado de carregamento
-      setIsLoadingAfterSave(true);
-      
-      // Resetar dataVerified quando os dados forem alterados
-      setDataVerified(false);
-      
       // Invalidar a query para refrescar os dados
-      queryClient.invalidateQueries({ queryKey: ["/api/contatos"] });
-      
-      // Resetar estados após um breve tempo para feedback visual
-      setTimeout(() => {
-        setIsLoadingAfterSave(false);
-        setDataVerified(true);
-      }, 500);
+      queryClient.invalidateQueries(["/api/contatos"]);
     },
     onError: (error: any) => {
       toast({
@@ -383,9 +314,6 @@ export default function ContatosTab() {
         description: error.message,
         variant: "destructive",
       });
-      
-      // Garantir que loading seja desativado em caso de erro
-      setIsLoadingAfterSave(false);
     },
   });
 
@@ -509,14 +437,8 @@ export default function ContatosTab() {
         className: "bg-white border-gray-200",
       });
       
-      // Ativar o estado de carregamento
-      setIsLoadingAfterSave(true);
-      
-      // Resetar dataVerified quando os dados forem alterados
-      setDataVerified(false);
-      
       // Invalidar a query para refrescar os dados
-      queryClient.invalidateQueries({ queryKey: ["/api/contatos"] });
+      queryClient.invalidateQueries(["/api/contatos"]);
       
       // Limpar referência ao contato que estava sendo excluído
       setContatoParaExcluir(null);
@@ -528,8 +450,7 @@ export default function ContatosTab() {
         variant: "destructive",
       });
       
-      // Garantir que loading seja desativado em caso de erro
-      setIsLoadingAfterSave(false);
+
       
       // Limpar referência mesmo em caso de erro
       setContatoParaExcluir(null);
@@ -576,13 +497,13 @@ export default function ContatosTab() {
       });
       
       // Ativar o estado de carregamento
-      setIsLoadingAfterSave(true);
+      
       
       // Resetar dataVerified quando os dados forem alterados
-      setDataVerified(false);
+      
       
       // Invalidar a query para refrescar os dados
-      queryClient.invalidateQueries({ queryKey: ["/api/contatos"] });
+      queryClient.invalidateQueries(["/api/contatos"]);
       
       pendingRequestRef.current = false;
     },
@@ -591,7 +512,7 @@ export default function ContatosTab() {
       setDisabledButtons({});
       
       // Desativar o estado de carregamento em caso de erro
-      setIsLoadingAfterSave(false);
+      
       
       toast({
         title: "Erro ao definir contato como principal",
@@ -1146,13 +1067,11 @@ export default function ContatosTab() {
 
         {!showAddContato && (
           <>
-            {isLoadingContatos || isLoadingAfterSave || initialLoading ? (
+            {isLoadingContatos || initialLoading ? (
               // Preloader de carregamento - mostrado sempre ao trocar de aba e durante carregamentos
               <div className="flex flex-col items-center justify-center p-8 text-center">
                 <div className="h-10 w-10 rounded-full border-4 border-gray-200 border-t-purple-600 animate-spin mb-2"></div>
-                <p className="text-gray-500">
-                  {isLoadingAfterSave ? "Atualizando lista de contatos..." : "Carregando contatos..."}
-                </p>
+                <p className="text-gray-500">Carregando contatos...</p>
               </div>
             ) : contatosData && paginatedContatos.length === 0 ? (
               <div className="flex flex-col items-center justify-center p-8 text-center">
@@ -1280,7 +1199,7 @@ export default function ContatosTab() {
                           size="sm" 
                           className="text-xs text-purple-600 hover:text-purple-700 p-0 h-7"
                           onClick={() => handleSetPrincipal(contato)}
-                          disabled={setPrincipalContatoMutation.isPending || isLoadingAfterSave || (contato.id ? disabledButtons[contato.id] : false)}
+                          disabled={setPrincipalContatoMutation.isPending || (contato.id ? disabledButtons[contato.id] : false)}
                         >
                           Definir como principal
                         </Button>
@@ -1292,7 +1211,7 @@ export default function ContatosTab() {
             )}
 
             {/* Componente de Paginação */}
-            {!showAddContato && !isLoadingContatos && !isLoadingAfterSave && !initialLoading && filteredContatos.length > 0 && (
+            {!showAddContato && !isLoadingContatos && !initialLoading && filteredContatos.length > 0 && (
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}

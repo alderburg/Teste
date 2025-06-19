@@ -55,7 +55,8 @@ export function useWebSocket() {
       console.log('🔒 Verificando tokens:', {
         current: currentSessionToken?.substring(0, 8) + '...',
         terminated: data.sessionToken?.substring(0, 8) + '...',
-        match: currentSessionToken === data.sessionToken
+        match: currentSessionToken === data.sessionToken,
+        currentPage: window.location.pathname
       });
       
       if (currentSessionToken === data.sessionToken) {
@@ -69,7 +70,118 @@ export function useWebSocket() {
           console.error('Erro ao limpar queryClient:', error);
         }
         
-        // Disparar evento específico para sessão encerrada
+        // AÇÃO IMEDIATA: Forçar o popup globalmente
+        const forceSessionTerminationPopup = () => {
+          console.log('🔒 FORÇANDO POPUP DE SESSÃO ENCERRADA');
+          
+          // Verificar se já existe um popup
+          if (document.querySelector('[data-session-terminated-modal]')) {
+            console.log('🔒 Modal já existe, não duplicar');
+            return;
+          }
+          
+          // Criar modal diretamente no DOM
+          const modal = document.createElement('div');
+          modal.setAttribute('data-session-terminated-modal', 'true');
+          modal.style.cssText = `
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            background: rgba(0, 0, 0, 0.8) !important;
+            z-index: 999999 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            backdrop-filter: blur(4px) !important;
+          `;
+          
+          const modalContent = document.createElement('div');
+          modalContent.style.cssText = `
+            background: white !important;
+            padding: 32px !important;
+            border-radius: 12px !important;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1) !important;
+            max-width: 400px !important;
+            width: 90% !important;
+            text-align: center !important;
+            font-family: system-ui, -apple-system, sans-serif !important;
+          `;
+          
+          let countdown = 10;
+          modalContent.innerHTML = `
+            <div style="color: #dc2626; font-size: 48px; margin-bottom: 16px;">⚠️</div>
+            <h2 style="color: #1f2937; font-size: 24px; font-weight: 600; margin-bottom: 16px;">
+              Sessão Encerrada
+            </h2>
+            <p style="color: #6b7280; margin-bottom: 24px; line-height: 1.5;">
+              ${data.message || 'Sua sessão foi encerrada por outro usuário'}
+            </p>
+            <p style="color: #374151; font-weight: 500; margin-bottom: 24px;">
+              Redirecionando em <span id="countdown">${countdown}</span> segundos...
+            </p>
+            <button id="logout-now" style="
+              background: #dc2626;
+              color: white;
+              border: none;
+              padding: 12px 24px;
+              border-radius: 8px;
+              font-weight: 600;
+              cursor: pointer;
+              font-size: 16px;
+            ">
+              Sair Agora
+            </button>
+          `;
+          
+          modal.appendChild(modalContent);
+          document.body.appendChild(modal);
+          
+          // Countdown e logout automático
+          const countdownElement = document.getElementById('countdown');
+          const logoutButton = document.getElementById('logout-now');
+          
+          const countdownInterval = setInterval(() => {
+            countdown--;
+            if (countdownElement) {
+              countdownElement.textContent = countdown.toString();
+            }
+            
+            if (countdown <= 0) {
+              clearInterval(countdownInterval);
+              performLogout();
+            }
+          }, 1000);
+          
+          const performLogout = () => {
+            console.log('🔒 Executando logout forçado');
+            
+            // Limpar dados locais
+            localStorage.clear();
+            sessionStorage.clear();
+            
+            // Limpar cookies
+            document.cookie.split(";").forEach(function(c) { 
+              document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+            });
+            
+            // Redirecionar
+            window.location.href = '/acessar';
+          };
+          
+          if (logoutButton) {
+            logoutButton.addEventListener('click', () => {
+              clearInterval(countdownInterval);
+              performLogout();
+            });
+          }
+        };
+        
+        // Executar imediatamente
+        forceSessionTerminationPopup();
+        
+        // Disparar eventos para compatibilidade
         const sessionTerminatedEvent = new CustomEvent('session-terminated', { 
           detail: { 
             message: data.message || 'Sua sessão foi encerrada por outro usuário',
@@ -80,7 +192,6 @@ export function useWebSocket() {
         });
         window.dispatchEvent(sessionTerminatedEvent);
         
-        // Também disparar o evento websocket-message-received para compatibilidade
         const webSocketEvent = new CustomEvent('websocket-message-received', { 
           detail: { 
             type: 'session_terminated',
@@ -92,7 +203,7 @@ export function useWebSocket() {
         window.dispatchEvent(webSocketEvent);
       }
       
-      return; // Deixar o evento ser processado pelo WebSocketProvider
+      return;
     }
 
     // Se for uma atualização de dados, invalidar a consulta correspondente
@@ -169,9 +280,11 @@ export function useWebSocket() {
         if (typeof window === 'undefined') return '';
 
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = window.location.host; // Use host instead of hostname to include port
-        
-        return `${protocol}//${host}/ws`;
+        const host = window.location.hostname;
+        // No Replit, usar a mesma porta do servidor principal
+        const wsPort = process.env.NODE_ENV === 'development' ? '3000' : window.location.port || '3000';
+
+        return `${protocol}//${host}:${wsPort}/ws`;
       };
 
       const wsUrl = getWebSocketUrl();

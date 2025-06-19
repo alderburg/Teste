@@ -159,7 +159,9 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
         const terminatedSessionToken = event.detail.sessionToken;
 
         console.log('🔒 Evento de sessão encerrada recebido:', {
-          terminatedToken: terminatedSessionToken?.substring(0, 8) + '...'
+          terminatedToken: terminatedSessionToken?.substring(0, 8) + '...',
+          currentPage: window.location.pathname,
+          eventSource: 'websocket-message-received'
         });
 
         if (checkIfCurrentSession(terminatedSessionToken)) {
@@ -170,7 +172,11 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
     };
 
     const handleSessionTerminated = (event: any) => {
-      console.log('🔒 Evento session-terminated recebido:', event.detail);
+      console.log('🔒 Evento session-terminated recebido:', {
+        detail: event.detail,
+        currentPage: window.location.pathname,
+        eventSource: 'session-terminated'
+      });
       
       if (checkIfCurrentSession(event.detail.sessionToken)) {
         console.log('🔒 SESSÃO ATUAL ENCERRADA VIA EVENTO DIRETO');
@@ -178,8 +184,30 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
       }
     };
 
+    // Adicionar listeners imediatamente
     window.addEventListener('websocket-message-received', handleWebSocketMessage);
     window.addEventListener('session-terminated', handleSessionTerminated);
+
+    // Listener adicional para mensagens WebSocket diretas
+    const handleDirectWebSocketMessage = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'session_terminated') {
+          console.log('🔒 Mensagem WebSocket direta de sessão encerrada:', {
+            data,
+            currentPage: window.location.pathname,
+            eventSource: 'direct-websocket'
+          });
+          
+          if (checkIfCurrentSession(data.sessionToken)) {
+            console.log('🔒 SESSÃO ATUAL ENCERRADA VIA WEBSOCKET DIRETO');
+            activateSessionProtection(data.message || "Sua sessão foi encerrada por outro usuário");
+          }
+        }
+      } catch (error) {
+        // Não é JSON válido, ignorar
+      }
+    };
 
     return () => {
       window.removeEventListener('websocket-message-received', handleWebSocketMessage);

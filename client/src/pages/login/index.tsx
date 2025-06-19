@@ -6,6 +6,7 @@ import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { ChevronRight, Eye, EyeOff, Loader2, Check, ShieldCheck, BarChart2, ArrowUp, TrendingUp, Clock, KeySquare } from "lucide-react";
 import LogoDesktop from "@/assets/images/logo/webp/Negativo.webp";
 import LogoMobile from "@/assets/images/logo/webp/negativoo.webp"; // Agora usando a versão rosa da logo para versão mobile
@@ -34,14 +35,6 @@ const twoFactorSchema = z.object({
 type LoginFormValues = z.infer<typeof loginSchema>;
 type TwoFactorFormValues = z.infer<typeof twoFactorSchema>;
 
-// Função para detectar se estamos em um dispositivo móvel
-function detectMobile() {
-  if (typeof window !== 'undefined') {
-    return window.innerWidth < 768;
-  }
-  return false;
-}
-
 export default function LoginPage() {
   const { user, isAuthenticated, login, isLoading: authIsLoading } = useAuth();
   const [, navigate] = useLocation();
@@ -50,7 +43,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
-  const isMobile = detectMobile();
+  const isMobile = useIsMobile();
 
   // Limpar estado de sessão encerrada ao acessar página de login
   useEffect(() => {
@@ -68,12 +61,7 @@ export default function LoginPage() {
     clearSessionState();
   }, []);
 
-  // Atualizar estado quando o tamanho da janela muda
-  useEffect(() => {
-    const handleResize = () => setIsMobile(detectMobile());
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  
 
   // Defina o estado inicial de 2FA checando o localStorage diretamente
   const [showTwoFactorForm, setShowTwoFactorForm] = useState(() => {

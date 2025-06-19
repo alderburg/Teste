@@ -69,15 +69,7 @@ export default function EnderecosTab() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(6);
 
-  // Estados para controlar a exibição de preloaders e mensagens vazias
-  const [isLoadingAfterSave, setIsLoadingAfterSave] = useState(false);
-
-  // Estado para controlar a exibição de preloaders e mensagens vazias durante operações
-  // Apenas para carregamento após operações de CRUD
-  const [dataVerified, setDataVerified] = useState(false);
-
-  // Estado adicional para controlar a exibição de loading entre abas
-  // Isso garante que sempre exibimos um loader ao trocar de aba
+  // Estado para controlar a exibição de loading inicial ao trocar de aba
   const [initialLoading, setInitialLoading] = useState(true);
 
   // Mutations para operações CRUD
@@ -119,13 +111,9 @@ export default function EnderecosTab() {
         estado: true,
       });
 
-      // Ativar o estado de carregamento
-      setIsLoadingAfterSave(true);
-
-      // Resetar dataVerified quando os dados forem alterados
-      setDataVerified(false);
-
-      queryClient.invalidateQueries({ queryKey: ["/api/enderecos"] });
+      // Invalidar dados do cache para forçar refetch
+      queryClient.invalidateQueries(["/api/enderecos"]);
+      
       toast({
         title: "Endereço adicionado",
         description: "O endereço foi adicionado com sucesso.",
@@ -179,13 +167,9 @@ export default function EnderecosTab() {
         estado: true,
       });
 
-      // Ativar o estado de carregamento
-      setIsLoadingAfterSave(true);
-
-      // Resetar dataVerified quando os dados forem alterados
-      setDataVerified(false);
-
-      queryClient.invalidateQueries({ queryKey: ["/api/enderecos"] });
+      // Invalidar dados do cache para forçar refetch
+      queryClient.invalidateQueries(["/api/enderecos"]);
+      
       toast({
         title: "Endereço atualizado",
         description: "O endereço foi atualizado com sucesso.",
@@ -208,13 +192,7 @@ export default function EnderecosTab() {
       return await apiRequest("DELETE", `/api/enderecos/${id}`);
     },
     onSuccess: () => {
-      // Ativar o estado de carregamento
-      setIsLoadingAfterSave(true);
-
-      // Resetar dataVerified quando os dados forem alterados
-      setDataVerified(false);
-
-      queryClient.invalidateQueries({ queryKey: ["/api/enderecos"] });
+      queryClient.invalidateQueries(["/api/enderecos"]);
       toast({
         title: "Endereço removido",
         description: "O endereço foi removido com sucesso.",
@@ -240,9 +218,8 @@ export default function EnderecosTab() {
   // Mutation para definir endereço como principal
   const setPrincipalMutation = useMutation({
     mutationFn: async (id: number) => {
-      // Desabilitar todos os botões
+      // Desabilitar todos os botões temporariamente
       const allButtons: {[key: number]: boolean} = {};
-      // Garantir que enderecos é tratado como array
       if (Array.isArray(enderecos)) {
         enderecos.forEach(e => {
           if (e.id) allButtons[e.id] = true;
@@ -250,16 +227,10 @@ export default function EnderecosTab() {
       }
       setDisabledButtons(allButtons);
 
-      // Ativar o estado de carregamento antes da operação
-      setIsLoadingAfterSave(true);
-
-      // Resetar dataVerified quando os dados forem alterados
-      setDataVerified(false);
-
       return await apiRequest("POST", `/api/enderecos/${id}/principal`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/enderecos"] });
+      queryClient.invalidateQueries(["/api/enderecos"]);
       toast({
         title: "Endereço principal definido",
         description: "O endereço foi definido como principal com sucesso.",
@@ -268,15 +239,6 @@ export default function EnderecosTab() {
       });
     },
     onError: (error: any) => {
-      // Reativar todos os botões
-      setDisabledButtons({});
-
-      // Desativar o estado de carregamento em caso de erro
-      setIsLoadingAfterSave(false);
-
-      // Reativar dataVerified em caso de erro
-      setDataVerified(true);
-
       toast({
         title: "Erro ao definir endereço principal",
         description: error.message || "Ocorreu um erro ao definir o endereço como principal.",
@@ -284,7 +246,7 @@ export default function EnderecosTab() {
       });
     },
     onSettled: () => {
-      // Garantir que após carregar os dados, os botões sejam habilitados novamente
+      // Reabilitar botões após operação
       setTimeout(() => {
         setDisabledButtons({});
       }, 1000);
@@ -298,68 +260,30 @@ export default function EnderecosTab() {
       const enderecosArray = Array.isArray(enderecosData) ? enderecosData : [];
       console.log("Dados de endereços carregados:", enderecosArray);
 
-      // Verifica se já temos endereços no estado e precisamos manter a ordenação
-      if (enderecos.length > 0 && enderecosArray.length === enderecos.length) {
-        // Criamos um mapa de IDs para os novos dados
-        const enderecosMap = new Map<number, EnderecoFormValues>();
-        enderecosArray.forEach((e: any) => {
-          if (e.id) enderecosMap.set(e.id, e as EnderecoFormValues);
-        });
+      // Reordenar para colocar o endereço principal no topo
+      const enderecosOrdenados = [...(enderecosArray as EnderecoFormValues[])].sort((a, b) => {
+        if (a.principal && !b.principal) return -1; // a é principal, vai para o topo
+        if (!a.principal && b.principal) return 1;  // b é principal, vai para o topo
+        return 0; // mantém a ordem original
+      });
 
-        // Atualizamos os endereços mantendo a mesma ordem, apenas alterando os status
-        const enderecosAtualizados = enderecos.map(endereco => {
-          if (endereco.id && enderecosMap.has(endereco.id)) {
-            return enderecosMap.get(endereco.id) as EnderecoFormValues;
-          }
-          return endereco;
-        });
-
-        // Reordenar para colocar o endereço principal no topo
-        const enderecosReordenados = [...enderecosAtualizados].sort((a, b) => {
-          if (a.principal && !b.principal) return -1; // a é principal, vai para o topo
-          if (!a.principal && b.principal) return 1;  // b é principal, vai para o topo
-          return 0; // mantém a ordem original
-        });
-
-        setEnderecos(enderecosReordenados);
-      } else {
-        // Caso seja a primeira carga ou se o número de endereços mudou
-        // Reordenar para colocar o endereço principal no topo
-        const enderecosOrdenados = [...(enderecosArray as EnderecoFormValues[])].sort((a, b) => {
-          if (a.principal && !b.principal) return -1; // a é principal, vai para o topo
-          if (!a.principal && b.principal) return 1;  // b é principal, vai para o topo
-          return 0; // mantém a ordem original
-        });
-
-        setEnderecos(enderecosOrdenados);
-      }
-
-      // Marca que os dados foram verificados
-      setDataVerified(true);
-      // Desativa o estado de carregamento pós-salvamento
-      setIsLoadingAfterSave(false);
+      setEnderecos(enderecosOrdenados);
     }
-  }, [enderecosData, enderecos.length]);
+  }, [enderecosData]);
 
-  // Inicializa o dataVerified quando o componente é montado
-  // e configura o initialLoading para mostrar sempre o preloader ao trocar de aba
+  // Configuração inicial do loading ao trocar de aba
   useEffect(() => {
-    // Primeiro definimos todos os estados necessários para que a UI não mostre
-    // dados antigos ou inconsistentes durante a troca de aba
-    setDataVerified(false);
     setInitialLoading(true);
 
     // Forçar a revalidação dos dados ao trocar de aba
     refetchEnderecos().then(() => {
-      // Assim que os dados chegarem, desativamos o loading imediatamente
       setInitialLoading(false);
-      setDataVerified(true);
     });
 
     // Prevenção contra longos tempos de resposta
     const timer = setTimeout(() => {
       setInitialLoading(false);
-    }, 300); // Tempo máximo reduzido para tornar a experiência mais instantânea
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [refetchEnderecos]);
@@ -1197,13 +1121,11 @@ export default function EnderecosTab() {
 
         {!showAddEndereco && (
           <>
-            {isLoadingEnderecos || isLoadingAfterSave || initialLoading ? (
+            {isLoadingEnderecos || initialLoading ? (
               // Preloader de carregamento - mostrado sempre ao trocar de aba e durante carregamentos
               <div className="flex flex-col items-center justify-center p-8 text-center">
                 <div className="h-10 w-10 rounded-full border-4 border-gray-200 border-t-purple-600 animate-spin mb-2"></div>
-                <p className="text-gray-500">
-                  {isLoadingAfterSave ? "Atualizando lista de endereços..." : "Carregando endereços..."}
-                </p>
+                <p className="text-gray-500">Carregando endereços...</p>
               </div>
             ) : enderecosData && paginatedEnderecos.length === 0 ? (
               <div className="flex flex-col items-center justify-center p-8 text-center">
@@ -1279,7 +1201,7 @@ export default function EnderecosTab() {
                           size="sm" 
                           className="text-xs text-purple-600 hover:text-purple-700 p-0 h-7"
                           onClick={() => handleSetPrincipal(endereco)}
-                          disabled={setPrincipalMutation.isPending || isLoadingAfterSave || (endereco.id ? disabledButtons[endereco.id] : false)}
+                          disabled={setPrincipalMutation.isPending || (endereco.id ? disabledButtons[endereco.id] : false)}
                         >
                           Definir como principal
                         </Button>
@@ -1291,7 +1213,7 @@ export default function EnderecosTab() {
             )}
 
             {/* Componente de Paginação */}
-            {!showAddEndereco && !isLoadingEnderecos && !isLoadingAfterSave && !initialLoading && filteredEnderecos.length > 0 && (
+            {!showAddEndereco && !isLoadingEnderecos && !initialLoading && filteredEnderecos.length > 0 && (
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}

@@ -48,9 +48,7 @@ export function UsuariosTab() {
   const [showAddUser, setShowAddUser] = useState(false);
   const [editingUsuario, setEditingUsuario] = useState<UsuarioFormValues | null>(null);
   const [usuarios, setUsuarios] = useState<UsuarioFormValues[]>([]);
-  const [isLoadingAfterSave, setIsLoadingAfterSave] = useState(false);
-  // Estado para controlar se já verificamos os dados
-  const [dataVerified, setDataVerified] = useState(false);
+
   // Estado adicional para controlar a exibição de loading entre abas
   const [initialLoading, setInitialLoading] = useState(true);
   // Estado para controlar botões desabilitados
@@ -118,23 +116,21 @@ export function UsuariosTab() {
       setUsuarios(formattedUsuarios);
 
       // Definir que os dados foram verificados
-      setDataVerified(true);
     }
   }, [usuariosData]);
 
-  // Inicializa o dataVerified quando o componente é montado
+
   // e configura o initialLoading para mostrar sempre o preloader ao trocar de aba
   useEffect(() => {
     // Primeiro definimos todos os estados necessários para que a UI não mostre
     // dados antigos ou inconsistentes durante a troca de aba
-    setDataVerified(false);
+    
     setInitialLoading(true);
 
     // Forçar a revalidação dos dados ao trocar de aba
     refetchUsuarios().then(() => {
       // Assim que os dados chegarem, desativamos o loading imediatamente
       setInitialLoading(false);
-      setDataVerified(true);
     });
 
     // Prevenção contra longos tempos de resposta
@@ -149,16 +145,16 @@ export function UsuariosTab() {
   // após operações bem-sucedidas de CRUD nos usuários
   useEffect(() => {
     // Se estamos em estado de carregamento após uma operação
-    if (isLoadingAfterSave) {
+    if (false) {
       // Adiciona um delay maior para garantir que a tela de carregamento
       // seja exibida por tempo suficiente para o usuário perceber
       const timer = setTimeout(() => {
-        setIsLoadingAfterSave(false);
+        
       }, 2000); // Aumentamos significativamente o tempo para garantir visibilidade
 
       return () => clearTimeout(timer);
     }
-  }, [isLoadingAfterSave]);
+  }, [false]);
 
   // Mutation for creating a new usuario
   const createUsuarioMutation = useMutation({
@@ -198,10 +194,10 @@ export function UsuariosTab() {
       });
 
       // Ativar o estado de carregamento
-      setIsLoadingAfterSave(true);
+      
 
       // Resetar dataVerified quando os dados forem alterados
-      setDataVerified(false);
+      
 
       // Atualizar a lista de usuários
       queryClient.invalidateQueries({ queryKey: ["/api/usuarios-adicionais"] });
@@ -270,10 +266,10 @@ export function UsuariosTab() {
       });
 
       // Ativar o estado de carregamento
-      setIsLoadingAfterSave(true);
+      
 
       // Resetar dataVerified quando os dados forem alterados
-      setDataVerified(false);
+      
 
       // Atualizar a lista de usuários
       queryClient.invalidateQueries({ queryKey: ["/api/usuarios-adicionais"] });
@@ -326,10 +322,10 @@ export function UsuariosTab() {
       });
 
       // Ativar o estado de carregamento
-      setIsLoadingAfterSave(true);
+      
 
       // Resetar dataVerified quando os dados forem alterados
-      setDataVerified(false);
+      
 
       // Atualizar a lista de usuários
       queryClient.invalidateQueries({ queryKey: ["/api/usuarios-adicionais"] });
@@ -918,12 +914,12 @@ export function UsuariosTab() {
         {/* Lista de usuários ou carregamento */}
         {!showAddUser && (
           <>
-            {isLoadingUsuarios || isLoadingAfterSave || initialLoading ? (
+            {isLoadingUsuarios || false || initialLoading ? (
               // Preloader de carregamento - mostrado sempre ao trocar de aba e durante carregamentos
               <div className="flex flex-col items-center justify-center p-8 text-center">
                 <div className="h-10 w-10 rounded-full border-4 border-gray-200 border-t-purple-600 animate-spin mb-2"></div>
                 <p className="text-gray-500">
-                  {isLoadingAfterSave ? "Atualizando lista de usuários..." : "Carregando usuários..."}
+                  {false ? "Atualizando lista de usuários..." : "Carregando usuários..."}
                 </p>
               </div>
             ) : usuariosData && paginatedUsuarios.length === 0 ? (
@@ -1046,7 +1042,7 @@ export function UsuariosTab() {
             )}
 
             {/* Componente de Paginação */}
-            {!showAddUser && !isLoadingUsuarios && !isLoadingAfterSave && !initialLoading && filteredUsuarios.length > 0 && (
+            {!showAddUser && !isLoadingUsuarios && !false && !initialLoading && filteredUsuarios.length > 0 && (
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
