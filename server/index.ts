@@ -682,8 +682,13 @@ if (process.env.EXTERNAL_API_URL) {
           target: `http://localhost:${port}`,
           changeOrigin: true,
           ws: true,
+          onProxyReq: (proxyReq, req, res) => {
+            if (req.url === '/ws') {
+              console.log('🔄 Proxy interceptou requisição WebSocket:', req.url);
+            }
+          },
           onError: (err, req, res) => {
-            log(`Proxy error: ${err.message}`);
+            console.error(`❌ Proxy error: ${err.message}`, { url: req.url, method: req.method });
             res.status(500).send('Proxy Error');
           }
         }));
@@ -700,7 +705,21 @@ if (process.env.EXTERNAL_API_URL) {
           skipUTF8Validation: false
         });
 
-        console.log('🔗 Configurando WebSocket Server no Replit...');
+        // Configurar upgrade do WebSocket no proxy
+        proxyServer.on('upgrade', (request, socket, head) => {
+          console.log('🔄 WebSocket upgrade request recebido:', request.url);
+          if (request.url === '/ws') {
+            wss.handleUpgrade(request, socket, head, (ws) => {
+              wss.emit('connection', ws, request);
+            });
+          } else {
+            socket.destroy();
+          }
+        });
+
+        console.log('🔗 Configurando WebSocket Server no Replit na porta 3000...');
+        console.log('🔗 WebSocket path configurado: /ws');
+        console.log('🔗 Servidor proxy rodando em: http://0.0.0.0:3000');
 
         wss.on('connection', (ws, req) => {
           const clientInfo = {
@@ -708,10 +727,12 @@ if (process.env.EXTERNAL_API_URL) {
             userAgent: req.headers['user-agent']?.substring(0, 50),
             host: req.headers.host,
             origin: req.headers.origin,
-            url: req.url
+            url: req.url,
+            method: req.method
           };
           
-          console.log('✅ WebSocket CONECTADO COM SUCESSO:', clientInfo);
+          console.log('✅ WebSocket CONECTADO COM SUCESSO!');
+          console.log('📡 Info do cliente:', clientInfo);
           console.log(`🔗 Total de clientes WebSocket: ${wss.clients.size + 1}`);
           
           global.wsClients.add(ws);
@@ -807,7 +828,12 @@ if (process.env.EXTERNAL_API_URL) {
         }, 20000);
 
         wss.on('close', () => {
+          console.log('❌ WebSocket Server fechado');
           clearInterval(heartbeatInterval);
+        });
+
+        wss.on('error', (error) => {
+          console.error('❌ Erro no WebSocket Server:', error);
         });
     
         console.log('🔗 WebSocket server iniciado no caminho /ws com heartbeat');

@@ -313,15 +313,17 @@ export function useWebSocket() {
       const getWebSocketUrl = () => {
         if (typeof window === 'undefined') return '';
 
-        // Para Replit, usar sempre o protocolo seguro e host atual
-        const protocol = 'wss:';
+        // Para Replit, usar sempre o host atual e protocolo correto
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.host;
+        
+        console.log('🔗 Configurando WebSocket:', { protocol, host, fullUrl: `${protocol}//${host}/ws` });
         
         return `${protocol}//${host}/ws`;
       };
 
       const wsUrl = getWebSocketUrl();
-      console.log('Tentando conectar ao WebSocket em:', wsUrl);
+      console.log('🔗 Tentando conectar ao WebSocket em:', wsUrl);
 
       // Criar conexão WebSocket com tratamento de erro
       let socket: WebSocket;
