@@ -665,6 +665,19 @@ if (process.env.EXTERNAL_API_URL) {
           path: '/ws'
         });
 
+        // Configurar upgrade de WebSocket no servidor proxy
+        proxyServer.on('upgrade', (request, socket, head) => {
+          const { pathname } = new URL(request.url, 'http://localhost');
+          
+          if (pathname === '/ws') {
+            wss.handleUpgrade(request, socket, head, (websocket) => {
+              wss.emit('connection', websocket, request);
+            });
+          } else {
+            socket.destroy();
+          }
+        });
+
         // Map para armazenar informações detalhadas dos clientes
         const clientsInfo = new Map();
 
@@ -822,7 +835,7 @@ if (process.env.EXTERNAL_API_URL) {
         console.log('🔗 WebSocket server iniciado no caminho /ws');
         console.log('💓 Sistema de heartbeat ativado (30s)');
 
-        proxyApp.listen(proxyPort, '0.0.0.0', () => {
+        proxyServer.listen(proxyPort, '0.0.0.0', () => {
           log(`Proxy server running on port ${proxyPort}, forwarding to port ${port}`);
           log(`Running on Replit - server available at: https://${process.env.REPLIT_DOMAINS}`);
         });

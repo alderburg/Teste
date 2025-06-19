@@ -250,7 +250,7 @@ export default function ContatosTab() {
       });
       
       // Invalidar a query para refrescar os dados
-      queryClient.invalidateQueries(["/api/contatos"]);
+      // WebSocket irá atualizar automaticamente
     },
     onError: (error: any) => {
       console.error("Erro completo ao adicionar contato:", error);
@@ -306,7 +306,7 @@ export default function ContatosTab() {
       });
       
       // Invalidar a query para refrescar os dados
-      queryClient.invalidateQueries(["/api/contatos"]);
+      // WebSocket irá atualizar automaticamente
     },
     onError: (error: any) => {
       toast({
@@ -438,7 +438,7 @@ export default function ContatosTab() {
       });
       
       // Invalidar a query para refrescar os dados
-      queryClient.invalidateQueries(["/api/contatos"]);
+      // WebSocket irá atualizar automaticamente
       
       // Limpar referência ao contato que estava sendo excluído
       setContatoParaExcluir(null);
@@ -503,7 +503,7 @@ export default function ContatosTab() {
       
       
       // Invalidar a query para refrescar os dados
-      queryClient.invalidateQueries(["/api/contatos"]);
+      // WebSocket irá atualizar automaticamente
       
       pendingRequestRef.current = false;
     },

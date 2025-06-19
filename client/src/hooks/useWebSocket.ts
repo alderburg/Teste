@@ -281,9 +281,14 @@ export function useWebSocket() {
 
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.hostname;
-        // No Replit, usar a mesma porta do servidor principal
-        const wsPort = process.env.NODE_ENV === 'development' ? '3000' : window.location.port || '3000';
-
+        
+        // No Replit, usar domínio completo sem porta
+        if (host.includes('replit.dev')) {
+          return `${protocol}//${host}/ws`;
+        }
+        
+        // Para desenvolvimento local, usar porta específica
+        const wsPort = '3000'; // Sempre usar porta 3000 para WebSocket
         return `${protocol}//${host}:${wsPort}/ws`;
       };
 

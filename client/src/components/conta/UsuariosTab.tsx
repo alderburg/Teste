@@ -200,7 +200,7 @@ export function UsuariosTab() {
       
 
       // Atualizar a lista de usuários
-      queryClient.invalidateQueries({ queryKey: ["/api/usuarios-adicionais"] });
+      // WebSocket irá atualizar automaticamente
     },
     onError: (error: any) => {
       toast({
@@ -272,7 +272,7 @@ export function UsuariosTab() {
       
 
       // Atualizar a lista de usuários
-      queryClient.invalidateQueries({ queryKey: ["/api/usuarios-adicionais"] });
+      // WebSocket irá atualizar automaticamente
     },
     onError: (error: any) => {
       toast({
@@ -328,7 +328,7 @@ export function UsuariosTab() {
       
 
       // Atualizar a lista de usuários
-      queryClient.invalidateQueries({ queryKey: ["/api/usuarios-adicionais"] });
+      // WebSocket irá atualizar automaticamente
 
       // Limpar referência ao usuário que estava sendo excluído
       setUsuarioParaExcluir(null);

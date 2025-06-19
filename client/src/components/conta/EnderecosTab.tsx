@@ -112,7 +112,7 @@ export default function EnderecosTab() {
       });
 
       // Invalidar dados do cache para forçar refetch
-      queryClient.invalidateQueries(["/api/enderecos"]);
+      // WebSocket irá atualizar automaticamente
       
       toast({
         title: "Endereço adicionado",
@@ -168,7 +168,7 @@ export default function EnderecosTab() {
       });
 
       // Invalidar dados do cache para forçar refetch
-      queryClient.invalidateQueries(["/api/enderecos"]);
+      // WebSocket irá atualizar automaticamente
       
       toast({
         title: "Endereço atualizado",
@@ -192,7 +192,7 @@ export default function EnderecosTab() {
       return await apiRequest("DELETE", `/api/enderecos/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(["/api/enderecos"]);
+      // WebSocket irá atualizar automaticamente
       toast({
         title: "Endereço removido",
         description: "O endereço foi removido com sucesso.",
@@ -230,7 +230,7 @@ export default function EnderecosTab() {
       return await apiRequest("POST", `/api/enderecos/${id}/principal`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(["/api/enderecos"]);
+      // WebSocket irá atualizar automaticamente - não precisamos invalidar manualmente
       toast({
         title: "Endereço principal definido",
         description: "O endereço foi definido como principal com sucesso.",
