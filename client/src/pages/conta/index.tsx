@@ -508,6 +508,7 @@ export default function MinhaContaPage() {
     } finally {
       setIsLoadingAssinaturaOriginal(false);
     }
+  };
 
   const fetchHistoricoAssinaturasWS = async () => {
     try {
