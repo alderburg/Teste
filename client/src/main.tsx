@@ -5,7 +5,7 @@ import App from "./App";
 import "./index.css";
 import "./styles/global.css";
 import "./fix-animations.css"; // Importando o fix para as animações de spinners
-import { initWebSocket } from "./services/websocketService";
+// WebSocket initialization is now handled by the WebSocketProvider component
 import { queryClient, preloadDataToCache } from "./lib/queryClient";
 import "./preload"; // Importando o novo módulo de pré-carregamento
 import { initPerformanceMonitoring } from "./lib/performanceMonitor"; // Importando o monitor de performance
@@ -23,8 +23,7 @@ if (process.env.NODE_ENV === 'development') {
   initPerformanceMonitoring();
 }
 
-// Inicializar a conexão WebSocket para atualizações em tempo real
-initWebSocket();
+// WebSocket initialization is now handled by the WebSocketProvider component
 
 // Registrar tempo inicial da aplicação
 const appStartTime = performance.now();

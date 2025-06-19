@@ -9,6 +9,7 @@ interface WebSocketMessage {
   data?: any;
   message?: string;
   sessionToken?: string;
+  sessionId?: string;
   timestamp?: string;
 }
 
@@ -209,6 +210,33 @@ export function useWebSocket() {
         window.dispatchEvent(webSocketEvent);
       }
       
+      return;
+    }
+
+    // Se for uma mensagem de sessão encerrada, disparar evento específico
+    if (data.type === 'session_terminated') {
+      console.log('🔒 Sessão encerrada detectada no useWebSocket:', data);
+      
+      // Verificar se é a sessão atual
+      const currentSessionToken = localStorage.getItem('sessionToken') || 
+                                 localStorage.getItem('token') || 
+                                 document.cookie.split(';').find(c => c.trim().startsWith('sessionToken='))?.split('=')[1] || 
+                                 '';
+      
+      if (currentSessionToken === data.sessionToken) {
+        console.log('🔒 SESSÃO ATUAL ENCERRADA - Disparando evento global');
+        
+        // Disparar evento que o WebSocketProvider está ouvindo
+        const sessionTerminatedEvent = new CustomEvent('session-terminated', { 
+          detail: { 
+            message: data.message,
+            sessionToken: data.sessionToken,
+            userId: data.userId,
+            sessionId: data.sessionId || ''
+          } 
+        });
+        window.dispatchEvent(sessionTerminatedEvent);
+      }
       return;
     }
 

@@ -15,7 +15,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { isMobileDevice } from "@/lib/utils";
 import MobileContaPage from "./mobile-conta";
 import InputMask from "react-input-mask";
-import websocketService from "@/services/websocketService";
+// WebSocket service não é mais necessário aqui pois usa o hook useWebSocket
 import { changePasswordSchema, enable2FASchema, type ChangePasswordData, type UserSession } from "@shared/schema";
 import { Loader2, Shield, User, LogOut, UserCheck, Settings, Key, Smartphone, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import PaymentModal from "@/components/planos/PaymentModal";
@@ -1128,9 +1128,7 @@ export default function MinhaContaPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/minha-conta/perfil"] });
       
       // Notificar outros clientes via WebSocket
-      if (websocketService) {
-        websocketService.notify('perfil', 'update', updatedData, user?.id);
-      }
+      // Data will be updated via WebSocket automatically
     },
     onError: (error: any) => {
       toast({
@@ -1162,9 +1160,7 @@ export default function MinhaContaPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/enderecos", user?.id] });
       
       // Notificar outros clientes via WebSocket
-      if (websocketService) {
-        websocketService.notify('enderecos', 'create', newEndereco, user?.id);
-      }
+      // Data will be updated via WebSocket automatically
     },
     onError: (error: any) => {
       toast({
@@ -1217,9 +1213,7 @@ export default function MinhaContaPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/enderecos", user?.id] });
       
       // Notificar outros clientes via WebSocket
-      if (websocketService) {
-        websocketService.notify('enderecos', 'update', updatedEndereco, user?.id);
-      }
+      // Data will be updated via WebSocket automatically
     },
     onError: (error: any) => {
       toast({
@@ -1253,9 +1247,7 @@ export default function MinhaContaPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/enderecos", user?.id] });
       
       // Notificar outros clientes via WebSocket
-      if (websocketService) {
-        websocketService.notify('enderecos', 'delete', { id: deletedData?.id }, user?.id);
-      }
+      // Data will be updated via WebSocket automatically
     },
     onError: (error: any) => {
       toast({
@@ -1289,9 +1281,7 @@ export default function MinhaContaPage() {
       });
       
       // Notificar outros clientes via WebSocket
-      if (websocketService) {
-        websocketService.notify('enderecos', 'update', principalData, user?.id);
-      }
+      // Data will be updated via WebSocket automatically
     },
     onError: (error: any) => {
       toast({
@@ -1322,9 +1312,7 @@ export default function MinhaContaPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/contatos", user?.id] });
       
       // Notificar outros clientes via WebSocket
-      if (websocketService) {
-        websocketService.notify('contatos', 'create', newContato, user?.id);
-      }
+      // Data will be updated via WebSocket automatically
     },
     onError: (error: any) => {
       toast({
@@ -1358,9 +1346,7 @@ export default function MinhaContaPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/contatos", user?.id] });
       
       // Notificar outros clientes via WebSocket
-      if (websocketService) {
-        websocketService.notify('contatos', 'update', updatedContato, user?.id);
-      }
+      // Data will be updated via WebSocket automatically
     },
     onError: (error: any) => {
       toast({
@@ -1394,9 +1380,7 @@ export default function MinhaContaPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/contatos", user?.id] });
       
       // Notificar outros clientes via WebSocket
-      if (websocketService) {
-        websocketService.notify('contatos', 'delete', { id: deletedData?.id }, user?.id);
-      }
+      // Data will be updated via WebSocket automatically
     },
     onError: (error: any) => {
       toast({
@@ -1430,9 +1414,7 @@ export default function MinhaContaPage() {
       });
       
       // Notificar outros clientes via WebSocket
-      if (websocketService) {
-        websocketService.notify('contatos', 'update', principalData, user?.id);
-      }
+      // Data will be updated via WebSocket automatically
     },
     onError: (error: any) => {
       toast({
@@ -1463,9 +1445,7 @@ export default function MinhaContaPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/usuarios-adicionais", user?.id] });
       
       // Notificar outros clientes via WebSocket
-      if (websocketService) {
-        websocketService.notify('usuarios_adicionais', 'create', newUsuario, user?.id);
-      }
+      // Data will be updated via WebSocket automatically
     },
     onError: (error: any) => {
       toast({
@@ -1499,9 +1479,7 @@ export default function MinhaContaPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/usuarios-adicionais", user?.id] });
       
       // Notificar outros clientes via WebSocket
-      if (websocketService) {
-        websocketService.notify('usuarios_adicionais', 'update', updatedUsuario, user?.id);
-      }
+      // Data will be updated via WebSocket automatically
     },
     onError: (error: any) => {
       toast({
@@ -1535,9 +1513,7 @@ export default function MinhaContaPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/usuarios-adicionais", user?.id] });
       
       // Notificar outros clientes via WebSocket
-      if (websocketService) {
-        websocketService.notify('usuarios_adicionais', 'delete', { id: deletedData?.id }, user?.id);
-      }
+      // Data will be updated via WebSocket automatically
     },
     onError: (error: any) => {
       toast({

@@ -559,14 +559,15 @@ if (process.env.EXTERNAL_API_URL) {
   }
 
   // Função global para notificar sobre sessão encerrada via sistema WebSocket existente
-  (global as any).notifySessionTerminated = (userId: number, sessionToken: string) => {
-    console.log(`🔔 Notificando encerramento da sessão ${sessionToken.substring(0, 8)}... para usuário ${userId}`);
+  (global as any).notifySessionTerminated = (sessionId: string, sessionToken: string, userId: number) => {
+    console.log(`🔔 Notificando encerramento da sessão ${sessionId} para usuário ${userId}`);
 
     // Usar o sistema WebSocket existente para enviar notificação
     if (global.wsClients && global.wsClients.size > 0) {
       const message = {
         type: 'session_terminated',
         message: 'Sua sessão foi encerrada por outro usuário',
+        sessionId: sessionId,
         sessionToken: sessionToken,
         userId: userId,
         timestamp: new Date().toISOString()
@@ -586,6 +587,36 @@ if (process.env.EXTERNAL_API_URL) {
       console.log(`✅ Notificação de sessão encerrada enviada para ${global.wsClients.size} cliente(s)`);
     } else {
       console.log(`⚠️ Nenhum cliente WebSocket conectado`);
+    }
+  };
+
+  // Função global para notificar atualizações de dados via WebSocket
+  (global as any).notifyWebSocketClients = async (resource: string, action: string, data: any, userId: number) => {
+    console.log(`🔔 Notificando atualizações de ${resource} (${action}) para usuário ${userId}`);
+    
+    if (global.wsClients && global.wsClients.size > 0) {
+      const message = {
+        type: 'data_update',
+        resource: resource,
+        action: action,
+        userId: userId,
+        data: data,
+        timestamp: new Date().toISOString()
+      };
+
+      global.wsClients.forEach((ws: any) => {
+        if (ws.readyState === 1) { // WebSocket.OPEN = 1
+          try {
+            ws.send(JSON.stringify(message));
+          } catch (error) {
+            console.error('❌ Erro ao enviar notificação de dados:', error);
+          }
+        }
+      });
+
+      console.log(`✅ Notificação de dados enviada para ${global.wsClients.size} cliente(s)`);
+    } else {
+      console.log(`⚠️ Nenhum cliente WebSocket conectado para notificação de dados`);
     }
   };
 

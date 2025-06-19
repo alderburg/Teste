@@ -70,27 +70,6 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
 
   // Escutar eventos de sessão encerrada
   useEffect(() => {
-    const handleWebSocketMessage = (event: any) => {
-      setLastUpdated(new Date());
-
-      if (event.detail && event.detail.type === 'session_terminated') {
-        const terminatedSessionToken = event.detail.sessionToken;
-
-        console.log('🔒 Evento de sessão encerrada recebido no Provider:', {
-          terminatedToken: terminatedSessionToken?.substring(0, 8) + '...',
-          currentPage: window.location.pathname,
-          eventSource: 'websocket-message-received'
-        });
-
-        if (checkIfCurrentSession(terminatedSessionToken)) {
-          console.log('🔒 ESTA É A SESSÃO ATUAL - ATIVANDO PROTEÇÃO NO PROVIDER');
-          activateSessionProtection(event.detail.message || "Sua sessão foi encerrada por outro usuário");
-        }
-      } else if (event.detail && event.detail.type !== 'session_terminated') {
-        console.log('WebSocket message received in provider:', event.detail.type);
-      }
-    };
-
     const handleSessionTerminated = (event: any) => {
       console.log('🔒 Evento session-terminated recebido no Provider:', {
         detail: event.detail,
@@ -99,17 +78,15 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
       });
       
       if (checkIfCurrentSession(event.detail.sessionToken)) {
-        console.log('🔒 SESSÃO ATUAL ENCERRADA VIA EVENTO DIRETO NO PROVIDER');
+        console.log('🔒 SESSÃO ATUAL ENCERRADA - ATIVANDO PROTEÇÃO NO PROVIDER');
         activateSessionProtection(event.detail.message || "Sua sessão foi encerrada por outro usuário");
       }
     };
 
-    // Adicionar listeners
-    window.addEventListener('websocket-message-received', handleWebSocketMessage);
+    // Adicionar listener apenas para session-terminated (que é disparado pelo useWebSocket)
     window.addEventListener('session-terminated', handleSessionTerminated);
 
     return () => {
-      window.removeEventListener('websocket-message-received', handleWebSocketMessage);
       window.removeEventListener('session-terminated', handleSessionTerminated);
     };
   }, [user]);
