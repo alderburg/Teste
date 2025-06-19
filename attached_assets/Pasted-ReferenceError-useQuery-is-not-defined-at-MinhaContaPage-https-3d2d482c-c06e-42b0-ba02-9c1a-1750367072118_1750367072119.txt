@@ -1,0 +1,19 @@
+ReferenceError: useQuery is not defined
+    at MinhaContaPage (https://3d2d482c-c06e-42b0-ba02-9c1aa20d7dc2-00-1x1subo88hkz6.kirk.replit.dev:3001/src/pages/conta/index.tsx:596:28)
+    at Route (https://3d2d482c-c06e-42b0-ba02-9c1aa20d7dc2-00-1x1subo88hkz6.kirk.replit.dev:3001/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=32ad411b:206:16)
+    at Switch (https://3d2d482c-c06e-42b0-ba02-9c1aa20d7dc2-00-1x1subo88hkz6.kirk.replit.dev:3001/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=32ad411b:262:17)
+    at main
+    at div
+    at div
+    at PersistentLayout (https://3d2d482c-c06e-42b0-ba02-9c1aa20d7dc2-00-1x1subo88hkz6.kirk.replit.dev:3001/src/components/PersistentLayout.tsx:22:44)
+    at RequireAuth (https://3d2d482c-c06e-42b0-ba02-9c1aa20d7dc2-00-1x1subo88hkz6.kirk.replit.dev:3001/src/hooks/use-auth.tsx:150:31)
+    at AuthenticatedRoutes
+    at Router (https://3d2d482c-c06e-42b0-ba02-9c1aa20d7dc2-00-1x1subo88hkz6.kirk.replit.dev:3001/src/App.tsx?v=5PJWHLJNtbc6D8yXmiJpN:277:37)
+    at SearchProvider (https://3d2d482c-c06e-42b0-ba02-9c1aa20d7dc2-00-1x1subo88hkz6.kirk.replit.dev:3001/src/components/Header.tsx:56:34)
+    at OnboardingProvider (https://3d2d482c-c06e-42b0-ba02-9c1aa20d7dc2-00-1x1subo88hkz6.kirk.replit.dev:3001/src/context/OnboardingContext.tsx:30:38)
+    at NotificationProvider (https://3d2d482c-c06e-42b0-ba02-9c1aa20d7dc2-00-1x1subo88hkz6.kirk.replit.dev:3001/src/context/NotificationContext.tsx:21:40)
+    at WebSocketProvider (https://3d2d482c-c06e-42b0-ba02-9c1aa20d7dc2-00-1x1subo88hkz6.kirk.replit.dev:3001/src/components/WebSocketProvider.tsx:34:45)
+    at AuthProvider (https://3d2d482c-c06e-42b0-ba02-9c1aa20d7dc2-00-1x1subo88hkz6.kirk.replit.dev:3001/src/hooks/use-auth.tsx:30:32)
+    at QueryClientProvider (https://3d2d482c-c06e-42b0-ba02-9c1aa20d7dc2-00-1x1subo88hkz6.kirk.replit.dev:3001/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=32ad411b:2763:3)
+    at ErrorBoundary (https://3d2d482c-c06e-42b0-ba02-9c1aa20d7dc2-00-1x1subo88hkz6.kirk.replit.dev:3001/src/App.tsx?v=5PJWHLJNtbc6D8yXmiJpN:506:5)
+    at App
