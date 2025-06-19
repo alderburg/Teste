@@ -1244,7 +1244,7 @@ export default function MinhaContaPage() {
     }
   };
 
-  // Função para criar um novo endereço
+  // Função para criar um novo endereço - WebSocket
   const createEnderecoMutation = async (data: EnderecoFormValues) => {
     try {
       const payload = {
@@ -1265,20 +1265,15 @@ export default function MinhaContaPage() {
 
       const newEndereco = await response.json();
       
+      // Atualizar dados locais
+      setEnderecosData(prev => [...prev, newEndereco]);
+      
       toast({
         title: "Endereço adicionado",
         description: "O endereço foi adicionado com sucesso",
         variant: "default",
         className: "bg-white border-gray-200",
       });
-      
-      // Recarregar dados dos endereços
-      await fetchEnderecosDataWS();
-
-      // Notificar outros clientes via WebSocket
-      if (websocketService) {
-        websocketService.notify('enderecos', 'create', newEndereco, user?.id);
-      }
 
       return newEndereco;
     } catch (error: any) {
@@ -1291,10 +1286,9 @@ export default function MinhaContaPage() {
     }
   };
 
-  // Mutation para atualizar um endereço existente
-  const updateEnderecoMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number, data: EnderecoFormValues }) => {
-      // Usar o fetch diretamente para ter controle sobre a resposta
+  // Função para atualizar um endereço existente - WebSocket
+  const updateEnderecoMutation = async ({ id, data }: { id: number, data: EnderecoFormValues }) => {
+    try {
       const res = await fetch(`/api/enderecos/${id}`, {
         method: 'PUT',
         headers: {
@@ -1311,45 +1305,49 @@ export default function MinhaContaPage() {
         throw new Error(`Erro ao atualizar endereço: ${res.status}`);
       }
 
+      let updatedEndereco;
       try {
-        // Tentar obter a resposta como JSON
-        return await res.json();
+        updatedEndereco = await res.json();
       } catch (error) {
-        // Se não for JSON, retornar um objeto simples
-        return { 
+        updatedEndereco = { 
+          ...data,
+          id,
           success: true, 
-          message: "Endereço atualizado com sucesso",
-          data: data
+          message: "Endereço atualizado com sucesso"
         };
       }
-    },
-    onSuccess: (updatedEndereco) => {
+
+      // Atualizar dados locais
+      setEnderecosData(prev => prev.map(endereco => 
+        endereco.id === id ? updatedEndereco : endereco
+      ));
+
       toast({
         title: "Endereço atualizado",
         description: "O endereço foi atualizado com sucesso",
         variant: "default",
         className: "bg-white border-gray-200",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/enderecos", user?.id] });
 
-      // Notificar outros clientes via WebSocket
-      if (websocketService) {
-        websocketService.notify('enderecos', 'update', updatedEndereco, user?.id);
-      }
-    },
-    onError: (error: any) => {
+      return updatedEndereco;
+    } catch (error: any) {
       toast({
         title: "Erro ao atualizar endereço",
         description: error.message,
         variant: "destructive",
       });
-    },
-  });
+      throw error;
+    }
+  };
 
-  // Mutation para excluir um endereço
-  const deleteEnderecoMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await apiRequest("DELETE", `/api/enderecos/${id}`, {});
+  // Função para excluir um endereço - WebSocket
+  const deleteEnderecoMutation = async (id: number) => {
+    try {
+      const res = await fetch(`/api/enderecos/${id}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
       if (!res.ok) {
         if (res.status === 404) {
           throw new Error("Endereço não encontrado");
@@ -1357,30 +1355,27 @@ export default function MinhaContaPage() {
         const jsonResponse = await res.json().catch(() => ({}));
         throw new Error(jsonResponse.message || "Erro desconhecido ao excluir endereço");
       }
-      return res.json();
-    },
-    onSuccess: (deletedData) => {
+
+      // Atualizar dados locais
+      setEnderecosData(prev => prev.filter(endereco => endereco.id !== id));
+
       toast({
         title: "Endereço excluído",
         description: "O endereço foi excluído com sucesso",
         variant: "default",
         className: "bg-white border-gray-200",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/enderecos", user?.id] });
 
-      // Notificar outros clientes via WebSocket
-      if (websocketService) {
-        websocketService.notify('enderecos', 'delete', { id: deletedData?.id }, user?.id);
-      }
-    },
-    onError: (error: any) => {
+      return { id };
+    } catch (error: any) {
       toast({
         title: "Erro ao excluir endereço",
         description: error.message,
         variant: "destructive",
       });
-    },
-  });
+      throw error;
+    }
+  };
 
   // Mutation para definir um endereço como principal
   const setEnderecoPrincipalMutation = useMutation({
