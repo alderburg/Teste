@@ -1290,14 +1290,16 @@ export default function MinhaContaPage() {
       </Tabs>
 
       {/* Modal de pagamento */}
-      <PaymentModal
-        isOpen={isPaymentModalOpen}
-        onClose={() => setIsPaymentModalOpen(false)}
-        planoSelecionado={selectedPlan}
-        periodoPlanos={periodoPlanos}
-        onSuccess={handlePaymentSuccess}
-        acaoTipo="ASSINAR"
-      />
+      {selectedPlan && (
+        <PaymentModal
+          isOpen={isPaymentModalOpen}
+          onClose={() => setIsPaymentModalOpen(false)}
+          planoSelecionado={selectedPlan}
+          periodoPlanos={periodoPlanos}
+          onSuccess={handlePaymentSuccess}
+          acaoTipo="ASSINAR"
+        />
+      )}
     </div>
   );
 }
