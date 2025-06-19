@@ -276,26 +276,21 @@ const CountdownTimer = () => {
   );
 };
 
-import { apiRequest } from "@/lib/queryClient";
+
 // Import dos componentes das abas
-import ContatosTab from "@/components/conta/ContatosTab";
-import EnderecosTab from "@/components/conta/EnderecosTab";
-import { UsuariosTab } from "@/components/conta/UsuariosTab";
+import ContatosTab from "@/components/conta/ContatosTab-WebSocket";
+import EnderecosTab from "@/components/conta/EnderecosTab-WebSocket";
+import { UsuariosTab } from "@/components/conta/UsuariosTab-WebSocket";
 import { PaymentMethodsManager } from "@/components/conta/PaymentMethodsManager";
 import SegurancaTab from "./seguranca-tab";
 import { useCreditBalance } from "@/hooks/use-credit-balance";
-import { QRCodeSVG } from 'qrcode.react';
-import { 
-  Camera, Save, Upload, ArrowLeft, 
-  MapPin, CreditCard, FileText, Edit3,
-  Building, Users, CheckCircle, CreditCard as CreditCardIcon,
-  Download, Calendar, Badge, Landmark, BriefcaseBusiness, 
-  UserCog, FileText as ReceiptIcon, Phone, Pencil, XCircle, Ban,
-  PlusCircle, Check, X, Trash2, Mail, Home, Briefcase,
-  AlertTriangle, RefreshCw, DollarSign, Coins, Gift
-} from "lucide-react";
+    import { 
+      Camera, Save,  ArrowLeft, 
+      MapPin, CreditCard, FileText,Users, CheckCircle, CreditCard as CreditCardIcon,
+      Download, Calendar, Landmark, UserCog, FileText as ReceiptIcon, Phone, XCircle, 
+       AlertTriangle, RefreshCw, DollarSign, Coins, Gift
+    } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Checkbox } from "@/components/ui/checkbox";
 
 // Componente para exibir mensagens de erro
 const FormErrorMessage = ({ message }: { message: string }) => (
@@ -405,6 +400,22 @@ export default function MinhaContaPage() {
   const userId = user?.id || parseInt(localStorage.getItem('userId') || '0');
   const { balance: creditBalance, formattedBalance, hasCredits, isLoading: isLoadingCredits, refetch: refetchCredits } = useCreditBalance();
 
+  // Estados para armazenar dados obtidos via websocket
+  const [perfilData, setPerfilData] = useState<any>(null);
+  const [isLoadingPerfil, setIsLoadingPerfil] = useState(true);
+  const [enderecosData, setEnderecosData] = useState<any[]>([]);
+  const [isLoadingEnderecos, setIsLoadingEnderecos] = useState(true);
+  const [contatosData, setContatosData] = useState<any[]>([]);
+  const [isLoadingContatos, setIsLoadingContatos] = useState(true);
+  const [usuariosData, setUsuariosData] = useState<any[]>([]);
+  const [isLoadingUsuarios, setIsLoadingUsuarios] = useState(true);
+  const [assinaturaData, setAssinaturaData] = useState<any>(null);
+  const [isLoadingAssinatura, setIsLoadingAssinatura] = useState(true);
+  const [historicoAssinaturasData, setHistoricoAssinaturasData] = useState<any[]>([]);
+  const [isLoadingHistoricoAssinaturas, setIsLoadingHistoricoAssinaturas] = useState(true);
+  const [historicoPagamentosData, setHistoricoPagamentosData] = useState<any[]>([]);
+  const [isLoadingHistoricoPagamentos, setIsLoadingHistoricoPagamentos] = useState(true);
+
   // Guardar o ID do usuário no localStorage para persistir entre reloads
   useEffect(() => {
     if (user?.id) {
@@ -412,8 +423,140 @@ export default function MinhaContaPage() {
       console.log("Obtendo ID do usuário do localStorage:", user.id);
     }
   }, [user?.id]);
+
+  // Carregar dados quando o componente monta ou userId muda
+  useEffect(() => {
+    if (userId) {
+      fetchPerfilDataWS();
+      fetchEnderecosDataWS();
+      fetchContatosDataWS();
+      fetchUsuariosDataWS();
+      fetchAssinaturaDataWS();
+      fetchHistoricoAssinaturasWS();
+      fetchHistoricoPagamentosWS();
+    }
+  }, [userId]);
   const { toast } = useToast();
-  const queryClient = useQueryClient();
+
+  // Funções para buscar dados via fetch direto (substituindo websocket temporariamente)
+  const fetchPerfilDataWS = async () => {
+    try {
+      setIsLoadingPerfil(true);
+      const response = await fetch(`/api/minha-conta/perfil/${userId}`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setPerfilData(data);
+      }
+    } catch (error) {
+      console.error("Erro ao buscar perfil:", error);
+    } finally {
+      setIsLoadingPerfil(false);
+    }
+  };
+
+  const fetchEnderecosDataWS = async () => {
+    try {
+      setIsLoadingEnderecos(true);
+      const response = await fetch(`/api/enderecos`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setEnderecosData(data || []);
+      }
+    } catch (error) {
+      console.error("Erro ao buscar endereços:", error);
+    } finally {
+      setIsLoadingEnderecos(false);
+    }
+  };
+
+  const fetchContatosDataWS = async () => {
+    try {
+      setIsLoadingContatos(true);
+      const response = await fetch(`/api/contatos`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setContatosData(data || []);
+      }
+    } catch (error) {
+      console.error("Erro ao buscar contatos:", error);
+    } finally {
+      setIsLoadingContatos(false);
+    }
+  };
+
+  const fetchUsuariosDataWS = async () => {
+    try {
+      setIsLoadingUsuarios(true);
+      const response = await fetch(`/api/usuarios-adicionais`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setUsuariosData(data || []);
+      }
+    } catch (error) {
+      console.error("Erro ao buscar usuários:", error);
+    } finally {
+      setIsLoadingUsuarios(false);
+    }
+  };
+
+  const fetchAssinaturaDataWS = async () => {
+    try {
+      setIsLoadingAssinatura(true);
+      const response = await fetch(`/api/minha-assinatura`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAssinaturaData(data);
+      }
+    } catch (error) {
+      console.error("Erro ao buscar assinatura:", error);
+    } finally {
+      setIsLoadingAssinatura(false);
+    }
+  };
+
+  const fetchHistoricoAssinaturasWS = async () => {
+    try {
+      setIsLoadingHistoricoAssinaturas(true);
+      const response = await fetch(`/api/historico-assinaturas`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setHistoricoAssinaturasData(data || []);
+      }
+    } catch (error) {
+      console.error("Erro ao buscar histórico de assinaturas:", error);
+    } finally {
+      setIsLoadingHistoricoAssinaturas(false);
+    }
+  };
+
+  const fetchHistoricoPagamentosWS = async () => {
+    try {
+      setIsLoadingHistoricoPagamentos(true);
+      const response = await fetch(`/api/historico-pagamentos`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setHistoricoPagamentosData(data || []);
+      }
+    } catch (error) {
+      console.error("Erro ao buscar histórico de pagamentos:", error);
+    } finally {
+      setIsLoadingHistoricoPagamentos(false);
+    }
+  };
 
   // Função para obter a aba ativa a partir dos parâmetros da URL
   const getActiveTabFromURL = () => {
@@ -479,8 +622,9 @@ export default function MinhaContaPage() {
   };
 
   // Função chamada após o pagamento bem-sucedido
-  const handlePaymentSuccess = () => {
-    queryClient.refetchQueries({ queryKey: ['/api/minha-assinatura'] });
+  const handlePaymentSuccess = async () => {
+    // Recarregar dados da assinatura
+    fetchAssinaturaDataWS();
 
     toast({
       title: "Pagamento processado com sucesso!",
@@ -534,11 +678,11 @@ export default function MinhaContaPage() {
       setCurrentPageAssinaturas(1);
 
       // Refetch da assinatura para garantir dados atualizados
-      refetchAssinatura();
+      fetchAssinaturaDataWS();
     } else if (activeTab !== 'financeiro') {
       setShowAddCard(false);
     }
-  }, [activeTab, user?.id, queryClient]);
+  }, [activeTab, user?.id]);
 
   // Estados para alteração de senha
   const [senhaAtual, setSenhaAtual] = useState('');
@@ -1057,39 +1201,9 @@ export default function MinhaContaPage() {
     return data;
   }
 
-  // Fetch user profile data with retry and silently handle errors
-  const { data: perfilData, isLoading: isLoadingPerfil, error: perfilError, refetch: refetchPerfil } = useQuery({
-    queryKey: ["/api/minha-conta/perfil", userId], // Usar o userId que pode vir do localStorage
-    queryFn: async ({ queryKey }) => {
-      try {
-        const userId = queryKey[1] as number;
-
-        if (!userId) {
-          console.error("ID do usuário não fornecido para busca de perfil");
-          return null;
-        }
-
-        console.log("Buscando dados do perfil para usuário:", userId);
-        return await fetchPerfilData(userId);
-      } catch (error) {
-        console.error("Erro ao buscar dados do perfil:", error);
-        throw error; // Propagar erro para que o React Query tente novamente
-      }
-    },
-    enabled: !!userId, // Somente habilitado quando temos um userId
-    retry: 3,
-    retryDelay: 1000,
-    refetchOnWindowFocus: false,
-    staleTime: 10000, // 10 segundos
-    // Importante: Não transformar ou filtrar os dados aqui, retornar exatamente o que a API retorna
-  });
-
-  // Referenciar serviço WebSocket (já importado no início do arquivo)
-
-  // Mutation para atualizar dados do perfil
-  const updatePerfilMutation = useMutation({
-    mutationFn: async (data: PerfilFormValues) => {
-      // Usar o fetch diretamente para ter controle sobre a resposta
+  // Função para atualizar dados do perfil
+  const updatePerfilMutation = async (data: PerfilFormValues) => {
+    try {
       const res = await fetch(`/api/minha-conta/perfil/${user?.id}`, {
         method: 'PUT',
         headers: {
@@ -1103,19 +1217,17 @@ export default function MinhaContaPage() {
         throw new Error(`Erro ao atualizar perfil: ${res.status}`);
       }
 
+      let result;
       try {
-        // Tentar obter a resposta como JSON
-        return await res.json();
+        result = await res.json();
       } catch (error) {
-        // Se não for JSON, retornar um objeto simples
-        return { 
+        result = { 
           success: true, 
           message: "Perfil atualizado com sucesso",
           data: data
         };
       }
-    },
-    onSuccess: (updatedData) => {
+
       toast({
         title: "Perfil atualizado",
         description: "Seus dados foram atualizados com sucesso",
@@ -1123,56 +1235,71 @@ export default function MinhaContaPage() {
         className: "bg-white border-gray-200",
       });
 
-      // Invalidar cache local
-      queryClient.invalidateQueries({ queryKey: ["/api/minha-conta/perfil"] });
+      // Recarregar dados do perfil
+      await fetchPerfilDataWS();
 
       // Notificar outros clientes via WebSocket
       if (websocketService) {
-        websocketService.notify('perfil', 'update', updatedData, user?.id);
+        websocketService.notify('perfil', 'update', result, user?.id);
       }
-    },
-    onError: (error: any) => {
+
+      return result;
+    } catch (error: any) {
       toast({
         title: "Erro ao atualizar perfil",
         description: error.message,
         variant: "destructive",
       });
-    },
-  });
+      throw error;
+    }
+  };
 
-  // Mutation para atualizar endereço
-  // Mutation para criar um novo endereço
-  const createEnderecoMutation = useMutation({
-    mutationFn: async (data: EnderecoFormValues) => {
+  // Função para criar um novo endereço
+  const createEnderecoMutation = async (data: EnderecoFormValues) => {
+    try {
       const payload = {
         ...data,
         userId: user?.id
       };
-      // A função apiRequest já retorna o objeto JSON processado
-      return await apiRequest("POST", `/api/enderecos`, payload);
-    },
-    onSuccess: (newEndereco) => {
+      
+      const response = await fetch(`/api/enderecos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erro ao criar endereço: ${response.status}`);
+      }
+
+      const newEndereco = await response.json();
+      
       toast({
         title: "Endereço adicionado",
         description: "O endereço foi adicionado com sucesso",
         variant: "default",
         className: "bg-white border-gray-200",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/enderecos", user?.id] });
+      
+      // Recarregar dados dos endereços
+      await fetchEnderecosDataWS();
 
       // Notificar outros clientes via WebSocket
       if (websocketService) {
         websocketService.notify('enderecos', 'create', newEndereco, user?.id);
       }
-    },
-    onError: (error: any) => {
+
+      return newEndereco;
+    } catch (error: any) {
       toast({
         title: "Erro ao adicionar endereço",
         description: error.message,
         variant: "destructive",
       });
-    },
-  });
+      throw error;
+    }
+  };
 
   // Mutation para atualizar um endereço existente
   const updateEnderecoMutation = useMutation({
@@ -1758,91 +1885,7 @@ export default function MinhaContaPage() {
     }
   }, [perfilData]);
 
-  // Query para buscar endereços - seguindo o padrão das outras abas
-  const { 
-    data: enderecosData, 
-    isLoading: isLoadingEnderecos 
-  } = useQuery({
-    queryKey: ["/api/enderecos"],
-    // Permitir sempre buscar dados, seguindo o padrão das abas de Contatos e Usuários
-    enabled: true,
-    // Configurações para permitir atualização ao trocar de aba
-    staleTime: 0, // Considerar dados sempre obsoletos (permite refetch ao trocar de aba)
-    gcTime: 60000, // Manter no cache por 1 minuto
-    refetchOnWindowFocus: false, // Sem refetch no foco da janela
-    refetchOnMount: true, // Permitir refetch na montagem do componente
-    refetchOnReconnect: false, // Sem refetch na reconexão
-    retry: false // Não tentar novamente em caso de falha
-  });
-
-  // Query para buscar contatos - seguindo o padrão das outras abas
-  const { 
-    data: contatosData, 
-    isLoading: isLoadingContatos 
-  } = useQuery({
-    queryKey: ["/api/contatos"],
-    // Permitir sempre buscar dados, seguindo o padrão das abas de Contatos e Usuários
-    enabled: true,
-    // Configurações para permitir atualização ao trocar de aba
-    staleTime: 0, // Considerar dados sempre obsoletos (permite refetch ao trocar de aba)
-    gcTime: 60000, // Manter no cache por 1 minuto
-    refetchOnWindowFocus: false, // Sem refetch no foco da janela
-    refetchOnMount: true, // Permitir refetch na montagem do componente
-    refetchOnReconnect: false, // Sem refetch na reconexão
-    retry: false // Não tentar novamente em caso de falha
-  });
-
-  // Query para buscar usuários adicionais - seguindo o padrão das outras abas
-  const { 
-    data: usuariosData, 
-    isLoading: isLoadingUsuarios 
-  } = useQuery({
-    queryKey: ["/api/usuarios-adicionais"],
-    // Permitir sempre buscar dados, seguindo o padrão das abas de Contatos e Usuários
-    enabled: true,
-    // Configurações para permitir atualização ao trocar de aba
-    staleTime: 0, // Considerar dados sempre obsoletos (permite refetch ao trocar de aba)
-    gcTime: 60000, // Manter no cache por 1 minuto
-    refetchOnWindowFocus: false, // Sem refetch no foco da janela
-    refetchOnMount: true, // Permitir refetch na montagem do componente
-    refetchOnReconnect: false, // Sem refetch na reconexão
-    retry: false // Não tentar novamente em caso de falha
-  });
-
-  // Query para buscar histórico de assinaturas - seguindo o padrão das outras abas
-  const { 
-    data: historicoAssinaturas, 
-    isLoading: isLoadingHistoricoAssinaturas 
-  } = useQuery({
-    queryKey: ["/api/historico-assinaturas"],
-    // Permitir sempre buscar dados quando a seção for exibida
-    enabled: showHistoricoAssinaturas,
-    // Configurações para permitir atualização ao trocar de aba
-    staleTime: 0, // Considerar dados sempre obsoletos (permite refetch ao trocar de aba)
-    gcTime: 60000, // Manter no cache por 1 minuto
-    refetchOnWindowFocus: false, // Sem refetch no foco da janela
-    refetchOnMount: true, // Permitir refetch na montagem do componente
-    refetchOnReconnect: false, // Sem refetch na reconexão
-    retry: false // Não tentar novamente em caso de falha
-  });
-
-  // Query para buscar histórico de pagamentos - seguindo o padrão das outras abas
-  const { 
-    data: historicoPagamentos, 
-    isLoading: isLoadingHistoricoPagamentos, 
-    refetch: refetchHistoricoPagamentos 
-  } = useQuery({
-    queryKey: ["/api/historico-pagamentos"],
-    // Permitir sempre buscar dados quando a seção for exibida
-    enabled: showHistoricoPagamentos,
-    // Configurações para permitir atualização ao trocar de aba
-    staleTime: 0, // Considerar dados sempre obsoletos (permite refetch ao trocar de aba)
-    gcTime: 60000, // Manter no cache por 1 minuto
-    refetchOnWindowFocus: false, // Sem refetch no foco da janela
-    refetchOnMount: true, // Permitir refetch na montagem do componente
-    refetchOnReconnect: false, // Sem refetch na reconexão
-    retry: false // Não tentar novamente em caso de falha
-  });
+  // Removed duplicate useQuery declarations - using websocket data instead
 
   // Efeito para buscar dados quando o histórico for exibido
   useEffect(() => {
@@ -1900,23 +1943,7 @@ export default function MinhaContaPage() {
   // Estado para armazenar dados finalizados após um recarregamento completo
   const [finalPlanoData, setFinalPlanoData] = useState<AssinaturaResponse | null>(null);
 
-  // Query para buscar assinatura - seguindo o padrão das outras abas
-  const { 
-    data: assinaturaData, 
-    isLoading: isLoadingAssinaturaOriginal, 
-    refetch: refetchAssinatura 
-  } = useQuery<AssinaturaResponse>({
-    queryKey: ["/api/minha-assinatura"],
-    // Permitir sempre buscar dados, seguindo o padrão das abas de Contatos e Usuários
-    enabled: true,
-    // Configurações para permitir atualização ao trocar de aba
-    staleTime: 0, // Considerar dados sempre obsoletos (permite refetch ao trocar de aba)
-    gcTime: 60000, // Manter no cache por 1 minuto
-    refetchOnWindowFocus: false, // Sem refetch no foco da janela
-    refetchOnMount: true, // Permitir refetch na montagem do componente
-    refetchOnReconnect: false, // Sem refetch na reconexão
-    retry: false // Não tentar novamente em caso de falha
-  });
+  // Using websocket data instead of useQuery
 
 
 
