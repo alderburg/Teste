@@ -651,26 +651,31 @@ if (process.env.EXTERNAL_API_URL) {
 
       if (process.env.REPL_ID || process.env.REPLIT_ENVIRONMENT) {
         const proxyPort = 3000;
-        const proxyApp = express();
+        
 
+        // Criar servidor proxy primeiro
+        const proxyApp = express();
+        
         proxyApp.use('/', createProxyMiddleware({
           target: `http://localhost:${port}`,
           changeOrigin: true,
-          ws: true,
+          ws: true, // Habilitar WebSocket proxy
           onError: (err, req, res) => {
             log(`Proxy error: ${err.message}`);
             res.status(500).send('Proxy Error');
           }
         }));
 
-        // WebSocket Server Setup - usar servidor HTTP principal
+        const proxyServer = createServer(proxyApp);
+
+        // WebSocket Server Setup - configurar no servidor proxy (porta 3000)
         const wss = new WebSocketServer({ 
-          server: server,
+          server: proxyServer,
           path: '/ws'
         });
 
         wss.on('connection', (ws, req) => {
-          console.log('✅ SERVIDOR: WebSocket client conectado via proxy');
+          console.log('✅ SERVIDOR: WebSocket client conectado (porta 3000)');
           global.wsClients.add(ws);
           
           // Confirmar conexão
@@ -690,7 +695,6 @@ if (process.env.EXTERNAL_API_URL) {
               if (message.type === 'auth') {
                 console.log(`🔐 SERVIDOR: Cliente autenticado - Usuário: ${message.userId}`);
               }
-              console.log('📨 SERVIDOR: Mensagem recebida:', message.type);
             } catch (error) {
               // Ignorar erros de parsing
             }
@@ -707,10 +711,7 @@ if (process.env.EXTERNAL_API_URL) {
           });
         });
     
-        console.log('🔗 WebSocket server iniciado no caminho /ws (porta 5001)');
-
-        // Criar servidor proxy após WebSocket
-        const proxyServer = createServer(proxyApp);
+        console.log('🔗 WebSocket server iniciado no caminho /ws (porta 3000)');
         
         proxyServer.listen(proxyPort, '0.0.0.0', () => {
           log(`Proxy server running on port ${proxyPort}, forwarding to port ${port}`);
