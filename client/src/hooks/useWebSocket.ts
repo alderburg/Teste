@@ -180,9 +180,12 @@ export function useWebSocket() {
 
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.hostname;
-        const wsPort = window.location.port || '3000';
+        // No Replit, sempre usar porta 3000 (proxy)
+        const wsPort = '3000';
 
-        return `${protocol}//${host}:${wsPort}/ws`;
+        const wsUrl = `${protocol}//${host}:${wsPort}/ws`;
+        console.log('🔍 CLIENTE: URL WebSocket calculada:', wsUrl);
+        return wsUrl;
       };
 
       const wsUrl = getWebSocketUrl();
@@ -203,8 +206,21 @@ export function useWebSocket() {
 
       // Configurar listeners
       socket.addEventListener('open', () => {
-        console.log('WebSocket conectado');
+        console.log('🔗 CLIENTE: WebSocket conectado com sucesso');
         setConnected(true);
+        setReconnectAttempts(0);
+        
+        // Enviar ping inicial para confirmar conexão
+        try {
+          socket.send(JSON.stringify({
+            type: 'client_connected',
+            timestamp: new Date().toISOString(),
+            url: window.location.pathname
+          }));
+          console.log('📤 CLIENTE: Ping inicial enviado');
+        } catch (error) {
+          console.error('❌ CLIENTE: Erro ao enviar ping inicial:', error);
+        }
       });
 
       socket.addEventListener('message', (event) => {

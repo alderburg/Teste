@@ -673,19 +673,45 @@ if (process.env.EXTERNAL_API_URL) {
           path: '/ws'
         });
 
-        wss.on('connection', ws => {
-          console.log('✅ WebSocket client connected');
+        wss.on('connection', (ws, req) => {
+          console.log('✅ SERVIDOR: WebSocket client conectado de:', req.socket.remoteAddress);
+          console.log(`📊 SERVIDOR: Total de clientes conectados: ${global.wsClients.size + 1}`);
           global.wsClients.add(ws);
+          
+          // Enviar ping inicial para confirmar conexão
+          ws.send(JSON.stringify({
+            type: 'connection_confirmed',
+            message: 'WebSocket conectado com sucesso',
+            timestamp: new Date().toISOString()
+          }));
+    
+          ws.on('message', (data) => {
+            try {
+              const message = JSON.parse(data.toString());
+              console.log('📥 SERVIDOR: Mensagem recebida do cliente:', message);
+              
+              if (message.type === 'auth') {
+                console.log(`🔐 SERVIDOR: Cliente autenticado - Usuário: ${message.userId}`);
+              }
+            } catch (error) {
+              console.error('❌ SERVIDOR: Erro ao processar mensagem do cliente:', error);
+            }
+          });
     
           ws.on('close', () => {
-            console.log('❌ WebSocket client disconnected');
+            console.log('❌ SERVIDOR: WebSocket client desconectado');
             global.wsClients.delete(ws);
+            console.log(`📊 SERVIDOR: Total de clientes restantes: ${global.wsClients.size}`);
+          });
+          
+          ws.on('error', (error) => {
+            console.error('❌ SERVIDOR: Erro no WebSocket:', error);
           });
         });
     
         console.log('🔗 WebSocket server iniciado no caminho /ws');
 
-        proxyApp.listen(proxyPort, '0.0.0.0', () => {
+        proxyServer.listen(proxyPort, '0.0.0.0', () => {
           log(`Proxy server running on port ${proxyPort}, forwarding to port ${port}`);
           log(`Running on Replit - server available at: https://${process.env.REPLIT_DOMAINS}`);
         });
