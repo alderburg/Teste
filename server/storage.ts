@@ -2260,6 +2260,18 @@ async checkPaymentMethodExistsByStripeId(stripePaymentMethodId: string): Promise
 
       const userType = isAdditionalUser.rows.length > 0 ? 'additional' : 'main';
 
+      // Extrair apenas o IP público (primeiro IP do x-forwarded-for)
+      let ipPublico = sessionData.ip || 'IP desconhecido';
+      
+      if (sessionData.ip && sessionData.ip.includes(',')) {
+        // Se há múltiplos IPs (formato: "IP_PUBLICO, IP_INTERNO_REPLIT")
+        // Pegar apenas o primeiro (IP público)
+        ipPublico = sessionData.ip.split(',')[0].trim();
+      }
+
+      console.log(`🔍 IP original: ${sessionData.ip}`);
+      console.log(`🔍 IP público extraído: ${ipPublico}`);
+
       const result = await connectionManager.executeQuery(
         `INSERT INTO user_sessions_additional (
           user_id, user_type, token, device_info, browser, ip, location, 
@@ -2272,7 +2284,7 @@ async checkPaymentMethodExistsByStripeId(stripePaymentMethodId: string): Promise
           sessionData.token,
           sessionData.deviceInfo || 'Dispositivo desconhecido',
           sessionData.browser || 'Navegador desconhecido',
-          sessionData.ip || 'IP desconhecido',
+          ipPublico, // Usar apenas o IP público
           sessionData.location || 'Localização não disponível',
           sessionData.lastActivity || new Date(),
           sessionData.expiresAt,

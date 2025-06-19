@@ -580,10 +580,10 @@ export function setupAuth(app: Express): void {
       } else {
         // Compatibilidade com sessões antigas (apenas ID numérico)
         const id = typeof userInfo === 'object' ? userInfo.id : userInfo;
-        
+
         // Primeiro tentar como usuário principal
         user = await storage.getUser(id);
-        
+
         // Se não encontrar, tentar como usuário adicional
         if (!user) {
           const { executeQuery } = await import('./db');
@@ -751,7 +751,20 @@ export function setupAuth(app: Express): void {
 
           const userAgent = req.headers['user-agent'] || '';
           const browser = getBrowserInfo(userAgent);
-          const userIP = req.ip || req.connection.remoteAddress || '127.0.0.1';
+          // Capturar apenas o IP público real
+          const forwardedFor = req.headers['x-forwarded-for'];
+          let userIP = '127.0.0.1';
+
+          if (forwardedFor) {
+            // x-forwarded-for pode conter múltiplos IPs separados por vírgula
+            // O primeiro é sempre o IP real do cliente
+            const ips = forwardedFor.toString().split(',');
+            userIP = ips[0].trim();
+            console.log(`🔍 IP público capturado no login: ${userIP}`);
+          } else {
+            userIP = req.ip || req.connection.remoteAddress || '127.0.0.1';
+            console.log(`🔍 IP alternativo capturado: ${userIP}`);
+          }
 
           console.log(`🔍 Debug sessão - User-Agent: ${userAgent}`);
           console.log(`🔍 Debug sessão - Browser extraído: ${browser}`);
@@ -796,8 +809,7 @@ export function setupAuth(app: Express): void {
         if (!has2FAEnabled) {
           req.session.twoFactorVerified = true;
           await new Promise<void>((resolve) => {
-            req.session.save(() => resolve());
-          });
+            req.session.save(() => resolve());          });
         }
 
         // Gerar token JWT para ser usado na verificação 2FA se necessário
@@ -1195,7 +1207,7 @@ export function isAuthenticated(req: Request, res: Response, next: NextFunction)
     (async () => {
       try {
         const { connectionManager } = await import('./connection-manager');
-        
+
         // Verificar se a sessão ainda existe na tabela user_sessions_additional
         const sessionExists = await connectionManager.executeQuery(`
           SELECT id FROM user_sessions_additional 
@@ -1204,10 +1216,10 @@ export function isAuthenticated(req: Request, res: Response, next: NextFunction)
 
         if (sessionExists.rows.length === 0) {
           console.log(`🔒 Sessão ${req.sessionID.substring(0, 8)}... não encontrada ou expirada - forçando logout`);
-          
+
           // Marcar a sessão como inválida para evitar conflitos
           req.session.sessionInvalid = true;
-          
+
           // Retornar erro de sessão inválida
           if (req.originalUrl.startsWith('/api/')) {
             return res.status(401).json({ 
@@ -1219,17 +1231,17 @@ export function isAuthenticated(req: Request, res: Response, next: NextFunction)
             return res.redirect('/entrar?sessao=encerrada');
           }
         }
-        
+
         // Se chegou aqui, a sessão é válida, continuar normalmente
         return next();
-        
+
       } catch (error) {
         console.error('❌ Erro ao verificar sessão na tabela:', error);
         // Em caso de erro na verificação, permitir continuar (fail-safe)
         return next();
       }
     })();
-    
+
     // Não chamar next() aqui, pois o código assíncrono acima já fará isso
     return;
   }
