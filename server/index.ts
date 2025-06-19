@@ -681,7 +681,7 @@ if (process.env.EXTERNAL_API_URL) {
         proxyApp.use('/', createProxyMiddleware({
           target: `http://localhost:${port}`,
           changeOrigin: true,
-          ws: true,
+          ws: false, // Desabilitar WebSocket no proxy middleware
           onProxyReq: (proxyReq, req, res) => {
             if (req.url === '/ws') {
               console.log('🔄 Proxy interceptou requisição WebSocket:', req.url);
@@ -689,7 +689,9 @@ if (process.env.EXTERNAL_API_URL) {
           },
           onError: (err, req, res) => {
             console.error(`❌ Proxy error: ${err.message}`, { url: req.url, method: req.method });
-            res.status(500).send('Proxy Error');
+            if (!res.headersSent) {
+              res.status(500).send('Proxy Error');
+            }
           }
         }));
 
@@ -697,8 +699,7 @@ if (process.env.EXTERNAL_API_URL) {
 
         // WebSocket Server Setup otimizado para Replit
         const wss = new WebSocketServer({ 
-          server: proxyServer,
-          path: '/ws',
+          noServer: true,
           clientTracking: true,
           perMessageDeflate: false,
           maxPayload: 16 * 1024,
@@ -708,11 +709,16 @@ if (process.env.EXTERNAL_API_URL) {
         // Configurar upgrade do WebSocket no proxy
         proxyServer.on('upgrade', (request, socket, head) => {
           console.log('🔄 WebSocket upgrade request recebido:', request.url);
-          if (request.url === '/ws') {
+          console.log('🔍 Headers:', request.headers);
+          
+          if (request.url === '/ws' || request.url?.startsWith('/ws')) {
+            console.log('✅ Processando upgrade do WebSocket');
             wss.handleUpgrade(request, socket, head, (ws) => {
+              console.log('✅ WebSocket upgrade bem-sucedido');
               wss.emit('connection', ws, request);
             });
           } else {
+            console.log('❌ URL não é /ws, destruindo socket:', request.url);
             socket.destroy();
           }
         });
@@ -733,7 +739,7 @@ if (process.env.EXTERNAL_API_URL) {
           
           console.log('✅ WebSocket CONECTADO COM SUCESSO!');
           console.log('📡 Info do cliente:', clientInfo);
-          console.log(`🔗 Total de clientes WebSocket: ${wss.clients.size + 1}`);
+          console.log(`🔗 Total de clientes WebSocket: ${wss.clients.size}`);
           
           global.wsClients.add(ws);
 
@@ -798,10 +804,15 @@ if (process.env.EXTERNAL_API_URL) {
         // Heartbeat otimizado para Replit
         const heartbeatInterval = setInterval(() => {
           const activeClients = Array.from(wss.clients).filter(ws => ws.readyState === 1);
-          console.log(`💓 Heartbeat: ${activeClients.length} clientes ativos de ${wss.clients.size} total`);
+          const totalClients = wss.clients.size;
+          
+          console.log(`💓 Heartbeat: ${activeClients.length} clientes ativos de ${totalClients} total`);
+          console.log(`🔗 Global wsClients: ${global.wsClients.size}`);
           
           if (activeClients.length > 0) {
             console.log('✅ WebSocket funcionando - clientes conectados!');
+          } else {
+            console.log('⚠️ Nenhum cliente WebSocket conectado');
           }
           
           wss.clients.forEach((ws) => {
