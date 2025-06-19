@@ -52,7 +52,7 @@ export default function ContatosTab() {
   // Usar WebSocket para gerenciar dados
   const {
     data: contatos,
-    loading: isLoadingContatos,
+    loading: isLoadingContatosWS,
     createItem: createContato,
     updateItem: updateContato,
     deleteItem: deleteContato
@@ -104,7 +104,7 @@ export default function ContatosTab() {
   // Query para buscar contatos - atualizada para seguir o padrão das outras abas
   const { 
     data: contatosData, 
-    isLoading: isLoadingContatos, 
+    isLoading: isLoadingContatosQuery, 
     refetch: refetchContatos 
   } = useQuery({
     queryKey: ["/api/contatos"],

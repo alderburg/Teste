@@ -279,7 +279,7 @@ const CountdownTimer = () => {
 
 import { apiRequest } from "@/lib/queryClient";
 // Import dos componentes das abas
-import { ContatosTabWebSocket as ContatosTab } from "@/components/conta/ContatosTab";
+import { ContatosTabWebSocket } from "@/components/conta/ContatosTab-WebSocket";
 import { default as EnderecosTabWebSocket } from "@/components/conta/EnderecosTab-WebSocket";
 import { default as UsuariosTabWebSocket } from "@/components/conta/UsuariosTab-WebSocket";
 import { PaymentMethodsManager } from "@/components/conta/PaymentMethodsManager";
@@ -3264,7 +3264,7 @@ export default function MinhaContaPage() {
             
             {/* Tab: Contatos */}
             <TabsContent value="contatos" className="space-y-4">
-              <ContatosTab />
+              <ContatosTabWebSocket />
             </TabsContent>
             {/* Tab: Usuários */}
             <TabsContent value="usuarios" className="space-y-4">
