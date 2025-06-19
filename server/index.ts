@@ -663,14 +663,16 @@ if (process.env.EXTERNAL_API_URL) {
           }
         }));
 
-        // WebSocket Server Setup - usar servidor principal ao invés do proxy
+        // WebSocket Server Setup - configurar no servidor proxy para evitar conflitos de porta
+        const proxyServer = createServer(proxyApp);
+        
         const wss = new WebSocketServer({ 
-          server: server,
+          server: proxyServer,
           path: '/ws'
         });
 
         wss.on('connection', (ws, req) => {
-          console.log('✅ SERVIDOR: WebSocket client conectado');
+          console.log('✅ SERVIDOR: WebSocket client conectado via proxy');
           global.wsClients.add(ws);
           
           // Confirmar conexão
@@ -690,6 +692,7 @@ if (process.env.EXTERNAL_API_URL) {
               if (message.type === 'auth') {
                 console.log(`🔐 SERVIDOR: Cliente autenticado - Usuário: ${message.userId}`);
               }
+              console.log('📨 SERVIDOR: Mensagem recebida:', message.type);
             } catch (error) {
               // Ignorar erros de parsing
             }
@@ -706,9 +709,7 @@ if (process.env.EXTERNAL_API_URL) {
           });
         });
     
-        console.log('🔗 WebSocket server iniciado no caminho /ws');
-
-        const proxyServer = createServer(proxyApp); // Criar servidor HTTP para o proxy
+        console.log('🔗 WebSocket server iniciado no caminho /ws (porta 3000)');
 
         proxyServer.listen(proxyPort, '0.0.0.0', () => {
           log(`Proxy server running on port ${proxyPort}, forwarding to port ${port}`);

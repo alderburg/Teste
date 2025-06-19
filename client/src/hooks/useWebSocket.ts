@@ -214,10 +214,17 @@ export function useWebSocket() {
 
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.hostname;
-        // No Replit, usar a porta atual da aplicação
-        const wsPort = window.location.port || (protocol === 'wss:' ? '443' : '80');
-
-        const wsUrl = `${protocol}//${host}:${wsPort}/ws`;
+        
+        // No Replit, sempre usar a porta padrão (sem especificar porta)
+        // O proxy já redireciona corretamente para o WebSocket
+        let wsUrl;
+        if (process.env.NODE_ENV === 'development' && host === 'localhost') {
+          wsUrl = `${protocol}//localhost:5001/ws`;
+        } else {
+          // Para produção no Replit, usar o domínio sem porta específica
+          wsUrl = `${protocol}//${host}/ws`;
+        }
+        
         console.log('🔍 CLIENTE: URL WebSocket calculada:', wsUrl);
         return wsUrl;
       };
