@@ -558,18 +558,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`🔔 Notificando usuários relacionados sobre delete em sessoes para usuário ${userIdForNotification}`);
         notifyRelatedUsers('sessoes', 'delete', { sessionId: sessionId }, userIdForNotification);
         
-        // Buscar dados da sessão para obter o token
-        const sessionDataResult = await executeQuery(
-          'SELECT user_token FROM session WHERE session_id = $1',
-          [sessionId]
-        );
-        
-        if (sessionDataResult.rows && sessionDataResult.rows.length > 0) {
-          const sessionToken = sessionDataResult.rows[0].user_token;
-          // Enviar notificação específica de sessão encerrada para o usuário afetado
-          await notifySessionTerminated(sessionId, sessionToken, userIdForNotification);
-        }
-        
         res.json({
           success: true,
           message: 'Sessão encerrada e usuário deslogado com sucesso'
@@ -6620,37 +6608,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Remover configuração duplicada do WebSocket - será gerenciado pelo server/index.ts
-  // O WebSocket server é configurado no index.ts para evitar duplicações
+  const httpServer = createServer(app);
   
-  // WebSocket functionality moved to server/index.ts to avoid duplication
-  // All WebSocket client management and notifications are handled centrally
+  // Configuração do WebSocket Server
+  // Usando o modo noServer para melhor compatibilidade com Windows
+  const wss = new WebSocketServer({ 
+    noServer: true
+  });
+  
+  // Adicionar listener para upgrade de conexão
+  httpServer.on('upgrade', (request, socket, head) => {
+    const pathname = new URL(request.url || '', `http://${request.headers.host}`).pathname;
+    
+    if (pathname === '/ws') {
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request);
+      });
+    }
+  });
+  
+  // Controlar clientes conectados com informações de usuário
+  const clients = new Map<WebSocket, { userId: number, sessionToken?: string }>();
+  
+  // Ping para todos os clientes para verificar se ainda estão ativos
+  // e manter as conexões ativas em ambientes com timeout
+  const interval = setInterval(() => {
+    wss.clients.forEach((ws) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'server_ping', timestamp: new Date().toISOString() }));
+      }
+    });
+  }, 50000); // A cada 50 segundos
+  
+  // Limpeza do intervalo quando o servidor for encerrado
+  process.on('SIGINT', () => {
+    clearInterval(interval);
+    process.exit(0);
+  });
   
   // Função para notificar usuários relacionados sobre atualizações de dados
   const notifyRelatedUsers = async (resource: string, action: string, data: any, userId: number) => {
     console.log(`🔔 Notificando usuários relacionados sobre ${action} em ${resource} para usuário ${userId}`);
     
     try {
-      // Usar o sistema WebSocket global configurado no index.ts
-      if (global.notifyWebSocketClients) {
-        await global.notifyWebSocketClients(resource, action, data, userId);
-      } else {
-        console.log(`⚠️ Sistema WebSocket global não disponível para notificação`);
-      }
-    } catch (error) {
-      console.error('❌ Erro ao notificar usuários relacionados:', error);
-    }
-  };
-
-  // Função específica para notificações de sessão encerrada
-  const notifySessionTerminated = async (sessionId: string, sessionToken: string, userId: number) => {
-    console.log(`🔒 Enviando notificação de sessão encerrada para usuário ${userId}, sessão ${sessionId}`);
-    
-    try {
-      // Buscar usuários relacionados (mesmo código da função acima)
+      // Buscar usuários relacionados (usuário pai e seus usuários filhos)
       const relatedUserIds = new Set<number>();
-      relatedUserIds.add(userId);
+      relatedUserIds.add(userId); // Sempre incluir o próprio usuário
       
+      // Se for um usuário adicional, buscar o usuário pai
       const additionalUserCheck = await executeQuery(
         'SELECT user_id FROM usuarios_adicionais WHERE id = $1',
         [userId]
@@ -6659,7 +6664,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (additionalUserCheck.rows.length > 0) {
         const parentUserId = additionalUserCheck.rows[0].user_id;
         relatedUserIds.add(parentUserId);
+        console.log(`👑 Usuário ${userId} é adicional, incluindo pai ${parentUserId}`);
       } else {
+        // Se for usuário principal, buscar todos os usuários filhos
         const childUsers = await executeQuery(
           'SELECT id FROM usuarios_adicionais WHERE user_id = $1',
           [userId]
@@ -6668,32 +6675,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
         childUsers.rows.forEach(child => {
           relatedUserIds.add(child.id);
         });
+        console.log(`👥 Usuário ${userId} é principal, incluindo ${childUsers.rows.length} filhos`);
       }
       
-      // Enviar notificação de sessão encerrada para todos os clientes relacionados
+      // Notificar todos os clientes dos usuários relacionados
       clients.forEach((clientInfo, ws) => {
         if (relatedUserIds.has(clientInfo.userId) && ws.readyState === WebSocket.OPEN) {
-          // Verificar se é especificamente o token da sessão encerrada
-          if (clientInfo.sessionToken === sessionToken) {
-            console.log(`🔒 Enviando session_terminated para usuário ${clientInfo.userId} com token encerrado`);
-            ws.send(JSON.stringify({
-              type: 'session_terminated',
-              sessionId: sessionId,
-              sessionToken: sessionToken,
-              userId: userId,
-              message: 'Sua sessão foi encerrada por outro usuário',
-              timestamp: new Date().toISOString()
-            }));
-          }
+          console.log(`📤 Enviando notificação de ${action} em ${resource} para usuário ${clientInfo.userId}`);
+          ws.send(JSON.stringify({
+            type: 'data_update',
+            resource: resource,
+            action: action,
+            userId: userId,
+            data: data
+          }));
         }
       });
       
     } catch (error) {
-      console.error('❌ Erro ao notificar sessão encerrada:', error);
+      console.error('❌ Erro ao notificar usuários relacionados:', error);
     }
   };
 
-  // WebSocket functionality completely moved to server/index.ts
+;
+
+  // Quando um cliente se conecta
+  wss.on('connection', (ws) => {
+    // Adicionar cliente à lista sem informações iniciais
+    clients.set(ws, { userId: 0 });
+    
+    // Enviar mensagem inicial para confirmar conexão
+    ws.send(JSON.stringify({ type: 'connection', message: 'Conectado com sucesso' }));
+    
+    // Lidar com mensagens recebidas
+    ws.on('message', (message) => {
+      try {
+        const data = JSON.parse(message.toString());
+        
+        if (data.type === 'ping') {
+          // Responder ao ping com pong para manter a conexão viva
+          ws.send(JSON.stringify({ type: 'pong', timestamp: new Date().toISOString() }));
+        }
+        else if (data.type === 'auth') {
+          // Cliente enviando informações de autenticação
+          const clientInfo = clients.get(ws);
+          if (clientInfo) {
+            clientInfo.userId = data.userId;
+            clientInfo.sessionToken = data.sessionToken;
+            clients.set(ws, clientInfo);
+          }
+        }
+        // Transmitir atualizações para todos os clientes conectados
+        else if (data.type === 'data_update') {
+          // Transmitir para todos os outros clientes
+          clients.forEach((clientInfo, client) => {
+            if (client !== ws && client.readyState === WebSocket.OPEN) {
+              client.send(JSON.stringify(data));
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Erro ao processar mensagem do WebSocket:', error);
+      }
+    });
+    
+    // Quando o cliente se desconecta silenciosamente
+    ws.on('close', () => {
+      clients.delete(ws);
+    });
+  });
   
   // API para criar um Setup Intent (para salvar cartão sem cobrar)
   // Este endpoint estava duplicado (outra versão na linha ~4205), comentando para evitar conflito
@@ -8407,7 +8457,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`⚠️ Sistema WebSocket não disponível para notificação de sessão`);
       }
       
-      // WebSocket notification handled by global system
+      // Notificar clientes conectados via WebSocket sobre a atualização da lista de sessões
+      for (const [ws, clientInfo] of clients.entries()) {
+        if (clientInfo.userId === userId && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'data_update',
+            resource: 'sessoes',
+            action: 'delete',
+            userId: userId,
+            data: { sessionId: sessionId }
+          }));
+        }
+      }
       
       // Log da atividade
       await storage.createActivityLog({
@@ -8429,6 +8490,5 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   
-  // Return app since WebSocket server is now handled in index.ts
-  return app as any;
+  return httpServer;
 }

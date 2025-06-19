@@ -9,7 +9,6 @@ interface WebSocketMessage {
   data?: any;
   message?: string;
   sessionToken?: string;
-  sessionId?: string;
   timestamp?: string;
 }
 
@@ -61,9 +60,7 @@ export function useWebSocket() {
       });
       
       if (currentSessionToken === data.sessionToken) {
-        console.log('🔒 SESSÃO ATUAL DETECTADA - ATIVANDO MODAL GLOBAL IMEDIATAMENTE');
-        console.log('🔒 Página atual:', window.location.pathname);
-        console.log('🔒 URL completa:', window.location.href);
+        console.log('🔒 Esta é a sessão atual - disparando evento de encerramento');
         
         // Invalidar imediatamente o queryClient para evitar requisições
         try {
@@ -73,17 +70,15 @@ export function useWebSocket() {
           console.error('Erro ao limpar queryClient:', error);
         }
         
-        // AÇÃO IMEDIATA: Forçar o popup globalmente em QUALQUER PÁGINA
+        // AÇÃO IMEDIATA: Forçar o popup globalmente
         const forceSessionTerminationPopup = () => {
-          console.log('🔒 FORÇANDO POPUP DE SESSÃO ENCERRADA GLOBALMENTE');
+          console.log('🔒 FORÇANDO POPUP DE SESSÃO ENCERRADA');
           
           // Verificar se já existe um popup
           if (document.querySelector('[data-session-terminated-modal]')) {
             console.log('🔒 Modal já existe, não duplicar');
             return;
           }
-          
-          console.log('🔒 Criando modal DOM diretamente para garantir exibição global');
           
           // Criar modal diretamente no DOM
           const modal = document.createElement('div');
@@ -183,10 +178,8 @@ export function useWebSocket() {
           }
         };
         
-        // Executar IMEDIATAMENTE e forçar exibição
-        setTimeout(() => {
-          forceSessionTerminationPopup();
-        }, 0); // Usar timeout 0 para garantir que executa no próximo tick
+        // Executar imediatamente
+        forceSessionTerminationPopup();
         
         // Disparar eventos para compatibilidade
         const sessionTerminatedEvent = new CustomEvent('session-terminated', { 
@@ -210,33 +203,6 @@ export function useWebSocket() {
         window.dispatchEvent(webSocketEvent);
       }
       
-      return;
-    }
-
-    // Se for uma mensagem de sessão encerrada, disparar evento específico
-    if (data.type === 'session_terminated') {
-      console.log('🔒 Sessão encerrada detectada no useWebSocket:', data);
-      
-      // Verificar se é a sessão atual
-      const currentSessionToken = localStorage.getItem('sessionToken') || 
-                                 localStorage.getItem('token') || 
-                                 document.cookie.split(';').find(c => c.trim().startsWith('sessionToken='))?.split('=')[1] || 
-                                 '';
-      
-      if (currentSessionToken === data.sessionToken) {
-        console.log('🔒 SESSÃO ATUAL ENCERRADA - Disparando evento global');
-        
-        // Disparar evento que o WebSocketProvider está ouvindo
-        const sessionTerminatedEvent = new CustomEvent('session-terminated', { 
-          detail: { 
-            message: data.message,
-            sessionToken: data.sessionToken,
-            userId: data.userId,
-            sessionId: data.sessionId || ''
-          } 
-        });
-        window.dispatchEvent(sessionTerminatedEvent);
-      }
       return;
     }
 
@@ -313,19 +279,16 @@ export function useWebSocket() {
       const getWebSocketUrl = () => {
         if (typeof window === 'undefined') return '';
 
-        // Conectar diretamente no servidor principal (porta 5001)
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const hostname = window.location.hostname;
-        const port = '5001'; // Porta do servidor principal
-        
-        const wsUrl = `${protocol}//${hostname}:${port}/ws`;
-        console.log('🔗 Configurando WebSocket:', { protocol, hostname, port, wsUrl });
-        
-        return wsUrl;
+        const host = window.location.hostname;
+        // No Replit, usar a mesma porta do servidor principal
+        const wsPort = process.env.NODE_ENV === 'development' ? '3000' : window.location.port || '3000';
+
+        return `${protocol}//${host}:${wsPort}/ws`;
       };
 
       const wsUrl = getWebSocketUrl();
-      console.log('🔗 Tentando conectar ao WebSocket em:', wsUrl);
+      console.log('Tentando conectar ao WebSocket em:', wsUrl);
 
       // Criar conexão WebSocket com tratamento de erro
       let socket: WebSocket;
@@ -341,9 +304,8 @@ export function useWebSocket() {
 
       // Configurar listeners
       socket.addEventListener('open', () => {
-        console.log('✅ WebSocket conectado com sucesso em:', wsUrl);
+        console.log('WebSocket conectado');
         setConnected(true);
-        setReconnectAttempts(0); // Resetar contador de tentativas
       });
 
       socket.addEventListener('message', (event) => {
@@ -359,44 +321,37 @@ export function useWebSocket() {
         }
       });
 
-      // Função para tentar reconectar com detecção inteligente
+      // Função para tentar reconectar
       const tryReconnect = () => {
         if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-          // Usar timeout mais agressivo para Replit
-          const baseTimeout = 500; // Começar com 500ms
-          const timeout = Math.min(baseTimeout * Math.pow(1.5, reconnectAttempts), 5000);
+          // Calculando tempo exponencial de backoff para reconexão
+          const timeout = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
 
-          console.log(`🔄 Reconectando WebSocket em ${timeout}ms (${reconnectAttempts + 1}/${MAX_RECONNECT_ATTEMPTS})`);
+          console.log(`Tentando reconexão em ${timeout}ms (tentativa ${reconnectAttempts + 1} de ${MAX_RECONNECT_ATTEMPTS})`);
 
           reconnectTimeoutRef.current = setTimeout(() => {
             setReconnectAttempts(prev => prev + 1);
 
-            // Limpar socket atual
+            // Limpar referência do socket atual
             if (socketRef.current) {
-              try {
-                socketRef.current.close();
-              } catch (e) {
-                // Ignorar erros ao fechar
-              }
               socketRef.current = null;
             }
 
-            // Obter nova URL (pode ter mudado)
-            const newWsUrl = getWebSocketUrl();
-            console.log(`🔄 Nova tentativa de conexão para: ${newWsUrl}`);
-
+            // Tentar criar uma nova conexão
             try {
-              const newSocket = new WebSocket(newWsUrl);
+              const newSocket = new WebSocket(wsUrl);
               socketRef.current = newSocket;
-              setupSocketEvents(newSocket, newWsUrl);
+
+              // Configurar eventos para o novo socket (recursivamente)
+              setupSocketEvents(newSocket, wsUrl);
             } catch (reconnectError) {
-              console.error('❌ Erro ao criar nova conexão:', reconnectError);
+              console.error('Erro ao reconectar WebSocket:', reconnectError);
+              // Continuamos tentando reconectar se ainda tivermos tentativas
               tryReconnect();
             }
           }, timeout);
         } else {
-          console.error('❌ Máximo de tentativas de reconexão atingido');
-          setConnected(false);
+          console.error('Número máximo de tentativas de reconexão atingido');
         }
       };
 
@@ -421,14 +376,14 @@ export function useWebSocket() {
           }
         });
 
-        socket.addEventListener('close', (event) => {
-          console.log('❌ WebSocket desconectado - Código:', event.code, 'Razão:', event.reason);
+        socket.addEventListener('close', () => {
+          console.log('WebSocket desconectado');
           setConnected(false);
           tryReconnect();
         });
 
         socket.addEventListener('error', (error) => {
-          console.error('❌ Erro no WebSocket:', error, 'URL:', wsUrl);
+          console.error('Erro no WebSocket:', error);
           setConnected(false);
         });
       };

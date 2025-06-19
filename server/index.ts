@@ -553,150 +553,20 @@ if (process.env.EXTERNAL_API_URL) {
 
   const server = await registerRoutes(app);
 
-  // Configurar WebSocket Server no servidor principal
-  const wss = new WebSocketServer({ 
-    server: server,
-    path: '/ws',
-    clientTracking: true,
-    perMessageDeflate: false,
-    maxPayload: 16 * 1024,
-    skipUTF8Validation: false
-  });
-
   // Usar sistema WebSocket existente - apenas configurar funções globais
   if (!global.wsClients) {
     global.wsClients = new Set();
   }
 
-  console.log('🔗 WebSocket Server configurado no servidor principal na porta 5001');
-  console.log('🔗 WebSocket path: /ws');
-
-  wss.on('connection', (ws, req) => {
-    const clientInfo = {
-      ip: req.socket.remoteAddress,
-      userAgent: req.headers['user-agent']?.substring(0, 50),
-      host: req.headers.host,
-      origin: req.headers.origin,
-      url: req.url
-    };
-    
-    console.log('✅ WebSocket CONECTADO COM SUCESSO!');
-    console.log('📡 Info do cliente:', clientInfo);
-    console.log(`🔗 Total de clientes WebSocket: ${wss.clients.size}`);
-    
-    global.wsClients.add(ws);
-
-    // Configurar propriedades do WebSocket
-    ws.isAlive = true;
-    ws.clientInfo = clientInfo;
-    
-    // Configurar keep-alive
-    ws.on('pong', () => {
-      ws.isAlive = true;
-    });
-
-    // Enviar confirmação imediata
-    const welcomeMessage = {
-      type: 'connection_established',
-      message: 'WebSocket conectado com sucesso',
-      timestamp: new Date().toISOString(),
-      clientCount: global.wsClients.size,
-      server: 'main-websocket-server'
-    };
-
-    setTimeout(() => {
-      if (ws.readyState === 1) {
-        try {
-          ws.send(JSON.stringify(welcomeMessage));
-          console.log('✅ Confirmação de conexão enviada');
-        } catch (error) {
-          console.error('❌ Erro ao enviar confirmação:', error);
-        }
-      }
-    }, 100);
-
-    ws.on('message', (message) => {
-      try {
-        const data = JSON.parse(message.toString());
-        console.log('📨 WebSocket recebeu:', data.type);
-        
-        if (data.type === 'ping') {
-          ws.send(JSON.stringify({ 
-            type: 'pong', 
-            timestamp: new Date().toISOString() 
-          }));
-        }
-      } catch (error) {
-        console.error('❌ Erro ao processar mensagem:', error);
-      }
-    });
-
-    ws.on('close', (code, reason) => {
-      console.log('❌ WebSocket desconectado:', code, reason?.toString());
-      global.wsClients.delete(ws);
-    });
-
-    ws.on('error', (error) => {
-      console.error('❌ WebSocket erro:', error.message);
-      global.wsClients.delete(ws);
-    });
-  });
-
-  // Heartbeat para manter conexões ativas
-  const heartbeatInterval = setInterval(() => {
-    const activeClients = Array.from(wss.clients).filter(ws => ws.readyState === 1);
-    
-    console.log(`💓 Heartbeat: ${activeClients.length} clientes ativos`);
-    console.log(`🔗 Global wsClients: ${global.wsClients.size}`);
-    
-    if (activeClients.length > 0) {
-      console.log('✅ WebSocket funcionando - clientes conectados!');
-    } else {
-      console.log('⚠️ Nenhum cliente WebSocket conectado');
-    }
-    
-    wss.clients.forEach((ws) => {
-      if (ws.readyState !== 1) {
-        global.wsClients.delete(ws);
-        return;
-      }
-      
-      if (ws.isAlive === false) {
-        console.log('💔 Cliente não responsivo - terminando');
-        global.wsClients.delete(ws);
-        return ws.terminate();
-      }
-      
-      ws.isAlive = false;
-      try {
-        ws.ping();
-      } catch (error) {
-        console.error('❌ Erro ao enviar ping:', error);
-        global.wsClients.delete(ws);
-        ws.terminate();
-      }
-    });
-  }, 20000);
-
-  wss.on('close', () => {
-    console.log('❌ WebSocket Server fechado');
-    clearInterval(heartbeatInterval);
-  });
-
-  wss.on('error', (error) => {
-    console.error('❌ Erro no WebSocket Server:', error);
-  });
-
   // Função global para notificar sobre sessão encerrada via sistema WebSocket existente
-  (global as any).notifySessionTerminated = (sessionId: string, sessionToken: string, userId: number) => {
-    console.log(`🔔 Notificando encerramento da sessão ${sessionId} para usuário ${userId}`);
+  (global as any).notifySessionTerminated = (userId: number, sessionToken: string) => {
+    console.log(`🔔 Notificando encerramento da sessão ${sessionToken.substring(0, 8)}... para usuário ${userId}`);
 
     // Usar o sistema WebSocket existente para enviar notificação
     if (global.wsClients && global.wsClients.size > 0) {
       const message = {
         type: 'session_terminated',
         message: 'Sua sessão foi encerrada por outro usuário',
-        sessionId: sessionId,
         sessionToken: sessionToken,
         userId: userId,
         timestamp: new Date().toISOString()
@@ -716,36 +586,6 @@ if (process.env.EXTERNAL_API_URL) {
       console.log(`✅ Notificação de sessão encerrada enviada para ${global.wsClients.size} cliente(s)`);
     } else {
       console.log(`⚠️ Nenhum cliente WebSocket conectado`);
-    }
-  };
-
-  // Função global para notificar atualizações de dados via WebSocket
-  (global as any).notifyWebSocketClients = async (resource: string, action: string, data: any, userId: number) => {
-    console.log(`🔔 Notificando atualizações de ${resource} (${action}) para usuário ${userId}`);
-    
-    if (global.wsClients && global.wsClients.size > 0) {
-      const message = {
-        type: 'data_update',
-        resource: resource,
-        action: action,
-        userId: userId,
-        data: data,
-        timestamp: new Date().toISOString()
-      };
-
-      global.wsClients.forEach((ws: any) => {
-        if (ws.readyState === 1) { // WebSocket.OPEN = 1
-          try {
-            ws.send(JSON.stringify(message));
-          } catch (error) {
-            console.error('❌ Erro ao enviar notificação de dados:', error);
-          }
-        }
-      });
-
-      console.log(`✅ Notificação de dados enviada para ${global.wsClients.size} cliente(s)`);
-    } else {
-      console.log(`⚠️ Nenhum cliente WebSocket conectado para notificação de dados`);
     }
   };
 
@@ -810,24 +650,34 @@ if (process.env.EXTERNAL_API_URL) {
         proxyApp.use('/', createProxyMiddleware({
           target: `http://localhost:${port}`,
           changeOrigin: true,
-          ws: false, // Desabilitar WebSocket no proxy middleware
-          onProxyReq: (proxyReq, req, res) => {
-            if (req.url === '/ws') {
-              console.log('🔄 Proxy interceptou requisição WebSocket:', req.url);
-            }
-          },
+          ws: true,
           onError: (err, req, res) => {
-            console.error(`❌ Proxy error: ${err.message}`, { url: req.url, method: req.method });
-            if (!res.headersSent) {
-              res.status(500).send('Proxy Error');
-            }
+            log(`Proxy error: ${err.message}`);
+            res.status(500).send('Proxy Error');
           }
         }));
 
-        // Criar servidor HTTP simples para proxy sem WebSocket duplicado
-        const proxyServer = createServer(proxyApp);
+        const proxyServer = createServer(proxyApp); // Criar servidor HTTP para o proxy
 
-        proxyServer.listen(proxyPort, '0.0.0.0', () => {
+        // WebSocket Server Setup - usar servidor HTTP existente
+        const wss = new WebSocketServer({ 
+          server: proxyServer,
+          path: '/ws'
+        });
+
+        wss.on('connection', ws => {
+          console.log('✅ WebSocket client connected');
+          global.wsClients.add(ws);
+    
+          ws.on('close', () => {
+            console.log('❌ WebSocket client disconnected');
+            global.wsClients.delete(ws);
+          });
+        });
+    
+        console.log('🔗 WebSocket server iniciado no caminho /ws');
+
+        proxyApp.listen(proxyPort, '0.0.0.0', () => {
           log(`Proxy server running on port ${proxyPort}, forwarding to port ${port}`);
           log(`Running on Replit - server available at: https://${process.env.REPLIT_DOMAINS}`);
         });
