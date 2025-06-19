@@ -535,7 +535,7 @@ export default function MinhaContaPage() {
     } else if (activeTab !== 'financeiro') {
       setShowAddCard(false);
     }
-  }, [activeTab, user?.id, queryClient]);
+  }, [activeTab, user?.id]);
   
   // Estados para alteração de senha
   const [senhaAtual, setSenhaAtual] = useState('');
@@ -2584,19 +2584,22 @@ export default function MinhaContaPage() {
               if (value === "dados" && user?.id) {
                 refetchPerfil();
               } else if (value === "enderecos" && user?.id) {
-                queryClient.invalidateQueries({ queryKey: ["/api/enderecos", user?.id] });
+                // Dados de endereços são gerenciados via WebSocket
+                console.log("Mudando para aba endereços");
               } else if (value === "contatos" && user?.id) {
-                queryClient.invalidateQueries({ queryKey: ["/api/contatos", user?.id] });
+                // Dados de contatos são gerenciados via WebSocket
+                console.log("Mudando para aba contatos");
               } else if (value === "usuarios" && user?.id) {
-                queryClient.invalidateQueries({ queryKey: ["/api/usuarios-adicionais", user?.id] });
+                // Dados de usuários são gerenciados via WebSocket
+                console.log("Mudando para aba usuários");
               } else if (value === "financeiro" && user?.id) {
                 setFinalPlanoData(null);
                 setIsReloadingAssinatura(true);
                 setForceShowPreloader(true);
                 refetchAssinatura();
                 refetchCredits(); // Recarregar créditos também
-                queryClient.invalidateQueries({ queryKey: ["/api/historico-pagamentos", user?.id] });
-                queryClient.invalidateQueries({ queryKey: ["/api/historico-assinaturas", user?.id] });
+                // Histórico financeiro é gerenciado via WebSocket
+                console.log("Mudando para aba financeiro");
               }
             }}
             className="w-full"
