@@ -228,9 +228,9 @@ export function useWebSocket() {
           // Desenvolvimento local - conectar na porta do servidor principal
           wsUrl = `${protocol}//localhost:5001/ws`;
         } else {
-          // Replit - conectar na porta do servidor principal através do proxy
-          // O proxy na porta 3000 redireciona para 5001 onde está o WebSocket
-          wsUrl = `${protocol}//${host}:3000/ws`;
+          // Replit - usar o domínio atual sem especificar porta
+          // O Replit automaticamente redireciona para a porta correta
+          wsUrl = `${protocol}//${host}/ws`;
         }
         
         console.log('🔍 CLIENTE: URL WebSocket calculada:', wsUrl);

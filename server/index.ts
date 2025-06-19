@@ -659,35 +659,24 @@ if (process.env.EXTERNAL_API_URL) {
         proxyApp.use('/', createProxyMiddleware({
           target: `http://localhost:${port}`,
           changeOrigin: true,
-          ws: true, // Habilitar WebSocket proxy
-          logLevel: 'debug',
           onError: (err, req, res) => {
             log(`Proxy error: ${err.message}`);
             if (res && !res.headersSent) {
               res.status(500).send('Proxy Error');
             }
-          },
-          onProxyReqWs: (proxyReq, req, socket) => {
-            console.log('🔄 PROXY: WebSocket upgrade request recebido');
-          },
-          onOpen: (proxySocket) => {
-            console.log('✅ PROXY: Conexão WebSocket estabelecida');
-          },
-          onClose: (res, socket, head) => {
-            console.log('❌ PROXY: Conexão WebSocket fechada');
           }
         }));
 
         const proxyServer = createServer(proxyApp);
 
-        // WebSocket Server Setup - configurar no servidor principal (porta 5001)
+        // WebSocket Server Setup - configurar no servidor proxy (porta 3000)
         const wss = new WebSocketServer({ 
-          server: server,
+          server: proxyServer,
           path: '/ws'
         });
 
         wss.on('connection', (ws, req) => {
-          console.log('✅ SERVIDOR: WebSocket client conectado (porta 5001)');
+          console.log('✅ SERVIDOR: WebSocket client conectado (porta 3000)');
           global.wsClients.add(ws);
           
           // Confirmar conexão
@@ -723,7 +712,7 @@ if (process.env.EXTERNAL_API_URL) {
           });
         });
     
-        console.log('🔗 WebSocket server iniciado no caminho /ws (porta 5001)');
+        console.log('🔗 WebSocket server iniciado no caminho /ws (porta 3000)');
         
         proxyServer.listen(proxyPort, '0.0.0.0', () => {
           log(`Proxy server running on port ${proxyPort}, forwarding to port ${port}`);
