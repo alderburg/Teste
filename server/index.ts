@@ -665,17 +665,162 @@ if (process.env.EXTERNAL_API_URL) {
           path: '/ws'
         });
 
-        wss.on('connection', ws => {
-          console.log('✅ WebSocket client connected');
+        // Map para armazenar informações detalhadas dos clientes
+        const clientsInfo = new Map();
+
+        wss.on('connection', (ws, req) => {
+          const clientId = Date.now() + Math.random();
+          const connectionTime = new Date();
+          const userAgent = req.headers['user-agent'] || 'Desconhecido';
+          const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'IP desconhecido';
+          
+          // Informações iniciais do cliente
+          const clientInfo = {
+            id: clientId,
+            connectionTime,
+            lastPing: connectionTime,
+            authenticated: false,
+            userId: null,
+            userAgent,
+            ip,
+            isAlive: true
+          };
+          
+          clientsInfo.set(ws, clientInfo);
           global.wsClients.add(ws);
+          
+          console.log(`✅ WebSocket client conectado - ID: ${clientId}, IP: ${ip}`);
+          
+          // Configurar ping/pong automático
+          ws.isAlive = true;
+          ws.on('pong', () => {
+            ws.isAlive = true;
+            if (clientsInfo.has(ws)) {
+              clientsInfo.get(ws).lastPing = new Date();
+              clientsInfo.get(ws).isAlive = true;
+            }
+          });
+
+          // Processar mensagens do cliente
+          ws.on('message', (data) => {
+            try {
+              const message = JSON.parse(data.toString());
+              const client = clientsInfo.get(ws);
+              
+              if (message.type === 'auth' && message.userId) {
+                // Cliente se autenticou
+                client.authenticated = true;
+                client.userId = message.userId;
+                client.sessionToken = message.sessionToken;
+                console.log(`🔐 Cliente ${clientId} autenticado como usuário ${message.userId}`);
+              } else if (message.type === 'pong') {
+                // Resposta ao ping
+                client.lastPing = new Date();
+                client.isAlive = true;
+              }
+            } catch (error) {
+              console.error('Erro ao processar mensagem WebSocket:', error);
+            }
+          });
     
           ws.on('close', () => {
-            console.log('❌ WebSocket client disconnected');
+            console.log(`❌ WebSocket client desconectado - ID: ${clientId}`);
+            clientsInfo.delete(ws);
             global.wsClients.delete(ws);
           });
+
+          ws.on('error', (error) => {
+            console.error(`🚨 Erro WebSocket cliente ${clientId}:`, error.message);
+          });
+        });
+
+        // Sistema de Heartbeat - verificar clientes a cada 30 segundos
+        const heartbeatInterval = setInterval(() => {
+          console.log('\n🔄 === HEARTBEAT WEBSOCKET ===');
+          console.log(`📊 Total de clientes conectados: ${global.wsClients.size}`);
+          
+          const now = new Date();
+          const activeClients = [];
+          const staleClients = [];
+          
+          global.wsClients.forEach(ws => {
+            const client = clientsInfo.get(ws);
+            if (client) {
+              const timeSinceLastPing = now - client.lastPing;
+              const connectionDuration = now - client.connectionTime;
+              
+              const clientStatus = {
+                id: client.id,
+                authenticated: client.authenticated,
+                userId: client.userId || 'Não autenticado',
+                ip: client.ip,
+                connectionDuration: Math.floor(connectionDuration / 1000) + 's',
+                lastPing: Math.floor(timeSinceLastPing / 1000) + 's atrás',
+                isAlive: client.isAlive && timeSinceLastPing < 60000 // 60 segundos
+              };
+              
+              if (clientStatus.isAlive) {
+                activeClients.push(clientStatus);
+              } else {
+                staleClients.push(clientStatus);
+              }
+            }
+          });
+          
+          // Mostrar clientes ativos
+          if (activeClients.length > 0) {
+            console.log('✅ Clientes ativos:');
+            activeClients.forEach(client => {
+              console.log(`   - ID: ${client.id} | Usuário: ${client.userId} | IP: ${client.ip} | Conectado há: ${client.connectionDuration} | Último ping: ${client.lastPing}`);
+            });
+          }
+          
+          // Mostrar clientes inativos
+          if (staleClients.length > 0) {
+            console.log('⚠️ Clientes inativos (serão desconectados):');
+            staleClients.forEach(client => {
+              console.log(`   - ID: ${client.id} | Usuário: ${client.userId} | Último ping: ${client.lastPing}`);
+            });
+          }
+          
+          // Enviar ping para todos os clientes e remover os que não respondem
+          global.wsClients.forEach(ws => {
+            if (ws.isAlive === false) {
+              console.log(`🗑️ Removendo cliente inativo: ${clientsInfo.get(ws)?.id}`);
+              clientsInfo.delete(ws);
+              global.wsClients.delete(ws);
+              return ws.terminate();
+            }
+            
+            ws.isAlive = false;
+            ws.ping();
+            
+            // Enviar ping customizado também
+            try {
+              ws.send(JSON.stringify({
+                type: 'server_ping',
+                timestamp: now.toISOString(),
+                server_info: {
+                  uptime: process.uptime(),
+                  memory: process.memoryUsage()
+                }
+              }));
+            } catch (error) {
+              console.error('Erro ao enviar ping:', error);
+            }
+          });
+          
+          console.log('=== FIM HEARTBEAT ===\n');
+        }, 30000); // A cada 30 segundos
+        
+        // Limpar interval quando o processo for encerrado
+        process.on('SIGINT', () => {
+          clearInterval(heartbeatInterval);
+          console.log('🛑 Heartbeat WebSocket encerrado');
         });
     
         console.log('🔗 WebSocket server iniciado no caminho /ws');
+        console.log('💓 Sistema de heartbeat ativado (30s)');
 
         proxyApp.listen(proxyPort, '0.0.0.0', () => {
           log(`Proxy server running on port ${proxyPort}, forwarding to port ${port}`);
