@@ -15,22 +15,12 @@ import { isMobileDevice } from "@/lib/utils";
 import MobileContaPage from "./mobile-conta";
 import InputMask from "react-input-mask";
 import websocketService from "@/services/websocketService";
-import { changePasswordSchema, enable2FASchema, type ChangePasswordData, type UserSession } from "@shared/schema";
-import { Loader2, Shield, User, LogOut, UserCheck, Settings, Key, Smartphone, ChevronLeft, ChevronRight, Clock } from "lucide-react";
+import { Loader2, Shield, User, Clock } from "lucide-react";
 import PaymentModal from "@/components/planos/PaymentModal";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Pagination } from '@/components/Pagination';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+
 
 // Importações do Stripe
 import { loadStripe } from '@stripe/stripe-js';
@@ -1943,7 +1933,23 @@ export default function MinhaContaPage() {
   // Estado para armazenar dados finalizados após um recarregamento completo
   const [finalPlanoData, setFinalPlanoData] = useState<AssinaturaResponse | null>(null);
 
-  // Using websocket data instead of useQuery
+  // Query para buscar assinatura - seguindo o padrão das outras abas
+  const { 
+    data: assinaturaData, 
+    isLoading: isLoadingAssinaturaOriginal, 
+    refetch: refetchAssinatura 
+  } = useQuery<AssinaturaResponse>({
+    queryKey: ["/api/minha-assinatura"],
+    // Permitir sempre buscar dados, seguindo o padrão das abas de Contatos e Usuários
+    enabled: true,
+    // Configurações para permitir atualização ao trocar de aba
+    staleTime: 0, // Considerar dados sempre obsoletos (permite refetch ao trocar de aba)
+    gcTime: 60000, // Manter no cache por 1 minuto
+    refetchOnWindowFocus: false, // Sem refetch no foco da janela
+    refetchOnMount: true, // Permitir refetch na montagem do componente
+    refetchOnReconnect: false, // Sem refetch na reconexão
+    retry: false // Não tentar novamente em caso de falha
+  });
 
 
 
