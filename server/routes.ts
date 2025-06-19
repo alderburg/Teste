@@ -560,7 +560,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Buscar dados da sessão para obter o token
         const sessionDataResult = await executeQuery(
-          'SELECT user_token FROM sessions WHERE session_id = $1',
+          'SELECT user_token FROM session WHERE session_id = $1',
           [sessionId]
         );
         
