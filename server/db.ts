@@ -17,11 +17,7 @@ console.log("Usando implementação de banco de dados PostgreSQL da Locaweb");
 // Compatibilidade com código existente
 export const pool = {
   query: async (text: string, params?: any[]) => {
-    return executeManagerQuery(text, params, { 
-      tag: 'pool-query',
-      maxRetries: 1,
-      timeout: 30000
-    });
+    return executeManagerQuery(text, params, { tag: 'pool-query' });
   },
   connect: async () => {
     throw new Error('Método connect() não disponível - use executeQuery() diretamente');
@@ -43,7 +39,7 @@ export const pool = {
 // Esta função usa nosso gerenciador de conexões profissional
 export async function executeQuery(queryText: string, params: any[] = []) {
   return executeManagerQuery(queryText, params, {
-    maxRetries: 1,
+    maxRetries: 3,
     timeout: 30000,
     tag: 'db-module'
   });

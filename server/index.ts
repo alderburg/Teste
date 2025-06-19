@@ -560,7 +560,7 @@ if (process.env.EXTERNAL_API_URL) {
 
   // Função global para notificar sobre sessão encerrada via sistema WebSocket existente
   (global as any).notifySessionTerminated = (userId: number, sessionToken: string) => {
-    console.log(`🔔 SERVIDOR: Notificando encerramento da sessão ${sessionToken.substring(0, 8)}... para usuário ${userId}`);
+    console.log(`🔔 Notificando encerramento da sessão ${sessionToken.substring(0, 8)}... para usuário ${userId}`);
 
     // Usar o sistema WebSocket existente para enviar notificação
     if (global.wsClients && global.wsClients.size > 0) {
@@ -572,28 +572,20 @@ if (process.env.EXTERNAL_API_URL) {
         timestamp: new Date().toISOString()
       };
 
-      console.log(`📤 SERVIDOR: MENSAGEM DE DESCONEXÃO RECEBIDA E ENVIADA - Enviando para ${global.wsClients.size} cliente(s)`);
-      console.log(`📋 SERVIDOR: Conteúdo da mensagem:`, message);
-
       // Enviar para todos os clientes conectados - o frontend filtrará pela sessão
-      let clienteEnviado = 0;
       global.wsClients.forEach((ws: any) => {
         if (ws.readyState === 1) { // WebSocket.OPEN = 1
           try {
             ws.send(JSON.stringify(message));
-            clienteEnviado++;
-            console.log(`✅ SERVIDOR: Mensagem enviada para cliente ${clienteEnviado}`);
           } catch (error) {
-            console.error('❌ SERVIDOR: Erro ao enviar notificação de sessão:', error);
+            console.error('❌ Erro ao enviar notificação de sessão:', error);
           }
-        } else {
-          console.log(`⚠️ SERVIDOR: Cliente WebSocket não está aberto (estado: ${ws.readyState})`);
         }
       });
 
-      console.log(`✅ SERVIDOR: Notificação de sessão encerrada enviada para ${clienteEnviado}/${global.wsClients.size} cliente(s) conectado(s)`);
+      console.log(`✅ Notificação de sessão encerrada enviada para ${global.wsClients.size} cliente(s)`);
     } else {
-      console.log(`⚠️ SERVIDOR: Nenhum cliente WebSocket conectado (wsClients: ${global.wsClients ? global.wsClients.size : 'undefined'})`);
+      console.log(`⚠️ Nenhum cliente WebSocket conectado`);
     }
   };
 
@@ -617,11 +609,13 @@ if (process.env.EXTERNAL_API_URL) {
       if (needsCleanup) {
         console.log('🧹 Executando limpeza otimizada...');
         await optimizedSessionCleanup.optimizedCleanup();
+      } else {
+        console.log('✅ Nenhuma limpeza necessária');
       }
     } catch (error) {
       console.error('Erro na limpeza otimizada:', error);
     }
-  }, 4 * 60 * 60 * 1000); // A cada 4 horas - reduzido para diminuir carga
+  }, 2 * 60 * 60 * 1000); // A cada 2 horas - mais frequente mas muito mais leve
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     if (!res.headersSent) {
@@ -651,70 +645,39 @@ if (process.env.EXTERNAL_API_URL) {
 
       if (process.env.REPL_ID || process.env.REPLIT_ENVIRONMENT) {
         const proxyPort = 3000;
-        
-
-        // Criar servidor proxy primeiro
         const proxyApp = express();
-        
+
         proxyApp.use('/', createProxyMiddleware({
           target: `http://localhost:${port}`,
           changeOrigin: true,
+          ws: true,
           onError: (err, req, res) => {
             log(`Proxy error: ${err.message}`);
-            if (res && !res.headersSent) {
-              res.status(500).send('Proxy Error');
-            }
+            res.status(500).send('Proxy Error');
           }
         }));
 
-        const proxyServer = createServer(proxyApp);
+        const proxyServer = createServer(proxyApp); // Criar servidor HTTP para o proxy
 
-        // WebSocket Server Setup - configurar no servidor proxy (porta 3000)
+        // WebSocket Server Setup - usar servidor HTTP existente
         const wss = new WebSocketServer({ 
           server: proxyServer,
           path: '/ws'
         });
 
-        wss.on('connection', (ws, req) => {
-          console.log('✅ SERVIDOR: WebSocket client conectado (porta 3000)');
+        wss.on('connection', ws => {
+          console.log('✅ WebSocket client connected');
           global.wsClients.add(ws);
-          
-          // Confirmar conexão
-          try {
-            ws.send(JSON.stringify({
-              type: 'connection_confirmed',
-              message: 'WebSocket conectado',
-              timestamp: new Date().toISOString()
-            }));
-          } catch (error) {
-            console.error('❌ SERVIDOR: Erro ao enviar confirmação:', error);
-          }
-    
-          ws.on('message', (data) => {
-            try {
-              const message = JSON.parse(data.toString());
-              if (message.type === 'auth') {
-                console.log(`🔐 SERVIDOR: Cliente autenticado - Usuário: ${message.userId}`);
-              }
-            } catch (error) {
-              // Ignorar erros de parsing
-            }
-          });
     
           ws.on('close', () => {
+            console.log('❌ WebSocket client disconnected');
             global.wsClients.delete(ws);
-            console.log(`📊 SERVIDOR: Cliente desconectado (${global.wsClients.size} restantes)`);
-          });
-          
-          ws.on('error', (error) => {
-            global.wsClients.delete(ws);
-            console.error('❌ SERVIDOR: Erro no WebSocket:', error);
           });
         });
     
-        console.log('🔗 WebSocket server iniciado no caminho /ws (porta 3000)');
-        
-        proxyServer.listen(proxyPort, '0.0.0.0', () => {
+        console.log('🔗 WebSocket server iniciado no caminho /ws');
+
+        proxyApp.listen(proxyPort, '0.0.0.0', () => {
           log(`Proxy server running on port ${proxyPort}, forwarding to port ${port}`);
           log(`Running on Replit - server available at: https://${process.env.REPLIT_DOMAINS}`);
         });

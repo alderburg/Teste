@@ -51,23 +51,23 @@ class ConnectionManager {
       database: process.env.DB_NAME,
       ssl: { rejectUnauthorized: false },
 
-      // Configurações otimizadas de timeout e pool - mais conservadoras
-      connectionTimeoutMillis: 15000, // Aumentado para conexões mais estáveis
-      idleTimeoutMillis: 30000, // 30 segundos de timeout para conexões ociosas
+      // Configurações otimizadas de timeout e pool
+      connectionTimeoutMillis: 8000, // Reduzido para conexão mais rápida
+      idleTimeoutMillis: 20000, // 20 segundos de timeout para conexões ociosas
 
-      // Configurações de pool muito conservadoras
-      max: 3, // Apenas 3 conexões máximo
+      // Configurações de pool ajustadas
+      max: 10, // Reduzido para evitar sobrecarga
       min: 1, // Manter conexão mínima
-      acquireTimeoutMillis: 15000, // 15 segundos
+      acquireTimeoutMillis: 10000, // Timeout mais rápido
 
       // Configurações de comportamento
-      allowExitOnIdle: false, // Mudado para false para manter conexões
-      statement_timeout: 45000 // 45 segundos para timeout de queries
+      allowExitOnIdle: true,
+      statement_timeout: 30000 // 30 segundos para timeout de queries
     };
 
     this.pool = new Pool(config);
-    this.connectionTimeout = parseInt(process.env.DB_CONNECTION_TIMEOUT || '20000');
-    this.queryTimeout = 45000; // 45 segundos para timeout de queries
+    this.connectionTimeout = parseInt(process.env.DB_CONNECTION_TIMEOUT || '10000');
+    this.queryTimeout = 30000; // 30 segundos para timeout de queries
     this.activeClients = new Map();
 
     // Inicializar estatísticas
@@ -121,10 +121,10 @@ class ConnectionManager {
    * Esta é uma prática essencial em sistemas de produção
    */
   private startMonitoring(): void {
-    // Monitorar a cada 2 minutos para reduzir overhead
+    // Monitorar a cada 30 segundos
     this.monitorInterval = setInterval(() => {
       this.monitorConnections();
-    }, 120000);
+    }, 30000);
   }
 
   /**
@@ -260,7 +260,7 @@ class ConnectionManager {
       tag?: string
     } = {}
   ): Promise<T> {
-    const maxRetries = options.maxRetries ?? 1; // Reduzido para 1 retry apenas
+    const maxRetries = options.maxRetries ?? 2;
     const timeout = options.timeout ?? this.queryTimeout;
     const tag = options.tag || 'query';
     const clientId = `${tag}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
@@ -352,11 +352,11 @@ class ConnectionManager {
 
         if (shouldRetry && retries < maxRetries) {
           retries++;
-          const backoffTime = Math.min(2000 * Math.pow(2, retries), 5000); // Max 5 segundos
+          const backoffTime = Math.min(50 * Math.pow(2, retries), 1000); // Max 1 segundo
 
           console.warn(`⚠️ Retry ${retries}/${maxRetries} após ${backoffTime}ms. Erro: ${error.message}`);
 
-          // Esperar antes de tentar novamente (backoff exponencial mais longo)
+          // Esperar antes de tentar novamente (backoff exponencial)
           await new Promise(resolve => setTimeout(resolve, backoffTime));
         } else {
           // Sem mais retries ou erro que não justifica retry

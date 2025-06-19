@@ -464,7 +464,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const sessionToken = sessionCheck.rows[0].token;
-      const targetUserId = sessionCheck.rows[0].user_id;
       
       // Não permitir encerrar a sessão atual
       if (sessionToken === currentSessionToken) {
@@ -472,26 +471,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           success: false,
           message: 'Não é possível encerrar a sessão atual'
         });
-      }
-
-      // PRIMEIRO: Notificar via WebSocket ANTES de deletar
-      console.log(`🔔 MENSAGEM DE ENCERRAMENTO SENDO ENVIADA - Usuário: ${targetUserId}, Token: ${sessionToken.substring(0, 8)}...`);
-      
-      if (typeof (global as any).notifySessionTerminated === 'function') {
-        console.log(`📤 MENSAGEM DE DESCONEXÃO RECEBIDA E ENVIADA - Chamando notifySessionTerminated`);
-        
-        // Enviar notificação WebSocket ANTES de deletar a sessão
-        (global as any).notifySessionTerminated(targetUserId, sessionToken);
-        
-        console.log(`✅ MENSAGEM DE DESCONEXÃO PROCESSADA - Notificação WebSocket enviada`);
-        console.log(`⏳ AGUARDANDO 5 SEGUNDOS para o modal aparecer antes de deletar a sessão...`);
-        
-        // AGUARDAR 5 segundos para garantir que o modal apareça no cliente
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        
-        console.log(`✅ TEMPO DE ESPERA CONCLUÍDO - Agora deletando a sessão do banco`);
-      } else {
-        console.log(`⚠️ Sistema WebSocket não disponível para notificação de sessão`);
       }
       
       console.log(`🔒 Invalidando sessão do Express com token: ${sessionToken.substring(0, 8)}...`);
@@ -550,24 +529,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`✅ Sessão ${sessionId} excluída com sucesso da tabela ${sessionTableName}`);
         console.log(`🔐 Usuário com token ${sessionToken.substring(0, 8)}... será deslogado automaticamente`);
         
-        // PRIMEIRO: Notificar via WebSocket sobre o encerramento da sessão ANTES de deletar
+        // Notificar via WebSocket sobre o encerramento da sessão
         const targetUserId = sessionCheck.rows[0].user_id;
-        
-        console.log(`🔔 MENSAGEM DE ENCERRAMENTO SENDO ENVIADA - Usuário: ${targetUserId}, Token: ${sessionToken.substring(0, 8)}...`);
-        
         if (typeof (global as any).notifySessionTerminated === 'function') {
-          console.log(`📤 MENSAGEM DE DESCONEXÃO RECEBIDA E ENVIADA - Chamando notifySessionTerminated`);
-          
-          // Enviar notificação WebSocket ANTES de deletar a sessão
           (global as any).notifySessionTerminated(targetUserId, sessionToken);
-          
-          console.log(`✅ MENSAGEM DE DESCONEXÃO PROCESSADA - Notificação WebSocket enviada`);
-          console.log(`⏳ AGUARDANDO 5 SEGUNDOS para o modal aparecer antes de deletar a sessão...`);
-          
-          // AGUARDAR 5 segundos para garantir que o modal apareça no cliente
-          await new Promise(resolve => setTimeout(resolve, 5000));
-          
-          console.log(`✅ TEMPO DE ESPERA CONCLUÍDO - Agora deletando a sessão do banco`);
         } else {
           console.log(`⚠️ Sistema WebSocket não disponível para notificação de sessão`);
         }

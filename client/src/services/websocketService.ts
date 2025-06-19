@@ -50,12 +50,44 @@ const heartbeatInterval_ms = 30000; // 30 segundos
 const subscribers: ((message: WebSocketMessage) => void)[] = [];
 
 /**
- * Inicializa a conexão WebSocket (DEPRECIADO - usar useWebSocket hook)
+ * Inicializa a conexão WebSocket
  */
 export function initWebSocket() {
-  console.warn('initWebSocket está depreciado - usando conexão principal do useWebSocket');
-  // Não criar nova conexão - usar a principal
-  return;
+  if (typeof window === 'undefined') return; // Não executar no servidor
+  
+  // Fechar conexão existente se houver
+  if (socket) {
+    closeWebSocket();
+  }
+  
+  try {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    // No Replit, usar a porta correta do servidor
+    const host = window.location.hostname;
+    const port = process.env.NODE_ENV === 'development' ? '3000' : window.location.port || '3000';
+    const wsUrl = `${protocol}//${host}:${port}/ws`;
+    
+    console.log(`Conectando WebSocket em ${wsUrl}`);
+    
+    socket = new WebSocket(wsUrl);
+    
+    socket.addEventListener('open', handleOpen);
+    socket.addEventListener('message', handleMessage);
+    socket.addEventListener('close', handleClose);
+    socket.addEventListener('error', handleError);
+    
+    // Adicionar ao conjunto global para notificações
+    if (typeof window !== 'undefined' && socket) {
+      if (!window.wsClients) {
+        window.wsClients = new Set();
+      }
+      window.wsClients.add(socket);
+    }
+    
+    // Iniciar heartbeat quando a conexão for aberta
+  } catch (error) {
+    console.error("Erro ao inicializar WebSocket:", error);
+  }
 }
 
 /**
@@ -234,7 +266,28 @@ function handleMessage(event: MessageEvent) {
       processSessionUpdate(message as SessionUpdateMessage);
     }
     
-    // Notificações de sessão encerrada são tratadas pelo handler global
+    // Processar notificações de sessão encerrada
+    if (message.type === 'session_terminated') {
+      console.log("🔒 Sessão encerrada recebida:", message);
+      
+      // Verificar se é a sessão atual
+      const currentSessionToken = localStorage.getItem('sessionToken') || 
+                                 localStorage.getItem('token') || 
+                                 document.cookie.split(';').find(c => c.trim().startsWith('sessionToken='))?.split('=')[1] || 
+                                 '';
+      
+      if (currentSessionToken === message.sessionToken) {
+        // Disparar evento específico para sessão encerrada
+        const sessionTerminatedEvent = new CustomEvent('session-terminated', { 
+          detail: { 
+            message: message.message,
+            sessionToken: message.sessionToken,
+            userId: message.userId
+          } 
+        });
+        window.dispatchEvent(sessionTerminatedEvent);
+      }
+    }
     
     // Notificar todos os assinantes
     subscribers.forEach(callback => {

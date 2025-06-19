@@ -1,7 +1,5 @@
-
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { queryClient } from '@/lib/queryClient';
-import { showSessionTerminationPopup, isCurrentSession } from '@/lib/globalSessionHandler';
 
 interface WebSocketMessage {
   type: string;
@@ -19,13 +17,7 @@ export function useWebSocket() {
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
-  const MAX_RECONNECT_ATTEMPTS = 3;
-  const isConnectingRef = useRef(false);
-  const shouldReconnectRef = useRef(true);
-  
-  // Evitar múltiplas conexões WebSocket - usar key único por instância
-  const connectionKey = 'primary-websocket-connection';
-  const instanceId = useRef(Math.random().toString(36).substr(2, 9));
+  const MAX_RECONNECT_ATTEMPTS = 5;
 
   // Função para processar mensagens recebidas
   const handleMessage = useCallback((data: WebSocketMessage) => {
@@ -51,28 +43,145 @@ export function useWebSocket() {
       return;
     }
     else if (data.type === 'session_terminated') {
-      // Tratar evento de sessão encerrada usando o handler global
-      console.log('🔒 CLIENTE: Sessão encerrada pelo servidor:', data);
-      console.log(`🔔 CLIENTE: MENSAGEM DE ENCERRAMENTO RECEBIDA - Processando encerramento`);
+      // Tratar evento de sessão encerrada
+      console.log('🔒 Sessão encerrada pelo servidor:', data);
       
-      if (isCurrentSession(data.sessionToken)) {
-        console.log('🔒 CLIENTE: Esta é a sessão atual - ativando popup global IMEDIATAMENTE');
+      // Verificar se é a sessão atual que foi encerrada
+      const currentSessionToken = localStorage.getItem('sessionToken') || 
+                                 localStorage.getItem('token') || 
+                                 document.cookie.split(';').find(c => c.trim().startsWith('sessionToken='))?.split('=')[1] || 
+                                 '';
+      
+      console.log('🔒 Verificando tokens:', {
+        current: currentSessionToken?.substring(0, 8) + '...',
+        terminated: data.sessionToken?.substring(0, 8) + '...',
+        match: currentSessionToken === data.sessionToken,
+        currentPage: window.location.pathname
+      });
+      
+      if (currentSessionToken === data.sessionToken) {
+        console.log('🔒 Esta é a sessão atual - disparando evento de encerramento');
         
-        // Limpar cache do queryClient imediatamente
+        // Invalidar imediatamente o queryClient para evitar requisições
         try {
           queryClient.invalidateQueries();
           queryClient.clear();
-          console.log('🔒 CLIENTE: Cache limpo com sucesso');
         } catch (error) {
           console.error('Erro ao limpar queryClient:', error);
         }
         
-        // Usar o handler global para mostrar o popup
-        console.log('🔒 CLIENTE: Chamando showSessionTerminationPopup...');
-        showSessionTerminationPopup(data.message || 'Sua sessão foi encerrada por outro usuário');
-        console.log('🔒 CLIENTE: Popup de encerramento deveria estar visível agora');
+        // AÇÃO IMEDIATA: Forçar o popup globalmente
+        const forceSessionTerminationPopup = () => {
+          console.log('🔒 FORÇANDO POPUP DE SESSÃO ENCERRADA');
+          
+          // Verificar se já existe um popup
+          if (document.querySelector('[data-session-terminated-modal]')) {
+            console.log('🔒 Modal já existe, não duplicar');
+            return;
+          }
+          
+          // Criar modal diretamente no DOM
+          const modal = document.createElement('div');
+          modal.setAttribute('data-session-terminated-modal', 'true');
+          modal.style.cssText = `
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            background: rgba(0, 0, 0, 0.8) !important;
+            z-index: 999999 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            backdrop-filter: blur(4px) !important;
+          `;
+          
+          const modalContent = document.createElement('div');
+          modalContent.style.cssText = `
+            background: white !important;
+            padding: 32px !important;
+            border-radius: 12px !important;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1) !important;
+            max-width: 400px !important;
+            width: 90% !important;
+            text-align: center !important;
+            font-family: system-ui, -apple-system, sans-serif !important;
+          `;
+          
+          let countdown = 10;
+          modalContent.innerHTML = `
+            <div style="color: #dc2626; font-size: 48px; margin-bottom: 16px;">⚠️</div>
+            <h2 style="color: #1f2937; font-size: 24px; font-weight: 600; margin-bottom: 16px;">
+              Sessão Encerrada
+            </h2>
+            <p style="color: #6b7280; margin-bottom: 24px; line-height: 1.5;">
+              ${data.message || 'Sua sessão foi encerrada por outro usuário'}
+            </p>
+            <p style="color: #374151; font-weight: 500; margin-bottom: 24px;">
+              Redirecionando em <span id="countdown">${countdown}</span> segundos...
+            </p>
+            <button id="logout-now" style="
+              background: #dc2626;
+              color: white;
+              border: none;
+              padding: 12px 24px;
+              border-radius: 8px;
+              font-weight: 600;
+              cursor: pointer;
+              font-size: 16px;
+            ">
+              Sair Agora
+            </button>
+          `;
+          
+          modal.appendChild(modalContent);
+          document.body.appendChild(modal);
+          
+          // Countdown e logout automático
+          const countdownElement = document.getElementById('countdown');
+          const logoutButton = document.getElementById('logout-now');
+          
+          const countdownInterval = setInterval(() => {
+            countdown--;
+            if (countdownElement) {
+              countdownElement.textContent = countdown.toString();
+            }
+            
+            if (countdown <= 0) {
+              clearInterval(countdownInterval);
+              performLogout();
+            }
+          }, 1000);
+          
+          const performLogout = () => {
+            console.log('🔒 Executando logout forçado');
+            
+            // Limpar dados locais
+            localStorage.clear();
+            sessionStorage.clear();
+            
+            // Limpar cookies
+            document.cookie.split(";").forEach(function(c) { 
+              document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+            });
+            
+            // Redirecionar
+            window.location.href = '/acessar';
+          };
+          
+          if (logoutButton) {
+            logoutButton.addEventListener('click', () => {
+              clearInterval(countdownInterval);
+              performLogout();
+            });
+          }
+        };
         
-        // Disparar eventos para compatibilidade com outros componentes
+        // Executar imediatamente
+        forceSessionTerminationPopup();
+        
+        // Disparar eventos para compatibilidade
         const sessionTerminatedEvent = new CustomEvent('session-terminated', { 
           detail: { 
             message: data.message || 'Sua sessão foi encerrada por outro usuário',
@@ -92,10 +201,6 @@ export function useWebSocket() {
           } 
         });
         window.dispatchEvent(webSocketEvent);
-        
-        console.log('🔒 CLIENTE: Eventos de sessão encerrada disparados');
-      } else {
-        console.log('🔒 CLIENTE: Token de sessão não corresponde à sessão atual - ignorando');
       }
       
       return;
@@ -167,53 +272,8 @@ export function useWebSocket() {
     }
   }, []);
 
-  // Função para tentar reconectar
-  const attemptReconnect = useCallback(() => {
-    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS || isConnectingRef.current || !shouldReconnectRef.current) {
-      console.log('Reconexão cancelada: limite atingido, já conectando ou desabilitada');
-      return;
-    }
-
-    const timeout = Math.min(3000 * Math.pow(2, reconnectAttempts), 15000);
-    console.log(`Tentando reconexão em ${timeout}ms (tentativa ${reconnectAttempts + 1} de ${MAX_RECONNECT_ATTEMPTS})`);
-
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-    }
-
-    reconnectTimeoutRef.current = setTimeout(() => {
-      if (shouldReconnectRef.current && !isConnectingRef.current) {
-        setReconnectAttempts(prev => prev + 1);
-        createConnection();
-      }
-    }, timeout);
-  }, [reconnectAttempts]);
-
-  // Função para criar conexão WebSocket
-  const createConnection = useCallback(() => {
-    if (isConnectingRef.current || !shouldReconnectRef.current) {
-      console.log('Criação de conexão cancelada: já conectando ou desabilitada');
-      return;
-    }
-
-    // Verificar se já existe uma conexão global ativa
-    const existingSocket = (window as any)[connectionKey];
-    if (existingSocket && existingSocket.readyState === WebSocket.OPEN) {
-      console.log(`🔄 WebSocket já existe (${instanceId.current}) - usando conexão existente`);
-      socketRef.current = existingSocket;
-      setConnected(true);
-      setReconnectAttempts(0);
-      return;
-    }
-    
-    // Limpar conexão anterior se estiver fechada
-    if (existingSocket && existingSocket.readyState !== WebSocket.OPEN) {
-      delete (window as any)[connectionKey];
-      console.log(`🧹 Removendo conexão WebSocket antiga (${instanceId.current})`);
-    }
-
-    isConnectingRef.current = true;
-
+  // Estabelecer conexão ao montar o componente
+  useEffect(() => {
     try {
       // Definir URL do WebSocket baseado no ambiente
       const getWebSocketUrl = () => {
@@ -221,139 +281,138 @@ export function useWebSocket() {
 
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.hostname;
-        
-        // Configuração corrigida para o Replit
-        let wsUrl;
-        if (host === 'localhost') {
-          // Desenvolvimento local - conectar na porta do servidor principal
-          wsUrl = `${protocol}//localhost:5001/ws`;
-        } else {
-          // Replit - usar o domínio atual sem especificar porta
-          // O Replit automaticamente redireciona para a porta correta
-          wsUrl = `${protocol}//${host}/ws`;
-        }
-        
-        console.log('🔍 CLIENTE: URL WebSocket calculada:', wsUrl);
-        return wsUrl;
+        // No Replit, usar a mesma porta do servidor principal
+        const wsPort = process.env.NODE_ENV === 'development' ? '3000' : window.location.port || '3000';
+
+        return `${protocol}//${host}:${wsPort}/ws`;
       };
 
       const wsUrl = getWebSocketUrl();
-      console.log(`🔄 CLIENTE: Tentando conectar WebSocket (${instanceId.current}) em:`, wsUrl);
-      console.log(`🔍 CLIENTE: Protocolo: ${protocol}, Host: ${host}`);
+      console.log('Tentando conectar ao WebSocket em:', wsUrl);
 
-      const socket = new WebSocket(wsUrl);
-      socketRef.current = socket;
-      (window as any)[connectionKey] = socket;
+      // Criar conexão WebSocket com tratamento de erro
+      let socket: WebSocket;
 
-      // Timeout para conexão
-      const connectionTimeout = setTimeout(() => {
-        if (socket.readyState === WebSocket.CONNECTING) {
-          console.log('❌ CLIENTE: Timeout na conexão WebSocket');
-          socket.close();
-          isConnectingRef.current = false;
-        }
-      }, 10000);
+      try {
+        socket = new WebSocket(wsUrl);
+        socketRef.current = socket;
+      } catch (connectionError) {
+        console.error('Erro ao criar conexão WebSocket:', connectionError);
+        setConnected(false);
+        return; // Sair se não conseguir criar o socket
+      }
 
+      // Configurar listeners
       socket.addEventListener('open', () => {
-        clearTimeout(connectionTimeout);
-        console.log(`🔗 CLIENTE: WebSocket conectado com sucesso (${instanceId.current}) - URL: ${wsUrl}`);
+        console.log('WebSocket conectado');
         setConnected(true);
-        setReconnectAttempts(0);
-        isConnectingRef.current = false;
-        
-        // Enviar ping inicial para confirmar conexão
-        try {
-          socket.send(JSON.stringify({
-            type: 'client_connected',
-            timestamp: new Date().toISOString(),
-            url: window.location.pathname
-          }));
-          console.log('📤 CLIENTE: Ping inicial enviado');
-        } catch (error) {
-          console.error('❌ CLIENTE: Erro ao enviar ping inicial:', error);
-        }
       });
 
       socket.addEventListener('message', (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log(`🔍 CLIENTE: Mensagem WebSocket recebida:`, data);
-          
-          if (data.type === 'session_terminated') {
-            console.log(`🔔 CLIENTE: MENSAGEM DE ENCERRAMENTO RECEBIDA - Token: ${data.sessionToken?.substring(0, 8)}...`);
-          }
-          
           handleMessage(data);
 
           // Disparar evento personalizado para notificar outras partes da aplicação
           const customEvent = new CustomEvent('websocket-message-received', { detail: data });
           window.dispatchEvent(customEvent);
         } catch (error) {
-          console.error('❌ CLIENTE: Erro ao processar mensagem do WebSocket:', error);
+          console.error('Erro ao processar mensagem do WebSocket:', error);
         }
       });
 
-      socket.addEventListener('error', (error) => {
-        console.error('❌ CLIENTE: Erro na conexão WebSocket:', error);
-        console.error('❌ CLIENTE: URL que falhou:', wsUrl);
-        setConnected(false);
-        isConnectingRef.current = false;
-      });
+      // Função para tentar reconectar
+      const tryReconnect = () => {
+        if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+          // Calculando tempo exponencial de backoff para reconexão
+          const timeout = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
 
-      socket.addEventListener('close', (event) => {
-        console.log('❌ CLIENTE: WebSocket desconectado:', event.code, event.reason);
-        setConnected(false);
-        isConnectingRef.current = false;
-        
-        // Limpar da conexão global
-        if ((window as any)[connectionKey] === socket) {
-          delete (window as any)[connectionKey];
-        }
-        
-        // Tentar reconectar apenas se não foi fechamento intencional e ainda deve reconectar
-        if (event.code !== 1000 && event.code !== 1001 && shouldReconnectRef.current) {
-          attemptReconnect();
-        }
-      });
+          console.log(`Tentando reconexão em ${timeout}ms (tentativa ${reconnectAttempts + 1} de ${MAX_RECONNECT_ATTEMPTS})`);
 
+          reconnectTimeoutRef.current = setTimeout(() => {
+            setReconnectAttempts(prev => prev + 1);
+
+            // Limpar referência do socket atual
+            if (socketRef.current) {
+              socketRef.current = null;
+            }
+
+            // Tentar criar uma nova conexão
+            try {
+              const newSocket = new WebSocket(wsUrl);
+              socketRef.current = newSocket;
+
+              // Configurar eventos para o novo socket (recursivamente)
+              setupSocketEvents(newSocket, wsUrl);
+            } catch (reconnectError) {
+              console.error('Erro ao reconectar WebSocket:', reconnectError);
+              // Continuamos tentando reconectar se ainda tivermos tentativas
+              tryReconnect();
+            }
+          }, timeout);
+        } else {
+          console.error('Número máximo de tentativas de reconexão atingido');
+        }
+      };
+
+      // Função para configurar eventos do socket
+      const setupSocketEvents = (socket: WebSocket, url: string) => {
+        socket.addEventListener('open', () => {
+          console.log('WebSocket conectado');
+          setConnected(true);
+          setReconnectAttempts(0); // Resetar contador de tentativas ao conectar com sucesso
+        });
+
+        socket.addEventListener('message', (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            handleMessage(data);
+
+            // Disparar evento personalizado para notificar outras partes da aplicação
+            const customEvent = new CustomEvent('websocket-message-received', { detail: data });
+            window.dispatchEvent(customEvent);
+          } catch (error) {
+            console.error('Erro ao processar mensagem do WebSocket:', error);
+          }
+        });
+
+        socket.addEventListener('close', () => {
+          console.log('WebSocket desconectado');
+          setConnected(false);
+          tryReconnect();
+        });
+
+        socket.addEventListener('error', (error) => {
+          console.error('Erro no WebSocket:', error);
+          setConnected(false);
+        });
+      };
+
+      // Inicializar configuração de eventos
+      setupSocketEvents(socket, wsUrl);
+
+      // Limpar ao desmontar
+      return () => {
+        try {
+          // Cancelar qualquer tentativa de reconexão pendente
+          if (reconnectTimeoutRef.current) {
+            clearTimeout(reconnectTimeoutRef.current);
+            reconnectTimeoutRef.current = null;
+          }
+
+          // Fechar socket se estiver aberto
+          if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+            socketRef.current.close();
+          }
+        } catch (closeError) {
+          console.error('Erro ao fechar WebSocket:', closeError);
+        }
+      };
     } catch (error) {
-      console.error('❌ CLIENTE: Erro ao criar conexão WebSocket:', error);
+      console.error('Erro geral no setup do WebSocket:', error);
       setConnected(false);
-      isConnectingRef.current = false;
-      attemptReconnect();
     }
-  }, [handleMessage, attemptReconnect]);
-
-  // Estabelecer conexão ao montar o componente
-  useEffect(() => {
-    createConnection();
-
-    // Limpar ao desmontar
-    return () => {
-      try {
-        shouldReconnectRef.current = false;
-        isConnectingRef.current = false;
-
-        // Cancelar qualquer tentativa de reconexão pendente
-        if (reconnectTimeoutRef.current) {
-          clearTimeout(reconnectTimeoutRef.current);
-          reconnectTimeoutRef.current = null;
-        }
-
-        // Fechar socket se estiver aberto
-        if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-          socketRef.current.close(1000, 'Component unmounting');
-        }
-
-        // Limpar da conexão global
-        if ((window as any)[connectionKey] === socketRef.current) {
-          delete (window as any)[connectionKey];
-        }
-      } catch (closeError) {
-        console.error('Erro ao fechar WebSocket:', closeError);
-      }
-    };
-  }, [createConnection]);
+  }, [handleMessage]);
 
   // Função para enviar mensagens
   const sendMessage = useCallback((message: WebSocketMessage) => {
@@ -406,9 +465,6 @@ export function useWebSocket() {
         }
         socketRef.current = null;
       }
-
-      // Criar nova conexão
-      createConnection();
     };
 
     window.addEventListener('online', handleOnline);
@@ -416,7 +472,7 @@ export function useWebSocket() {
     return () => {
       window.removeEventListener('online', handleOnline);
     };
-  }, [createConnection]);
+  }, []);
 
   return { connected, sendMessage };
 }
