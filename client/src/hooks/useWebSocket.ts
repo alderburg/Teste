@@ -313,10 +313,11 @@ export function useWebSocket() {
       const getWebSocketUrl = () => {
         if (typeof window === 'undefined') return '';
 
+        // No Replit, usar URL relativa para evitar problemas com proxy
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = window.location.host; // Usar host completo com porta
+        const host = window.location.host;
         
-        // No Replit, usar o mesmo host da página atual
+        // Usar a mesma origem da página atual
         return `${protocol}//${host}/ws`;
       };
 
