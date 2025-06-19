@@ -399,8 +399,6 @@ export default function MinhaContaPage() {
   const [isLoadingContatos, setIsLoadingContatos] = useState(true);
   const [usuariosData, setUsuariosData] = useState<any[]>([]);
   const [isLoadingUsuarios, setIsLoadingUsuarios] = useState(true);
-  const [assinaturaData, setAssinaturaData] = useState<any>(null);
-  const [isLoadingAssinatura, setIsLoadingAssinatura] = useState(true);
   const [historicoAssinaturasData, setHistoricoAssinaturasData] = useState<any[]>([]);
   const [isLoadingHistoricoAssinaturas, setIsLoadingHistoricoAssinaturas] = useState(true);
   const [historicoPagamentosData, setHistoricoPagamentosData] = useState<any[]>([]);
