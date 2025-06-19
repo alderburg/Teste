@@ -665,11 +665,9 @@ if (process.env.EXTERNAL_API_URL) {
           }
         }));
 
-        const proxyServer = createServer(proxyApp); // Criar servidor HTTP para o proxy
-
-        // WebSocket Server Setup - usar servidor HTTP existente
+        // WebSocket Server Setup - usar servidor principal ao invés do proxy
         const wss = new WebSocketServer({ 
-          server: proxyServer,
+          server: server,
           path: '/ws'
         });
 
@@ -704,12 +702,15 @@ if (process.env.EXTERNAL_API_URL) {
             console.log(`📊 SERVIDOR: Total de clientes restantes: ${global.wsClients.size}`);
           });
           
+          
           ws.on('error', (error) => {
             console.error('❌ SERVIDOR: Erro no WebSocket:', error);
           });
         });
     
         console.log('🔗 WebSocket server iniciado no caminho /ws');
+
+        const proxyServer = createServer(proxyApp); // Criar servidor HTTP para o proxy
 
         proxyServer.listen(proxyPort, '0.0.0.0', () => {
           log(`Proxy server running on port ${proxyPort}, forwarding to port ${port}`);

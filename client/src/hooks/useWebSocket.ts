@@ -180,8 +180,8 @@ export function useWebSocket() {
 
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.hostname;
-        // No Replit, sempre usar porta 3000 (proxy)
-        const wsPort = '3000';
+        // No Replit, usar a porta atual da aplicação
+        const wsPort = window.location.port || (protocol === 'wss:' ? '443' : '80');
 
         const wsUrl = `${protocol}//${host}:${wsPort}/ws`;
         console.log('🔍 CLIENTE: URL WebSocket calculada:', wsUrl);
@@ -195,11 +195,13 @@ export function useWebSocket() {
       let socket: WebSocket;
 
       try {
+        console.log('🔄 CLIENTE: Tentando conectar WebSocket em:', wsUrl);
         socket = new WebSocket(wsUrl);
         socketRef.current = socket;
         (window as any)[connectionKey] = socket; // Armazenar globalmente
+        console.log('✅ CLIENTE: WebSocket criado com sucesso');
       } catch (connectionError) {
-        console.error('Erro ao criar conexão WebSocket:', connectionError);
+        console.error('❌ CLIENTE: Erro ao criar conexão WebSocket:', connectionError);
         setConnected(false);
         return;
       }
@@ -207,6 +209,7 @@ export function useWebSocket() {
       // Configurar listeners
       socket.addEventListener('open', () => {
         console.log('🔗 CLIENTE: WebSocket conectado com sucesso');
+        console.log('🔗 CLIENTE: URL de conexão:', wsUrl);
         setConnected(true);
         setReconnectAttempts(0);
         
@@ -238,8 +241,19 @@ export function useWebSocket() {
           const customEvent = new CustomEvent('websocket-message-received', { detail: data });
           window.dispatchEvent(customEvent);
         } catch (error) {
-          console.error('Erro ao processar mensagem do WebSocket:', error);
+          console.error('❌ CLIENTE: Erro ao processar mensagem do WebSocket:', error);
         }
+      });
+
+      socket.addEventListener('error', (error) => {
+        console.error('❌ CLIENTE: Erro na conexão WebSocket:', error);
+        console.error('❌ CLIENTE: URL que falhou:', wsUrl);
+        setConnected(false);
+      });
+
+      socket.addEventListener('close', (event) => {
+        console.log('❌ CLIENTE: WebSocket desconectado:', event.code, event.reason);
+        setConnected(false);
       });
 
       // Função para tentar reconectar
