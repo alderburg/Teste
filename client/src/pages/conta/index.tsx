@@ -3587,8 +3587,8 @@ export default function MinhaContaPage() {
                     ) : (
                       // Verificar diferentes estruturas de dados possíveis
                       (() => {
-                        const pagamentos = historicoPagamentos?.data || 
-                                         (Array.isArray(historicoPagamentos) ? historicoPagamentos : []);
+                        const pagamentos = historicoPagamentosData?.data || 
+                                         (Array.isArray(historicoPagamentosData) ? historicoPagamentosData : []);
 
                         if (pagamentos.length > 0) {
                           // Calcular paginação
@@ -3816,9 +3816,9 @@ export default function MinhaContaPage() {
                           </div>
                         ))}
                       </div>
-                    ) : historicoAssinaturas?.success && historicoAssinaturas?.data?.length > 0 ? (
+                    ) : historicoAssinaturasData?.success && historicoAssinaturasData?.data?.length > 0 ? (
                       (() => {
-                        const assinaturas = historicoAssinaturas.data;
+                        const assinaturas = historicoAssinaturasData.data;
 
                         // Calcular paginação
                         const totalPagesAssinaturas = Math.ceil(assinaturas.length / itemsPerPageAssinaturas);
