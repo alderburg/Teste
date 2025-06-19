@@ -696,29 +696,24 @@ if (process.env.EXTERNAL_API_URL) {
           path: '/ws',
           clientTracking: true,
           perMessageDeflate: false,
-          // Configurações específicas para Replit
-          maxPayload: 16 * 1024, // 16KB
-          skipUTF8Validation: false,
-          // Headers para CORS no WebSocket
-          verifyClient: (info) => {
-            console.log('🔍 WebSocket verificando cliente:', {
-              origin: info.origin,
-              host: info.req.headers.host,
-              userAgent: info.req.headers['user-agent']?.substring(0, 50)
-            });
-            return true; // Aceitar todas as conexões por agora
-          }
+          maxPayload: 16 * 1024,
+          skipUTF8Validation: false
         });
+
+        console.log('🔗 Configurando WebSocket Server no Replit...');
 
         wss.on('connection', (ws, req) => {
           const clientInfo = {
             ip: req.socket.remoteAddress,
             userAgent: req.headers['user-agent']?.substring(0, 50),
             host: req.headers.host,
-            origin: req.headers.origin
+            origin: req.headers.origin,
+            url: req.url
           };
           
-          console.log('✅ WebSocket conectado:', clientInfo);
+          console.log('✅ WebSocket CONECTADO COM SUCESSO:', clientInfo);
+          console.log(`🔗 Total de clientes WebSocket: ${wss.clients.size + 1}`);
+          
           global.wsClients.add(ws);
 
           // Configurar propriedades do WebSocket
@@ -779,13 +774,17 @@ if (process.env.EXTERNAL_API_URL) {
           });
         });
 
-        // Heartbeat otimizado para Replit (mais frequente e robusto)
+        // Heartbeat otimizado para Replit
         const heartbeatInterval = setInterval(() => {
-          console.log(`💓 Heartbeat: ${wss.clients.size} clientes ativos`);
+          const activeClients = Array.from(wss.clients).filter(ws => ws.readyState === 1);
+          console.log(`💓 Heartbeat: ${activeClients.length} clientes ativos de ${wss.clients.size} total`);
+          
+          if (activeClients.length > 0) {
+            console.log('✅ WebSocket funcionando - clientes conectados!');
+          }
           
           wss.clients.forEach((ws) => {
-            if (ws.readyState !== 1) { // Não está OPEN
-              console.log('🔌 Removendo cliente desconectado');
+            if (ws.readyState !== 1) {
               global.wsClients.delete(ws);
               return;
             }
@@ -796,7 +795,6 @@ if (process.env.EXTERNAL_API_URL) {
               return ws.terminate();
             }
             
-            // Marcar como não vivo e enviar ping
             ws.isAlive = false;
             try {
               ws.ping();
@@ -806,7 +804,7 @@ if (process.env.EXTERNAL_API_URL) {
               ws.terminate();
             }
           });
-        }, 20000); // 20 segundos para Replit (mais frequente)
+        }, 20000);
 
         wss.on('close', () => {
           clearInterval(heartbeatInterval);

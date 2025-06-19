@@ -313,20 +313,11 @@ export function useWebSocket() {
       const getWebSocketUrl = () => {
         if (typeof window === 'undefined') return '';
 
-        // No Replit, detectar automaticamente o protocolo e host corretos
-        const isReplit = window.location.hostname.includes('replit.dev') || 
-                         window.location.hostname.includes('janeway.replit.dev');
+        // Para Replit, usar sempre o protocolo seguro e host atual
+        const protocol = 'wss:';
+        const host = window.location.host;
         
-        if (isReplit) {
-          // Para Replit, usar sempre wss e a URL completa do domínio atual
-          const currentUrl = window.location.href;
-          const baseUrl = currentUrl.split('/')[0] + '//' + window.location.host;
-          return `wss://${window.location.host}/ws`;
-        } else {
-          // Para desenvolvimento local
-          const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-          return `${protocol}//${window.location.host}/ws`;
-        }
+        return `${protocol}//${host}/ws`;
       };
 
       const wsUrl = getWebSocketUrl();
