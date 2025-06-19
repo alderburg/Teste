@@ -14,7 +14,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { isMobileDevice } from "@/lib/utils";
 import MobileContaPage from "./mobile-conta";
 import InputMask from "react-input-mask";
-import websocketService from "@/services/websocketService";
 import { Loader2, Shield, User, Clock } from "lucide-react";
 import PaymentModal from "@/components/planos/PaymentModal";
 import { Separator } from "@/components/ui/separator";
@@ -1375,21 +1374,31 @@ export default function MinhaContaPage() {
     }
   };
 
-  // Mutation para definir um endereço como principal
-  const setEnderecoPrincipalMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await apiRequest("POST", `/api/enderecos/${id}/principal`, {});
-      if (!res.ok) {
-        if (res.status === 404) {
+  // Função para definir um endereço como principal - WebSocket
+  const setEnderecoPrincipalMutation = async (id: number) => {
+    try {
+      const response = await fetch(`/api/enderecos/${id}/principal`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
           throw new Error("Endereço não encontrado");
         }
-        const jsonResponse = await res.json().catch(() => ({}));
+        const jsonResponse = await response.json().catch(() => ({}));
         throw new Error(jsonResponse.message || "Erro desconhecido ao definir endereço como principal");
       }
-      return res.json();
-    },
-    onSuccess: (principalData) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/enderecos", user?.id] });
+
+      const principalData = await response.json();
+      
+      // Atualizar dados locais
+      setEnderecosData(prev => prev.map(endereco => ({
+        ...endereco,
+        principal: endereco.id === id
+      })));
+
       toast({
         title: "Endereço principal atualizado",
         description: "O endereço foi definido como principal com sucesso",
@@ -1397,140 +1406,164 @@ export default function MinhaContaPage() {
         className: "bg-white border-gray-200",
       });
 
-      // Notificar outros clientes via WebSocket
-      if (websocketService) {
-        websocketService.notify('enderecos', 'update', principalData, user?.id);
-      }
-    },
-    onError: (error: any) => {
+      return principalData;
+    } catch (error: any) {
       toast({
         title: "Erro ao definir endereço principal",
         description: error.message,
         variant: "destructive",
       });
-    },
-  });
+      throw error;
+    }
+  };
 
-  // Mutation para criar um novo contato
-  const createContatoMutation = useMutation({
-    mutationFn: async (data: ContatoFormValues) => {
+  // Função para criar um novo contato - WebSocket
+  const createContatoMutation = async (data: ContatoFormValues) => {
+    try {
       const payload = {
         ...data,
         userId: user?.id
       };
-      const res = await apiRequest("POST", `/api/contatos`, payload);
-      return res.json();
-    },
-    onSuccess: (newContato) => {
+      
+      const response = await fetch(`/api/contatos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erro ao criar contato: ${response.status}`);
+      }
+
+      const newContato = await response.json();
+      
+      // Atualizar dados locais
+      setContatosData(prev => [...prev, newContato]);
+      
       toast({
         title: "Contato adicionado",
         description: "O contato foi adicionado com sucesso",
         variant: "default",
         className: "bg-white border-gray-200",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/contatos", user?.id] });
 
-      // Notificar outros clientes via WebSocket
-      if (websocketService) {
-        websocketService.notify('contatos', 'create', newContato, user?.id);
-      }
-    },
-    onError: (error: any) => {
+      return newContato;
+    } catch (error: any) {
       toast({
         title: "Erro ao adicionar contato",
         description: error.message,
         variant: "destructive",
       });
-    },
-  });
+      throw error;
+    }
+  };
 
-  // Mutation para atualizar um contato existente
-  const updateContatoMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number, data: ContatoFormValues }) => {
-      const res = await apiRequest("PUT", `/api/contatos/${id}`, data);
-      if (!res.ok) {
-        if (res.status === 404) {
+  // Função para atualizar um contato existente - WebSocket
+  const updateContatoMutation = async ({ id, data }: { id: number, data: ContatoFormValues }) => {
+    try {
+      const response = await fetch(`/api/contatos/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
           throw new Error("Contato não encontrado");
         }
-        const jsonResponse = await res.json().catch(() => ({}));
+        const jsonResponse = await response.json().catch(() => ({}));
         throw new Error(jsonResponse.message || "Erro desconhecido ao atualizar contato");
       }
-      return res.json();
-    },
-    onSuccess: (updatedContato) => {
+
+      const updatedContato = await response.json();
+      
+      // Atualizar dados locais
+      setContatosData(prev => prev.map(contato => 
+        contato.id === id ? updatedContato : contato
+      ));
+
       toast({
         title: "Contato atualizado",
         description: "O contato foi atualizado com sucesso",
         variant: "default",
         className: "bg-white border-gray-200",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/contatos", user?.id] });
 
-      // Notificar outros clientes via WebSocket
-      if (websocketService) {
-        websocketService.notify('contatos', 'update', updatedContato, user?.id);
-      }
-    },
-    onError: (error: any) => {
+      return updatedContato;
+    } catch (error: any) {
       toast({
         title: "Erro ao atualizar contato",
         description: error.message,
         variant: "destructive",
       });
-    },
-  });
+      throw error;
+    }
+  };
 
-  // Mutation para excluir um contato
-  const deleteContatoMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await apiRequest("DELETE", `/api/contatos/${id}`, {});
-      if (!res.ok) {
-        if (res.status === 404) {
+  // Função para excluir um contato - WebSocket
+  const deleteContatoMutation = async (id: number) => {
+    try {
+      const response = await fetch(`/api/contatos/${id}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
           throw new Error("Contato não encontrado");
         }
-        const jsonResponse = await res.json().catch(() => ({}));
+        const jsonResponse = await response.json().catch(() => ({}));
         throw new Error(jsonResponse.message || "Erro desconhecido ao excluir contato");
       }
-      return res.json();
-    },
-    onSuccess: (deletedData) => {
+
+      // Atualizar dados locais
+      setContatosData(prev => prev.filter(contato => contato.id !== id));
+
       toast({
         title: "Contato excluído",
         description: "O contato foi excluído com sucesso",
         variant: "default",
         className: "bg-white border-gray-200",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/contatos", user?.id] });
 
-      // Notificar outros clientes via WebSocket
-      if (websocketService) {
-        websocketService.notify('contatos', 'delete', { id: deletedData?.id }, user?.id);
-      }
-    },
-    onError: (error: any) => {
+      return { id };
+    } catch (error: any) {
       toast({
         title: "Erro ao excluir contato",
         description: error.message,
         variant: "destructive",
       });
-    },
-  });
+      throw error;
+    }
+  };
 
-  // Mutation para definir um contato como principal
-  const setContatoPrincipalMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await apiRequest("POST", `/api/contatos/${id}/principal`, {});
-      if (!res.ok) {
-        if (res.status === 404) {
+  // Função para definir um contato como principal - WebSocket
+  const setContatoPrincipalMutation = async (id: number) => {
+    try {
+      const response = await fetch(`/api/contatos/${id}/principal`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
           throw new Error("Contato não encontrado");
         }
-        const jsonResponse = await res.json().catch(() => ({}));
+        const jsonResponse = await response.json().catch(() => ({}));
         throw new Error(jsonResponse.message || "Erro desconhecido ao definir contato como principal");
       }
-      return res.json();
-    },
-    onSuccess: (principalData) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/contatos", user?.id] });
+
+      const principalData = await response.json();
+      
+      // Atualizar dados locais
+      setContatosData(prev => prev.map(contato => ({
+        ...contato,
+        principal: contato.id === id
+      })));
+
       toast({
         title: "Contato principal atualizado",
         description: "O contato foi definido como principal com sucesso",
@@ -1538,149 +1571,173 @@ export default function MinhaContaPage() {
         className: "bg-white border-gray-200",
       });
 
-      // Notificar outros clientes via WebSocket
-      if (websocketService) {
-        websocketService.notify('contatos', 'update', principalData, user?.id);
-      }
-    },
-    onError: (error: any) => {
+      return principalData;
+    } catch (error: any) {
       toast({
         title: "Erro ao definir contato principal",
         description: error.message,
         variant: "destructive",
       });
-    },
-  });
+      throw error;
+    }
+  };
 
-  // Mutation para criar um novo usuário adicional
-  const createUsuarioMutation = useMutation({
-    mutationFn: async (data: UsuarioFormValues) => {
+  // Função para criar um novo usuário adicional - WebSocket
+  const createUsuarioMutation = async (data: UsuarioFormValues) => {
+    try {
       const payload = {
         ...data,
         userId: user?.id
       };
-      const res = await apiRequest("POST", `/api/usuarios-adicionais`, payload);
-      return res.json();
-    },
-    onSuccess: (newUsuario) => {
+      
+      const response = await fetch(`/api/usuarios-adicionais`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erro ao criar usuário: ${response.status}`);
+      }
+
+      const newUsuario = await response.json();
+      
+      // Atualizar dados locais
+      setUsuariosData(prev => [...prev, newUsuario]);
+      
       toast({
         title: "Usuário adicionado",
         description: "O usuário foi adicionado com sucesso",
         variant: "default",
         className: "bg-white border-gray-200",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/usuarios-adicionais", user?.id] });
 
-      // Notificar outros clientes via WebSocket
-      if (websocketService) {
-        websocketService.notify('usuarios_adicionais', 'create', newUsuario, user?.id);
-      }
-    },
-    onError: (error: any) => {
+      return newUsuario;
+    } catch (error: any) {
       toast({
         title: "Erro ao adicionar usuário",
         description: error.message,
         variant: "destructive",
       });
-    },
-  });
+      throw error;
+    }
+  };
 
-  // Mutation para atualizar um usuário adicional existente
-  const updateUsuarioMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number, data: UsuarioFormValues }) => {
-      const res = await apiRequest("PUT", `/api/usuarios-adicionais/${id}`, data);
-      if (!res.ok) {
-        if (res.status === 404) {
+  // Função para atualizar um usuário adicional existente - WebSocket
+  const updateUsuarioMutation = async ({ id, data }: { id: number, data: UsuarioFormValues }) => {
+    try {
+      const response = await fetch(`/api/usuarios-adicionais/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
           throw new Error("Usuário não encontrado");
         }
-        const jsonResponse = await res.json().catch(() => ({}));
+        const jsonResponse = await response.json().catch(() => ({}));
         throw new Error(jsonResponse.message || "Erro desconhecido ao atualizar usuário");
       }
-      return res.json();
-    },
-    onSuccess: (updatedUsuario) => {
+
+      const updatedUsuario = await response.json();
+      
+      // Atualizar dados locais
+      setUsuariosData(prev => prev.map(usuario => 
+        usuario.id === id ? updatedUsuario : usuario
+      ));
+
       toast({
         title: "Usuário atualizado",
         description: "O usuário foi atualizado com sucesso",
         variant: "default",
         className: "bg-white border-gray-200",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/usuarios-adicionais", user?.id] });
 
-      // Notificar outros clientes via WebSocket
-      if (websocketService) {
-        websocketService.notify('usuarios_adicionais', 'update', updatedUsuario, user?.id);
-      }
-    },
-    onError: (error: any) => {
+      return updatedUsuario;
+    } catch (error: any) {
       toast({
         title: "Erro ao atualizar usuário",
         description: error.message,
         variant: "destructive",
       });
-    },
-  });
+      throw error;
+    }
+  };
 
-  // Mutation para excluir um usuário adicional
-  const deleteUsuarioMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await apiRequest("DELETE", `/api/usuarios-adicionais/${id}`, {});
-      if (!res.ok) {
-        if (res.status === 404) {
+  // Função para excluir um usuário adicional - WebSocket
+  const deleteUsuarioMutation = async (id: number) => {
+    try {
+      const response = await fetch(`/api/usuarios-adicionais/${id}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
           throw new Error("Usuário não encontrado");
         }
-        const jsonResponse = await res.json().catch(() => ({}));
+        const jsonResponse = await response.json().catch(() => ({}));
         throw new Error(jsonResponse.message || "Erro desconhecido ao excluir usuário");
       }
-      return res.json();
-    },
-    onSuccess: (deletedData) => {
+
+      // Atualizar dados locais
+      setUsuariosData(prev => prev.filter(usuario => usuario.id !== id));
+
       toast({
         title: "Usuário excluído",
         description: "O usuário foi excluído com sucesso",
         variant: "default",
         className: "bg-white border-gray-200",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/usuarios-adicionais", user?.id] });
 
-      // Notificar outros clientes via WebSocket
-      if (websocketService) {
-        websocketService.notify('usuarios_adicionais', 'delete', { id: deletedData?.id }, user?.id);
-      }
-    },
-    onError: (error: any) => {
+      return { id };
+    } catch (error: any) {
       toast({
         title: "Erro ao excluir usuário",
         description: error.message,
         variant: "destructive",
       });
-    },
-  });
+      throw error;
+    }
+  };
 
-  // Mutation para upload de logo
-  const uploadLogoMutation = useMutation({
-    mutationFn: async (formData: FormData) => {
-      const res = await apiRequest("POST", `/api/minha-conta/upload-logo`, formData);
-      return res.json();
-    },
-    onSuccess: (data) => {
+  // Função para upload de logo - WebSocket
+  const uploadLogoMutation = async (formData: FormData) => {
+    try {
+      const response = await fetch(`/api/minha-conta/upload-logo`, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erro ao fazer upload: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
       toast({
         title: "Logo atualizado",
         description: "Seu logo foi atualizado com sucesso",
         variant: "default",
         className: "bg-white border-gray-200",
       });
+      
       perfilForm.setValue("logoUrl", data.logoUrl);
-      queryClient.invalidateQueries({ queryKey: ["/api/minha-conta/perfil"] });
-    },
-    onError: (error: any) => {
+      
+      return data;
+    } catch (error: any) {
       toast({
         title: "Erro ao fazer upload do logo",
         description: error.message,
         variant: "destructive",
       });
-    },
-  });
+      throw error;
+    }
+  };
 
   // Efeito para escutar mudanças na URL e atualizar a aba ativa
   useEffect(() => {
@@ -2053,7 +2110,7 @@ export default function MinhaContaPage() {
   }, [usuariosData]);
 
   // Função para lidar com upload de imagem
-  const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -2081,12 +2138,17 @@ export default function MinhaContaPage() {
 
     // Upload do arquivo
     setIsUploading(true);
-    const formData = new FormData();
-    formData.append('logo', file);
-    formData.append('userId', user?.id?.toString() || "0");
+    try {
+      const formData = new FormData();
+      formData.append('logo', file);
+      formData.append('userId', user?.id?.toString() || "0");
 
-    uploadLogoMutation.mutate(formData);
-    setIsUploading(false);
+      await uploadLogoMutation(formData);
+    } catch (error) {
+      // Erro já tratado na função uploadLogoMutation
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   // Função para remover o logo
@@ -2172,7 +2234,7 @@ export default function MinhaContaPage() {
   };
 
   // Função para salvar o formulário de perfil
-  const handleSavePerfil = (formData: PerfilFormValues) => {
+  const handleSavePerfil = async (formData: PerfilFormValues) => {
     try {
       console.log("Salvando dados do perfil:", formData);
 
@@ -2184,7 +2246,7 @@ export default function MinhaContaPage() {
         }
 
         console.log("Dados validados, enviando para o backend:", formData);
-        updatePerfilMutation.mutate(formData);
+        await updatePerfilMutation(formData);
       }
     } catch (error: any) {
       console.error("Erro ao salvar perfil:", error);
@@ -2197,19 +2259,19 @@ export default function MinhaContaPage() {
   };
 
   // Função para adicionar um novo endereço
-  const handleAddEndereco = (formData: EnderecoFormValues) => {
+  const handleAddEndereco = async (formData: EnderecoFormValues) => {
     try {
       // Se estamos no modo edição, atualize o endereço existente
       if (editingEndereco && (editingEndereco as any).id) {
-        // Usar mutação para atualizar no banco de dados
-        updateEnderecoMutation.mutate({ 
+        // Usar função para atualizar no banco de dados
+        await updateEnderecoMutation({ 
           id: (editingEndereco as any).id, 
           data: formData 
         });
         setEditingEndereco(null);
       } else {
-        // Usar mutação para adicionar no banco de dados
-        createEnderecoMutation.mutate(formData);
+        // Usar função para adicionar no banco de dados
+        await createEnderecoMutation(formData);
       }
 
       // Limpe o formulário
@@ -2246,11 +2308,11 @@ export default function MinhaContaPage() {
   };
 
   // Função para excluir um endereço
-  const handleDeleteEndereco = (endereco: EnderecoFormValues) => {
+  const handleDeleteEndereco = async (endereco: EnderecoFormValues) => {
     if (window.confirm("Tem certeza que deseja excluir este endereço?")) {
       if ((endereco as any).id) {
-        // Usar mutação para excluir do banco de dados
-        deleteEnderecoMutation.mutate((endereco as any).id);
+        // Usar função para excluir do banco de dados
+        await deleteEnderecoMutation((endereco as any).id);
       } else {
         // Se o endereço ainda não tem ID (não foi salvo no banco), apenas remova localmente
         setEnderecos(prev => prev.filter(e => e !== endereco));
@@ -2259,9 +2321,9 @@ export default function MinhaContaPage() {
   };
 
   // Função para definir um endereço como principal
-  const handleSetEnderecoPrincipal = (endereco: EnderecoFormValues) => {
+  const handleSetEnderecoPrincipal = async (endereco: EnderecoFormValues) => {
     if ((endereco as any).id) {
-      setEnderecoPrincipalMutation.mutate((endereco as any).id);
+      await setEnderecoPrincipalMutation((endereco as any).id);
     }
   };
 
@@ -2272,7 +2334,7 @@ export default function MinhaContaPage() {
   };
 
   // Função para adicionar um novo contato
-  const handleAddContato = (formData: ContatoFormValues) => {
+  const handleAddContato = async (formData: ContatoFormValues) => {
     try {
       // Verifica se o email é válido antes de salvar
       if (!isValidEmail(formData.email) && formData.email.trim() !== '') {
@@ -2286,15 +2348,15 @@ export default function MinhaContaPage() {
 
       // Se estamos no modo edição, atualize o contato existente
       if (editingContato && (editingContato as any).id) {
-        // Usar mutação para atualizar no banco de dados
-        updateContatoMutation.mutate({ 
+        // Usar função para atualizar no banco de dados
+        await updateContatoMutation({ 
           id: (editingContato as any).id, 
           data: formData 
         });
         setEditingContato(null);
       } else {
-        // Usar mutação para adicionar no banco de dados
-        createContatoMutation.mutate(formData);
+        // Usar função para adicionar no banco de dados
+        await createContatoMutation(formData);
       }
 
       // Limpe o formulário
@@ -2329,11 +2391,11 @@ export default function MinhaContaPage() {
   };
 
   // Função para excluir um contato
-  const handleDeleteContato = (contato: ContatoFormValues) => {
+  const handleDeleteContato = async (contato: ContatoFormValues) => {
     if (window.confirm("Tem certeza que deseja excluir este contato?")) {
       if ((contato as any).id) {
-        // Usar mutação para excluir do banco de dados
-        deleteContatoMutation.mutate((contato as any).id);
+        // Usar função para excluir do banco de dados
+        await deleteContatoMutation((contato as any).id);
       } else {
         // Se o contato ainda não tem ID (não foi salvo no banco), apenas remova localmente
         setContatos(prev => prev.filter(c => c !== contato));
@@ -2342,9 +2404,9 @@ export default function MinhaContaPage() {
   };
 
   // Função para definir um contato como principal
-  const handleSetContatoPrincipal = (contato: ContatoFormValues) => {
+  const handleSetContatoPrincipal = async (contato: ContatoFormValues) => {
     if ((contato as any).id) {
-      setContatoPrincipalMutation.mutate((contato as any).id);
+      await setContatoPrincipalMutation((contato as any).id);
     }
   };
 
@@ -2373,7 +2435,7 @@ export default function MinhaContaPage() {
   };
 
   // Função para adicionar um novo usuário
-  const handleAddUsuario = (formData: UsuarioFormValues) => {
+  const handleAddUsuario = async (formData: UsuarioFormValues) => {
     // Validar campos antes de submeter
     const isNomeValido = formData.nome.trim() !== '';
     const isEmailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email);
@@ -2423,15 +2485,15 @@ export default function MinhaContaPage() {
     try {
       // Se estamos no modo edição, atualize o usuário existente
       if (editingUsuario && (editingUsuario as any).id) {
-        // Usar mutação para atualizar no banco de dados
-        updateUsuarioMutation.mutate({ 
+        // Usar função para atualizar no banco de dados
+        await updateUsuarioMutation({ 
           id: (editingUsuario as any).id, 
           data: formData 
         });
         setEditingUsuario(null);
       } else {
-        // Usar mutação para adicionar no banco de dados
-        createUsuarioMutation.mutate(formData);
+        // Usar função para adicionar no banco de dados
+        await createUsuarioMutation(formData);
       }
 
       // Limpe o formulário
@@ -2479,11 +2541,11 @@ export default function MinhaContaPage() {
   };
 
   // Função para excluir um usuário
-  const handleDeleteUsuario = (usuario: UsuarioFormValues) => {
+  const handleDeleteUsuario = async (usuario: UsuarioFormValues) => {
     if (window.confirm("Tem certeza que deseja remover este usuário?")) {
       if ((usuario as any).id) {
-        // Usar mutação para excluir do banco de dados
-        deleteUsuarioMutation.mutate((usuario as any).id);
+        // Usar função para excluir do banco de dados
+        await deleteUsuarioMutation((usuario as any).id);
       } else {
         // Se o usuário ainda não tem ID (não foi salvo no banco), apenas remova localmente
         setUsuarios(prev => prev.filter(u => u !== usuario));
@@ -3282,14 +3344,14 @@ export default function MinhaContaPage() {
                           type="button" 
                           className="bg-purple-600 hover:bg-purple-700 transition-all px-6"
                           size="lg"
-                          disabled={updatePerfilMutation.isPending}
+                          disabled={isLoadingPerfil}
                           onClick={() => {
                             if (handleValidatePerfilForm()) {
                               perfilForm.handleSubmit(handleSavePerfil)();
                             }
                           }}
                         >
-                          {updatePerfilMutation.isPending ? (
+                          {isLoadingPerfil ? (
                             <>
                               <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                               Salvando...
