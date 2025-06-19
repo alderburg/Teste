@@ -690,35 +690,67 @@ if (process.env.EXTERNAL_API_URL) {
 
         const proxyServer = createServer(proxyApp); // Criar servidor HTTP para o proxy
 
-        // WebSocket Server Setup - usar servidor HTTP existente
+        // WebSocket Server Setup otimizado para Replit
         const wss = new WebSocketServer({ 
           server: proxyServer,
           path: '/ws',
           clientTracking: true,
-          perMessageDeflate: false
+          perMessageDeflate: false,
+          // Configurações específicas para Replit
+          maxPayload: 16 * 1024, // 16KB
+          skipUTF8Validation: false,
+          // Headers para CORS no WebSocket
+          verifyClient: (info) => {
+            console.log('🔍 WebSocket verificando cliente:', {
+              origin: info.origin,
+              host: info.req.headers.host,
+              userAgent: info.req.headers['user-agent']?.substring(0, 50)
+            });
+            return true; // Aceitar todas as conexões por agora
+          }
         });
 
         wss.on('connection', (ws, req) => {
-          console.log('✅ WebSocket conectado:', req.socket.remoteAddress, 'User-Agent:', req.headers['user-agent']?.substring(0, 50));
+          const clientInfo = {
+            ip: req.socket.remoteAddress,
+            userAgent: req.headers['user-agent']?.substring(0, 50),
+            host: req.headers.host,
+            origin: req.headers.origin
+          };
+          
+          console.log('✅ WebSocket conectado:', clientInfo);
           global.wsClients.add(ws);
 
-          // Configurar keep-alive
+          // Configurar propriedades do WebSocket
           ws.isAlive = true;
+          ws.clientInfo = clientInfo;
+          
+          // Configurar keep-alive
           ws.on('pong', () => {
             ws.isAlive = true;
           });
 
-          // Enviar confirmação imediata
-          try {
-            ws.send(JSON.stringify({
-              type: 'connection_established',
-              message: 'WebSocket conectado com sucesso',
-              timestamp: new Date().toISOString(),
-              clientCount: global.wsClients.size
-            }));
-          } catch (error) {
-            console.error('❌ Erro ao enviar confirmação:', error);
-          }
+          // Enviar confirmação imediata com mais informações
+          const welcomeMessage = {
+            type: 'connection_established',
+            message: 'WebSocket conectado com sucesso no Replit',
+            timestamp: new Date().toISOString(),
+            clientCount: global.wsClients.size,
+            server: 'replit-websocket-v1',
+            environment: process.env.REPLIT_ENVIRONMENT || 'development'
+          };
+
+          // Enviar confirmação de forma mais robusta
+          setTimeout(() => {
+            if (ws.readyState === 1) { // WebSocket.OPEN
+              try {
+                ws.send(JSON.stringify(welcomeMessage));
+                console.log('✅ Confirmação de conexão enviada');
+              } catch (error) {
+                console.error('❌ Erro ao enviar confirmação:', error);
+              }
+            }
+          }, 100); // Pequeno delay para garantir que a conexão está estável
 
           ws.on('message', (message) => {
             try {
@@ -747,19 +779,34 @@ if (process.env.EXTERNAL_API_URL) {
           });
         });
 
-        // Heartbeat para manter conexões vivas
+        // Heartbeat otimizado para Replit (mais frequente e robusto)
         const heartbeatInterval = setInterval(() => {
+          console.log(`💓 Heartbeat: ${wss.clients.size} clientes ativos`);
+          
           wss.clients.forEach((ws) => {
+            if (ws.readyState !== 1) { // Não está OPEN
+              console.log('🔌 Removendo cliente desconectado');
+              global.wsClients.delete(ws);
+              return;
+            }
+            
             if (ws.isAlive === false) {
-              console.log('💔 WebSocket não responsivo - terminando');
+              console.log('💔 Cliente não responsivo - terminando:', ws.clientInfo?.ip);
               global.wsClients.delete(ws);
               return ws.terminate();
             }
             
+            // Marcar como não vivo e enviar ping
             ws.isAlive = false;
-            ws.ping();
+            try {
+              ws.ping();
+            } catch (error) {
+              console.error('❌ Erro ao enviar ping:', error);
+              global.wsClients.delete(ws);
+              ws.terminate();
+            }
           });
-        }, 30000); // 30 segundos
+        }, 20000); // 20 segundos para Replit (mais frequente)
 
         wss.on('close', () => {
           clearInterval(heartbeatInterval);

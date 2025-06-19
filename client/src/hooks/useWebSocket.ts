@@ -313,12 +313,20 @@ export function useWebSocket() {
       const getWebSocketUrl = () => {
         if (typeof window === 'undefined') return '';
 
-        // No Replit, usar URL relativa para evitar problemas com proxy
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = window.location.host;
+        // No Replit, detectar automaticamente o protocolo e host corretos
+        const isReplit = window.location.hostname.includes('replit.dev') || 
+                         window.location.hostname.includes('janeway.replit.dev');
         
-        // Usar a mesma origem da página atual
-        return `${protocol}//${host}/ws`;
+        if (isReplit) {
+          // Para Replit, usar sempre wss e a URL completa do domínio atual
+          const currentUrl = window.location.href;
+          const baseUrl = currentUrl.split('/')[0] + '//' + window.location.host;
+          return `wss://${window.location.host}/ws`;
+        } else {
+          // Para desenvolvimento local
+          const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          return `${protocol}//${window.location.host}/ws`;
+        }
       };
 
       const wsUrl = getWebSocketUrl();
@@ -356,37 +364,44 @@ export function useWebSocket() {
         }
       });
 
-      // Função para tentar reconectar
+      // Função para tentar reconectar com detecção inteligente
       const tryReconnect = () => {
         if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-          // Calculando tempo exponencial de backoff para reconexão
-          const timeout = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
+          // Usar timeout mais agressivo para Replit
+          const baseTimeout = 500; // Começar com 500ms
+          const timeout = Math.min(baseTimeout * Math.pow(1.5, reconnectAttempts), 5000);
 
-          console.log(`Tentando reconexão em ${timeout}ms (tentativa ${reconnectAttempts + 1} de ${MAX_RECONNECT_ATTEMPTS})`);
+          console.log(`🔄 Reconectando WebSocket em ${timeout}ms (${reconnectAttempts + 1}/${MAX_RECONNECT_ATTEMPTS})`);
 
           reconnectTimeoutRef.current = setTimeout(() => {
             setReconnectAttempts(prev => prev + 1);
 
-            // Limpar referência do socket atual
+            // Limpar socket atual
             if (socketRef.current) {
+              try {
+                socketRef.current.close();
+              } catch (e) {
+                // Ignorar erros ao fechar
+              }
               socketRef.current = null;
             }
 
-            // Tentar criar uma nova conexão
-            try {
-              const newSocket = new WebSocket(wsUrl);
-              socketRef.current = newSocket;
+            // Obter nova URL (pode ter mudado)
+            const newWsUrl = getWebSocketUrl();
+            console.log(`🔄 Nova tentativa de conexão para: ${newWsUrl}`);
 
-              // Configurar eventos para o novo socket (recursivamente)
-              setupSocketEvents(newSocket, wsUrl);
+            try {
+              const newSocket = new WebSocket(newWsUrl);
+              socketRef.current = newSocket;
+              setupSocketEvents(newSocket, newWsUrl);
             } catch (reconnectError) {
-              console.error('Erro ao reconectar WebSocket:', reconnectError);
-              // Continuamos tentando reconectar se ainda tivermos tentativas
+              console.error('❌ Erro ao criar nova conexão:', reconnectError);
               tryReconnect();
             }
           }, timeout);
         } else {
-          console.error('Número máximo de tentativas de reconexão atingido');
+          console.error('❌ Máximo de tentativas de reconexão atingido');
+          setConnected(false);
         }
       };
 
