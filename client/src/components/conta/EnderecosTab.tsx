@@ -13,8 +13,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { MapPin, PlusCircle, Edit3, Trash2, Save, X, Building, Home, Briefcase, CheckCircle, AlertTriangle, Loader2, Search } from "lucide-react";
 import { enderecoSchema } from "@/pages/conta/index";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { useWebSocketData } from "@/hooks/useWebSocketData";
 import InputMask from "react-input-mask";
 import { Pagination } from "@/components/Pagination";
 import {
@@ -39,15 +38,18 @@ interface EnderecoFormValues extends z.infer<typeof enderecoSchema> {
 export default function EnderecosTab() {
   const { toast } = useToast();
   const { user } = useAuth();
-  const queryClient = useQueryClient();
 
-  // Query para buscar endereços - seguindo o padrão das outras abas
-  const { 
-    data: enderecosData, 
-    isLoading: isLoadingEnderecos, 
-    refetch: refetchEnderecos 
-  } = useQuery({
-    queryKey: ["/api/enderecos"],
+  // Usar WebSocket para gerenciar dados
+  const {
+    data: enderecosData,
+    loading: isLoadingEnderecos,
+    createItem: createEndereco,
+    updateItem: updateEndereco,
+    deleteItem: deleteEndereco
+  } = useWebSocketData<EnderecoFormValues>({
+    endpoint: '/api/enderecos',
+    resource: 'enderecos'
+  });
     // Permitir sempre buscar dados, seguindo o padrão das abas de Contatos e Usuários
     enabled: true,
     // Configurações para permitir atualização ao trocar de aba

@@ -13,8 +13,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { PlusCircle, Edit3, Trash2, Save, X, Building, CheckCircle, AlertTriangle, Loader2, Phone, Mail, User, Briefcase, Smartphone, Search } from "lucide-react";
 import { contatoSchema } from "@/pages/conta/index";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest, updateCacheItem, addCacheItem, removeCacheItem, updateAllCacheItems, preloadDataToCache } from "@/lib/queryClient";
+import { useWebSocketData } from "@/hooks/useWebSocketData";
 import InputMask from "react-input-mask";
 import { Pagination } from "@/components/Pagination";
 import {
@@ -36,10 +35,11 @@ interface ContatoFormValues extends z.infer<typeof contatoSchema> {
   updatedAt?: string;
 }
 
+export { default as ContatosTabWebSocket } from './ContatosTab-WebSocket';
+
 export default function ContatosTab() {
   const { toast } = useToast();
   const { user } = useAuth();
-  const [contatos, setContatos] = useState<ContatoFormValues[]>([]);
   const [showAddContato, setShowAddContato] = useState(false);
   const [editingContato, setEditingContato] = useState<ContatoFormValues | null>(null);
   // Estado para pesquisa
@@ -48,6 +48,18 @@ export default function ContatosTab() {
   // Estados para paginação
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(6);
+
+  // Usar WebSocket para gerenciar dados
+  const {
+    data: contatos,
+    loading: isLoadingContatos,
+    createItem: createContato,
+    updateItem: updateContato,
+    deleteItem: deleteContato
+  } = useWebSocketData<ContatoFormValues>({
+    endpoint: '/api/contatos',
+    resource: 'contatos'
+  });
   
   // Access the query client
   const queryClient = useQueryClient();

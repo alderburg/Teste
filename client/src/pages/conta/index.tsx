@@ -11,7 +11,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useWebSocketData } from "@/hooks/useWebSocketData";
 import { isMobileDevice } from "@/lib/utils";
 import MobileContaPage from "./mobile-conta";
 import InputMask from "react-input-mask";
@@ -279,9 +279,9 @@ const CountdownTimer = () => {
 
 import { apiRequest } from "@/lib/queryClient";
 // Import dos componentes das abas
-import ContatosTab from "@/components/conta/ContatosTab";
-import EnderecosTab from "@/components/conta/EnderecosTab";
-import { UsuariosTab } from "@/components/conta/UsuariosTab";
+import { ContatosTabWebSocket as ContatosTab } from "@/components/conta/ContatosTab";
+import { default as EnderecosTabWebSocket } from "@/components/conta/EnderecosTab-WebSocket";
+import { default as UsuariosTabWebSocket } from "@/components/conta/UsuariosTab-WebSocket";
 import { PaymentMethodsManager } from "@/components/conta/PaymentMethodsManager";
 import SegurancaTab from "./seguranca-tab";
 import { useCreditBalance } from "@/hooks/use-credit-balance";
@@ -414,7 +414,6 @@ export default function MinhaContaPage() {
     }
   }, [user?.id]);
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   
   // Função para obter a aba ativa a partir dos parâmetros da URL
   const getActiveTabFromURL = () => {
@@ -481,8 +480,6 @@ export default function MinhaContaPage() {
   
   // Função chamada após o pagamento bem-sucedido
   const handlePaymentSuccess = () => {
-    queryClient.refetchQueries({ queryKey: ['/api/minha-assinatura'] });
-    
     toast({
       title: "Pagamento processado com sucesso!",
       description: "Sua assinatura foi renovada. Os dados serão atualizados automaticamente.",
@@ -534,8 +531,7 @@ export default function MinhaContaPage() {
       setCurrentPagePagamentos(1);
       setCurrentPageAssinaturas(1);
       
-      // Refetch da assinatura para garantir dados atualizados
-      refetchAssinatura();
+      // WebSocket irá atualizar automaticamente os dados da assinatura
     } else if (activeTab !== 'financeiro') {
       setShowAddCard(false);
     }
@@ -2147,29 +2143,7 @@ export default function MinhaContaPage() {
   };
 
   // Função para salvar o formulário de perfil
-  const handleSavePerfil = (formData: PerfilFormValues) => {
-    try {
-      console.log("Salvando dados do perfil:", formData);
-      
-      // Valida todos os campos antes de enviar
-      if (handleValidatePerfilForm()) {
-        // Se for pessoa física, garantir que o regime tributário seja nulo/vazio
-        if (formData.tipoPessoa === "fisica") {
-          formData.regimeTributario = "";
-        }
-        
-        console.log("Dados validados, enviando para o backend:", formData);
-        updatePerfilMutation.mutate(formData);
-      }
-    } catch (error: any) {
-      console.error("Erro ao salvar perfil:", error);
-      toast({
-        title: "Erro ao salvar dados",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
+  const handleSavePerfil = handleSavePerfilWebSocket;;
 
   // Função para adicionar um novo endereço
   const handleAddEndereco = (formData: EnderecoFormValues) => {
@@ -3257,7 +3231,7 @@ export default function MinhaContaPage() {
                           type="button" 
                           className="bg-purple-600 hover:bg-purple-700 transition-all px-6"
                           size="lg"
-                          disabled={updatePerfilMutation.isPending}
+                          disabled={isLoadingPerfil}
                           onClick={() => {
                             if (handleValidatePerfilForm()) {
                               perfilForm.handleSubmit(handleSavePerfil)();
@@ -3285,7 +3259,7 @@ export default function MinhaContaPage() {
 
             {/* Tab: Endereços */}
             <TabsContent value="enderecos" className="space-y-4">
-              <EnderecosTab />
+              <EnderecosTabWebSocket />
             </TabsContent>
             
             {/* Tab: Contatos */}
@@ -3294,7 +3268,7 @@ export default function MinhaContaPage() {
             </TabsContent>
             {/* Tab: Usuários */}
             <TabsContent value="usuarios" className="space-y-4">
-              <UsuariosTab />
+              <UsuariosTabWebSocket />
             </TabsContent>
             {/* Tab: Financeiro */}
             <TabsContent value="financeiro" className="space-y-4 relative">

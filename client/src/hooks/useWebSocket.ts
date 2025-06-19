@@ -280,16 +280,9 @@ export function useWebSocket() {
         if (typeof window === 'undefined') return '';
 
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = window.location.hostname;
+        const host = window.location.host; // Inclui porta se existir
         
-        // No Replit, usar domínio completo sem porta
-        if (host.includes('replit.dev')) {
-          return `${protocol}//${host}/ws`;
-        }
-        
-        // Para desenvolvimento local, usar porta específica
-        const wsPort = '3000'; // Sempre usar porta 3000 para WebSocket
-        return `${protocol}//${host}:${wsPort}/ws`;
+        return `${protocol}//${host}/ws`;
       };
 
       const wsUrl = getWebSocketUrl();
@@ -311,6 +304,7 @@ export function useWebSocket() {
       socket.addEventListener('open', () => {
         console.log('WebSocket conectado');
         setConnected(true);
+        setReconnectAttempts(0); // Resetar contador de tentativas ao conectar com sucesso
       });
 
       socket.addEventListener('message', (event) => {

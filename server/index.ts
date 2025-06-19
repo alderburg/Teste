@@ -572,18 +572,39 @@ if (process.env.EXTERNAL_API_URL) {
         timestamp: new Date().toISOString()
       };
 
-      // Enviar para todos os clientes conectados - o frontend filtrará pela sessão
+      let notificationsSent = 0;
+      
+      // Procurar especificamente o cliente com a sessão encerrada
       global.wsClients.forEach((ws: any) => {
         if (ws.readyState === 1) { // WebSocket.OPEN = 1
-          try {
-            ws.send(JSON.stringify(message));
-          } catch (error) {
-            console.error('❌ Erro ao enviar notificação de sessão:', error);
+          const client = clientsInfo.get(ws);
+          
+          // Notificar o cliente específico da sessão encerrada
+          if (client && client.sessionToken === sessionToken) {
+            try {
+              ws.send(JSON.stringify(message));
+              notificationsSent++;
+              console.log(`📤 Notificação enviada para cliente específico: ${client.id} (usuário ${client.userId})`);
+            } catch (error) {
+              console.error('❌ Erro ao enviar notificação de sessão:', error);
+            }
           }
         }
       });
 
-      console.log(`✅ Notificação de sessão encerrada enviada para ${global.wsClients.size} cliente(s)`);
+      if (notificationsSent === 0) {
+        console.log(`⚠️ Cliente com sessão ${sessionToken.substring(0, 8)}... não encontrado entre os ${global.wsClients.size} cliente(s) conectado(s)`);
+        
+        // Debug: mostrar sessões dos clientes conectados
+        global.wsClients.forEach((ws: any) => {
+          const client = clientsInfo.get(ws);
+          if (client && client.authenticated) {
+            console.log(`   - Cliente ${client.id}: sessão ${client.sessionToken?.substring(0, 8)}... (usuário ${client.userId})`);
+          }
+        });
+      } else {
+        console.log(`✅ ${notificationsSent} notificação(ões) de sessão encerrada enviada(s)`);
+      }
     } else {
       console.log(`⚠️ Nenhum cliente WebSocket conectado`);
     }
@@ -715,17 +736,41 @@ if (process.env.EXTERNAL_API_URL) {
           });
 
           // Processar mensagens do cliente
-          ws.on('message', (data) => {
+          ws.on('message', async (data) => {
             try {
               const message = JSON.parse(data.toString());
               const client = clientsInfo.get(ws);
               
-              if (message.type === 'auth' && message.userId) {
-                // Cliente se autenticou
-                client.authenticated = true;
-                client.userId = message.userId;
-                client.sessionToken = message.sessionToken;
-                console.log(`🔐 Cliente ${clientId} autenticado como usuário ${message.userId}`);
+              if (message.type === 'auth' && message.userId && message.sessionToken) {
+                // Verificar se a sessão é válida no banco
+                try {
+                  const sessionQuery = `
+                    SELECT s.sess, s.sid 
+                    FROM session s 
+                    WHERE s.sid = $1 AND s.expire > NOW()
+                  `;
+                  
+                  // Usar connectionManager para executar a query
+                  const sessionResult = await connectionManager.executeQuery(sessionQuery, [message.sessionToken]);
+                  
+                  if (sessionResult.rows.length > 0) {
+                    const sessionData = sessionResult.rows[0].sess;
+                    
+                    if (sessionData.passport?.user === message.userId) {
+                      // Autenticação válida
+                      client.authenticated = true;
+                      client.userId = message.userId;
+                      client.sessionToken = message.sessionToken;
+                      console.log(`✅ Cliente ${clientId} autenticado como usuário ${message.userId} (sessão válida)`);
+                    } else {
+                      console.log(`❌ Cliente ${clientId}: Usuário na sessão não confere (esperado: ${message.userId}, encontrado: ${sessionData.passport?.user})`);
+                    }
+                  } else {
+                    console.log(`❌ Cliente ${clientId}: Sessão ${message.sessionToken.substring(0, 8)}... não encontrada ou expirada`);
+                  }
+                } catch (authError) {
+                  console.error(`❌ Erro ao verificar autenticação para cliente ${clientId}:`, authError);
+                }
               } else if (message.type === 'pong') {
                 // Resposta ao ping
                 client.lastPing = new Date();
@@ -782,9 +827,12 @@ if (process.env.EXTERNAL_API_URL) {
           
           // Mostrar clientes ativos
           if (activeClients.length > 0) {
-            console.log('✅ Clientes ativos:');
+            const authenticatedCount = activeClients.filter(c => c.authenticated).length;
+            console.log(`✅ Clientes ativos: ${activeClients.length} (${authenticatedCount} autenticados)`);
+            
             activeClients.forEach(client => {
-              console.log(`   - ID: ${client.id} | Usuário: ${client.userId} | IP: ${client.ip} | Conectado há: ${client.connectionDuration} | Último ping: ${client.lastPing}`);
+              const authStatus = client.authenticated ? '🔐' : '🔓';
+              console.log(`   ${authStatus} ID: ${client.id} | Usuário: ${client.userId} | IP: ${client.ip} | Conectado há: ${client.connectionDuration} | Último ping: ${client.lastPing}`);
             });
           }
           

@@ -11,7 +11,7 @@ import { changePasswordSchema, enable2FASchema, type ChangePasswordData } from "
 import { Loader2, Shield, LogOut, Smartphone, Eye, EyeOff, AlertTriangle, CheckCircle, X, Lock } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useWebSocketContext } from "@/components/WebSocketProvider";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useWebSocketData } from "@/hooks/useWebSocketData";
 import { useAuth } from "@/hooks/use-auth";
 
 // Definição de tipo para as props do componente

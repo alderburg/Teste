@@ -218,18 +218,32 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
   // Enviar informações de autenticação quando o usuário estiver logado
   useEffect(() => {
     if (connected && user) {
-      const sessionToken = localStorage.getItem('sessionToken') || 
-                           localStorage.getItem('token') || 
-                           document.cookie.split(';').find(c => c.trim().startsWith('sessionToken='))?.split('=')[1] || 
-                           '';
+      // Extrair sessionToken dos cookies
+      const getSessionTokenFromCookie = () => {
+        const cookies = document.cookie.split(';');
+        for (let cookie of cookies) {
+          const [name, value] = cookie.trim().split('=');
+          if (name === 'connect.sid') {
+            return decodeURIComponent(value);
+          }
+        }
+        return null;
+      };
 
-      console.log(`🔐 Enviando autenticação WebSocket para usuário ${user.id}`);
+      const sessionToken = getSessionTokenFromCookie();
 
-      sendMessage({
-        type: 'auth',
-        userId: user.id,
-        sessionToken: sessionToken
-      });
+      if (sessionToken) {
+        console.log(`🔐 Enviando autenticação WebSocket para usuário ${user.id}`);
+        console.log(`🔑 Session ID: ${sessionToken.substring(0, 8)}...`);
+
+        sendMessage({
+          type: 'auth',
+          userId: user.id,
+          sessionToken: sessionToken
+        });
+      } else {
+        console.warn('⚠️ Session token não encontrado nos cookies');
+      }
     }
   }, [connected, user, sendMessage]);
 

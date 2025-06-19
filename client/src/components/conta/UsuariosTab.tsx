@@ -11,8 +11,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { AlertTriangle, Edit, Lock, Plus, PlusCircle, Save, Shield, Trash, Trash2, User, UserPlus, X, Search } from "lucide-react";
 import { usuarioSchema } from "@/pages/conta/index";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { useWebSocketData } from "@/hooks/useWebSocketData";
 import { Pagination } from "@/components/Pagination";
 import {
   AlertDialog,
@@ -47,7 +46,18 @@ export function UsuariosTab() {
   const { toast } = useToast();
   const [showAddUser, setShowAddUser] = useState(false);
   const [editingUsuario, setEditingUsuario] = useState<UsuarioFormValues | null>(null);
-  const [usuarios, setUsuarios] = useState<UsuarioFormValues[]>([]);
+
+  // Usar WebSocket para gerenciar dados
+  const {
+    data: usuarios,
+    loading: isLoadingUsuarios,
+    createItem: createUsuario,
+    updateItem: updateUsuario,
+    deleteItem: deleteUsuario
+  } = useWebSocketData<UsuarioFormValues>({
+    endpoint: '/api/usuarios-adicionais',
+    resource: 'usuarios_adicionais'
+  });
 
   // Estado adicional para controlar a exibição de loading entre abas
   const [initialLoading, setInitialLoading] = useState(true);
