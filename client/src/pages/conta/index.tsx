@@ -2,93 +2,53 @@ import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import { z } from "zod";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useWebSocketData } from "@/hooks/useWebSocketData";
 import { isMobileDevice } from "@/lib/utils";
 import MobileContaPage from "./mobile-conta";
-import InputMask from "react-input-mask";
-import websocketService from "@/services/websocketService";
-import { changePasswordSchema, enable2FASchema, type ChangePasswordData, type UserSession } from "@shared/schema";
-import { Loader2, Shield, User, LogOut, UserCheck, Settings, Key, Smartphone, ChevronLeft, ChevronRight, Clock } from "lucide-react";
-import PaymentModal from "@/components/planos/PaymentModal";
-import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Pagination } from '@/components/Pagination';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-
-// Importações do Stripe
-import { loadStripe } from '@stripe/stripe-js';
-import {
-  Elements,
-  PaymentElement,
-  useStripe,
-  useElements
-} from '@stripe/react-stripe-js';
-
-// Carrega o Stripe fora do componente de renderização
-if (!import.meta.env.VITE_STRIPE_PUBLIC_KEY) {
-  throw new Error('Chave pública do Stripe não configurada (VITE_STRIPE_PUBLIC_KEY)');
-}
-
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
+import { Loader2 } from "lucide-react";
 
 export default function MinhaContaPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  
-  // Buscar dados do perfil via WebSocket
-  const { data: perfilArray, loading: isLoadingPerfil } = useWebSocketData({
-    endpoint: '/api/auth/user',
-    resource: 'perfil',
-    autoFetch: true
-  });
-  
-  // Extrair primeiro item do array (perfil é único)
-  const perfilData = perfilArray && perfilArray.length > 0 ? perfilArray[0] : null;
-
-  // Função para salvar perfil via WebSocket
-  const handleSavePerfilWebSocket = async (data: any) => {
-    try {
-      websocketService.send({
-        type: 'SALVAR_PERFIL',
-        data: data
-      });
-      
-      toast({
-        title: "Sucesso",
-        description: "Perfil atualizado com sucesso!",
-      });
-    } catch (error: any) {
-      console.error("Erro ao atualizar perfil:", error);
-      toast({
-        title: "Erro",
-        description: error.message || "Erro ao atualizar perfil",
-        variant: "destructive",
-      });
-    }
-  };
+  const [isLoading, setIsLoading] = useState(true);
+  const [perfilData, setPerfilData] = useState<any>(null);
 
   // Verificar se é mobile
   if (isMobileDevice()) {
     return <MobileContaPage />;
   }
+
+  // Carregar dados do perfil
+  useEffect(() => {
+    const loadPerfilData = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch('/api/auth/user', {
+          credentials: 'include'
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setPerfilData(data);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar dados do perfil:', error);
+        toast({
+          title: "Erro",
+          description: "Erro ao carregar dados do perfil",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (user) {
+      loadPerfilData();
+    }
+  }, [user, toast]);
 
   return (
     <div className="container mx-auto p-6">
@@ -117,7 +77,7 @@ export default function MinhaContaPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {isLoadingPerfil ? (
+                {isLoading ? (
                   <div className="flex items-center justify-center p-8">
                     <Loader2 className="h-6 w-6 animate-spin" />
                     <span className="ml-2">Carregando dados do perfil...</span>
@@ -127,17 +87,32 @@ export default function MinhaContaPage() {
                     <div>
                       <label className="text-sm font-medium">Razão Social</label>
                       <Input 
-                        value={perfilData?.razaoSocial || ''} 
+                        value={perfilData?.razaoSocial || perfilData?.nome || ''} 
                         placeholder="Digite a razão social"
-                        disabled
+                        readOnly
                       />
                     </div>
                     <div>
                       <label className="text-sm font-medium">Nome Fantasia</label>
                       <Input 
-                        value={perfilData?.nomeFantasia || ''} 
+                        value={perfilData?.nomeFantasia || perfilData?.email || ''} 
                         placeholder="Digite o nome fantasia"
-                        disabled
+                        readOnly
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Email</label>
+                      <Input 
+                        value={perfilData?.email || ''} 
+                        placeholder="Email"
+                        readOnly
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Status</label>
+                      <Input 
+                        value={perfilData?.ativo ? "Ativo" : "Inativo"} 
+                        readOnly
                       />
                     </div>
                   </div>
@@ -156,7 +131,7 @@ export default function MinhaContaPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-center text-muted-foreground">
-                  Funcionalidade de endereços será implementada via WebSocket
+                  Funcionalidade de endereços em desenvolvimento
                 </p>
               </CardContent>
             </Card>
@@ -172,7 +147,7 @@ export default function MinhaContaPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-center text-muted-foreground">
-                  Funcionalidade de contatos será implementada via WebSocket
+                  Funcionalidade de contatos em desenvolvimento
                 </p>
               </CardContent>
             </Card>
@@ -188,7 +163,7 @@ export default function MinhaContaPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-center text-muted-foreground">
-                  Funcionalidade de usuários será implementada via WebSocket
+                  Funcionalidade de usuários em desenvolvimento
                 </p>
               </CardContent>
             </Card>

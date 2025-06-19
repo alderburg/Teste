@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { useWebSocketContext } from '@/components/WebSocketProvider';
 import { useToast } from '@/hooks/use-toast';
@@ -44,50 +45,36 @@ export function useWebSocketData<T = any>({
       }
 
       const data = await response.json();
-      
-      // Para recursos únicos como perfil, tratar tanto objeto único quanto array
-      let normalizedData;
-      if (resource === 'perfil') {
-        normalizedData = data && typeof data === 'object' && !Array.isArray(data) ? [data] : (Array.isArray(data) ? data : []);
-      } else {
-        normalizedData = Array.isArray(data) ? data : [data];
-      }
-      
       setState({
-        data: normalizedData,
+        data: Array.isArray(data) ? data : [data],
         loading: false,
         error: null
       });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+    } catch (error: any) {
+      console.error(`Erro ao buscar dados de ${resource}:`, error);
       setState(prev => ({
         ...prev,
         loading: false,
-        error: errorMessage
+        error: error.message
       }));
-      console.error(`Erro ao buscar ${resource}:`, error);
     }
   }, [endpoint, resource]);
 
   // Função para criar item
-  const createItem = useCallback(async (data: Partial<T>) => {
+  const createItem = useCallback(async (itemData: Partial<T>) => {
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(data)
+        body: JSON.stringify(itemData)
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Erro ao criar ${resource}`);
+        throw new Error(`Erro ao criar item: ${response.status}`);
       }
 
       const newItem = await response.json();
-      
       setState(prev => ({
         ...prev,
         data: [...prev.data, newItem]
@@ -95,40 +82,36 @@ export function useWebSocketData<T = any>({
 
       toast({
         title: "Sucesso",
-        description: `${resource} criado com sucesso`
+        description: "Item criado com sucesso!",
       });
 
       return newItem;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+    } catch (error: any) {
+      console.error(`Erro ao criar item em ${resource}:`, error);
       toast({
         title: "Erro",
-        description: errorMessage,
-        variant: "destructive"
+        description: error.message,
+        variant: "destructive",
       });
       throw error;
     }
   }, [endpoint, resource, toast]);
 
   // Função para atualizar item
-  const updateItem = useCallback(async (id: number, data: Partial<T>) => {
+  const updateItem = useCallback(async (id: number | string, itemData: Partial<T>) => {
     try {
       const response = await fetch(`${endpoint}/${id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(data)
+        body: JSON.stringify(itemData)
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Erro ao atualizar ${resource}`);
+        throw new Error(`Erro ao atualizar item: ${response.status}`);
       }
 
       const updatedItem = await response.json();
-      
       setState(prev => ({
         ...prev,
         data: prev.data.map(item => 
@@ -138,23 +121,23 @@ export function useWebSocketData<T = any>({
 
       toast({
         title: "Sucesso",
-        description: `${resource} atualizado com sucesso`
+        description: "Item atualizado com sucesso!",
       });
 
       return updatedItem;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+    } catch (error: any) {
+      console.error(`Erro ao atualizar item em ${resource}:`, error);
       toast({
         title: "Erro",
-        description: errorMessage,
-        variant: "destructive"
+        description: error.message,
+        variant: "destructive",
       });
       throw error;
     }
   }, [endpoint, resource, toast]);
 
   // Função para deletar item
-  const deleteItem = useCallback(async (id: number) => {
+  const deleteItem = useCallback(async (id: number | string) => {
     try {
       const response = await fetch(`${endpoint}/${id}`, {
         method: 'DELETE',
@@ -162,8 +145,7 @@ export function useWebSocketData<T = any>({
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Erro ao deletar ${resource}`);
+        throw new Error(`Erro ao deletar item: ${response.status}`);
       }
 
       setState(prev => ({
@@ -173,14 +155,14 @@ export function useWebSocketData<T = any>({
 
       toast({
         title: "Sucesso",
-        description: `${resource} removido com sucesso`
+        description: "Item removido com sucesso!",
       });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+    } catch (error: any) {
+      console.error(`Erro ao deletar item em ${resource}:`, error);
       toast({
         title: "Erro",
-        description: errorMessage,
-        variant: "destructive"
+        description: error.message,
+        variant: "destructive",
       });
       throw error;
     }

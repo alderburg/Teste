@@ -21,7 +21,18 @@ const WebSocketContext = createContext<WebSocketContextProps>({
 });
 
 // Hook para usar o contexto
-export const useWebSocketContext = () => useContext(WebSocketContext);
+export const useWebSocketContext = () => {
+  const context = useContext(WebSocketContext);
+  if (!context) {
+    console.warn('useWebSocketContext deve ser usado dentro de um WebSocketProvider');
+    return {
+      connected: false,
+      sendMessage: () => false,
+      lastUpdated: undefined
+    };
+  }
+  return context;
+};
 
 // Componente Provider
 interface WebSocketProviderProps {
