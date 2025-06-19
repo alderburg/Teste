@@ -270,7 +270,7 @@ const CountdownTimer = () => {
 // Import dos componentes das abas
 import ContatosTab from "@/components/conta/ContatosTab-WebSocket";
 import EnderecosTab from "@/components/conta/EnderecosTab-WebSocket";
-import { UsuariosTab } from "@/components/conta/UsuariosTab-WebSocket";
+import UsuariosTab from "@/components/conta/UsuariosTab-WebSocket";
 import { PaymentMethodsManager } from "@/components/conta/PaymentMethodsManager";
 import SegurancaTab from "./seguranca-tab";
 import { useCreditBalance } from "@/hooks/use-credit-balance";
