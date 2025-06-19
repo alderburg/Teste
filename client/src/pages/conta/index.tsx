@@ -494,9 +494,9 @@ export default function MinhaContaPage() {
   };
 
   const fetchAssinaturaDataWS = async () => {
-    try {
+      try {
       setIsLoadingAssinaturaOriginal(true);
-      const response = await fetch('/api/minha-assinatura', {
+      const response = await fetch(`/api/minha-assinatura?userId=${userId}`, {
         credentials: 'include'
       });
       if (response.ok) {
@@ -508,7 +508,7 @@ export default function MinhaContaPage() {
     } finally {
       setIsLoadingAssinaturaOriginal(false);
     }
-  };
+  }
 
   const fetchHistoricoAssinaturasWS = async () => {
     try {
