@@ -1188,6 +1188,11 @@ export default function MinhaContaPage() {
     return data;
   }
 
+  // Função para refetch do perfil
+  const refetchPerfil = async () => {
+    await fetchPerfilDataWS();
+  };
+
   // Função para atualizar dados do perfil
   const updatePerfilMutation = async (data: PerfilFormValues) => {
     try {
@@ -1931,9 +1936,9 @@ export default function MinhaContaPage() {
   useEffect(() => {
     if (showHistoricoPagamentos && user?.id) {
       console.log('🔄 Forçando busca de histórico de pagamentos...');
-      refetchHistoricoPagamentos();
+      fetchHistoricoPagamentosWS();
     }
-  }, [showHistoricoPagamentos, user?.id, refetchHistoricoPagamentos]);
+  }, [showHistoricoPagamentos, user?.id]);
 
   // Interface para tipagem dos dados da assinatura
   interface AssinaturaResponse {
@@ -1983,23 +1988,27 @@ export default function MinhaContaPage() {
   // Estado para armazenar dados finalizados após um recarregamento completo
   const [finalPlanoData, setFinalPlanoData] = useState<AssinaturaResponse | null>(null);
 
-  // Query para buscar assinatura - seguindo o padrão das outras abas
-  const { 
-    data: assinaturaData, 
-    isLoading: isLoadingAssinaturaOriginal, 
-    refetch: refetchAssinatura 
-  } = useQuery<AssinaturaResponse>({
-    queryKey: ["/api/minha-assinatura"],
-    // Permitir sempre buscar dados, seguindo o padrão das abas de Contatos e Usuários
-    enabled: true,
-    // Configurações para permitir atualização ao trocar de aba
-    staleTime: 0, // Considerar dados sempre obsoletos (permite refetch ao trocar de aba)
-    gcTime: 60000, // Manter no cache por 1 minuto
-    refetchOnWindowFocus: false, // Sem refetch no foco da janela
-    refetchOnMount: true, // Permitir refetch na montagem do componente
-    refetchOnReconnect: false, // Sem refetch na reconexão
-    retry: false // Não tentar novamente em caso de falha
-  });
+  // Estado para os dados da assinatura
+  const [assinaturaData, setAssinaturaData] = useState<AssinaturaResponse | null>(null);
+  const [isLoadingAssinaturaOriginal, setIsLoadingAssinaturaOriginal] = useState(true);
+
+  // Função para buscar dados da assinatura
+  const refetchAssinatura = async () => {
+    try {
+      setIsLoadingAssinaturaOriginal(true);
+      const response = await fetch('/api/minha-assinatura', {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAssinaturaData(data);
+      }
+    } catch (error) {
+      console.error("Erro ao buscar assinatura:", error);
+    } finally {
+      setIsLoadingAssinaturaOriginal(false);
+    }
+  };
 
 
 
@@ -2695,21 +2704,21 @@ export default function MinhaContaPage() {
 
               // Refetch data based on active tab
               if (value === "dados" && user?.id) {
-                refetchPerfil();
+                fetchPerfilDataWS();
               } else if (value === "enderecos" && user?.id) {
-                queryClient.invalidateQueries({ queryKey: ["/api/enderecos", user?.id] });
+                fetchEnderecosDataWS();
               } else if (value === "contatos" && user?.id) {
-                queryClient.invalidateQueries({ queryKey: ["/api/contatos", user?.id] });
+                fetchContatosDataWS();
               } else if (value === "usuarios" && user?.id) {
-                queryClient.invalidateQueries({ queryKey: ["/api/usuarios-adicionais", user?.id] });
+                fetchUsuariosDataWS();
               } else if (value === "financeiro" && user?.id) {
                 setFinalPlanoData(null);
                 setIsReloadingAssinatura(true);
                 setForceShowPreloader(true);
                 refetchAssinatura();
                 refetchCredits(); // Recarregar créditos também
-                queryClient.invalidateQueries({ queryKey: ["/api/historico-pagamentos", user?.id] });
-                queryClient.invalidateQueries({ queryKey: ["/api/historico-assinaturas", user?.id] });
+                fetchHistoricoPagamentosWS();
+                fetchHistoricoAssinaturasWS();
               }
             }}
             className="w-full"
