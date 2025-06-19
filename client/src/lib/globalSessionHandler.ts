@@ -272,9 +272,21 @@ export function initializeGlobalSessionHandler() {
           if (isCurrentSession(data.sessionToken)) {
             console.log('🔒 GLOBAL HANDLER: ESTA É A SESSÃO ATUAL - ATIVANDO POPUP IMEDIATAMENTE');
             console.log('🔒 GLOBAL HANDLER: Chamando showSessionTerminationPopup...');
+            
             // Mostrar popup instantaneamente
             showSessionTerminationPopup(data.message || 'Sua sessão foi encerrada por outro usuário');
+            
             console.log('🔒 GLOBAL HANDLER: Popup deveria estar visível agora');
+            
+            // Confirmar que o modal foi criado
+            setTimeout(() => {
+              const modal = document.querySelector('[data-session-termination-modal]');
+              if (modal) {
+                console.log('🔒 GLOBAL HANDLER: ✅ Modal confirmado no DOM');
+              } else {
+                console.log('🔒 GLOBAL HANDLER: ❌ Modal NÃO encontrado no DOM');
+              }
+            }, 100);
           } else {
             console.log('🔒 GLOBAL HANDLER: Token não corresponde à sessão atual - ignorando');
           }
