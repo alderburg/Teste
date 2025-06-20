@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 
 // Import dos componentes das abas
 import ContatosTab from "@/components/conta/ContatosTab-WebSocket";
-import EnderecosTab from "@/components/conta/EnderecosTab-WebSocket";
+import EnderecosTab from "@/components/conta/EnderecosTab";
 import UsuariosTab from "@/components/conta/UsuariosTab-WebSocket";
 import { PaymentMethodsManager } from "@/components/conta/PaymentMethodsManager";
 import SegurancaTab from "./seguranca-tab";
@@ -2683,16 +2683,15 @@ export default function MinhaContaPage() {
             value={activeTab} 
             onValueChange={(value) => {
               setActiveTab(value);
-
-              // REMOVIDO: Não resetar formulários ao mudar de aba
-              // O usuário deve poder navegar sem perder dados inseridos
-              // if (value !== 'seguranca') {
-              //   setShowPasswordSection(false);
-              //   setShow2FASection(false);
-              //   if (alterarSenhaForm) {
-              //     alterarSenhaForm.reset();
-              //   }
-              // }
+              
+              // Atualizar URL sem recarregar a página
+              const url = new URL(window.location.href);
+              if (value === 'dados') {
+                url.searchParams.delete('tab');
+              } else {
+                url.searchParams.set('tab', value);
+              }
+              window.history.pushState({}, '', url.toString());
 
               // Refetch data based on active tab
               if (value === "dados" && user?.id) {
@@ -2719,12 +2718,6 @@ export default function MinhaContaPage() {
               <TabsTrigger 
                 value="dados" 
                 className="flex items-center gap-2 data-[state=active]:border-b-2 data-[state=active]:border-purple-600 data-[state=active]:text-purple-600 rounded-none bg-transparent hover:bg-transparent data-[state=active]:bg-transparent px-4 py-3"
-                onClick={() => {
-                  // Atualiza a URL
-                  const url = new URL(window.location.href);
-                  url.searchParams.delete('tab');
-                  window.history.pushState({}, '', url.toString());
-                }}
               >
                 {renderTabIcon("dados")}
                 <span>Dados de Cadastro</span>
@@ -2732,12 +2725,6 @@ export default function MinhaContaPage() {
               <TabsTrigger 
                 value="enderecos" 
                 className="flex items-center gap-2 data-[state=active]:border-b-2 data-[state=active]:border-purple-600 data-[state=active]:text-purple-600 rounded-none bg-transparent hover:bg-transparent data-[state=active]:bg-transparent px-4 py-3"
-                onClick={() => {
-                  // Atualiza a URL
-                  const url = new URL(window.location.href);
-                  url.searchParams.set('tab', 'enderecos');
-                  window.history.pushState({}, '', url.toString());
-                }}
               >
                 <MapPin className="h-4 w-4" />
                 <span>Endereços</span>
@@ -2745,12 +2732,6 @@ export default function MinhaContaPage() {
               <TabsTrigger 
                 value="contatos" 
                 className="flex items-center gap-2 data-[state=active]:border-b-2 data-[state=active]:border-purple-600 data-[state=active]:text-purple-600 rounded-none bg-transparent hover:bg-transparent data-[state=active]:bg-transparent px-4 py-3"
-                onClick={() => {
-                  // Atualiza a URL
-                  const url = new URL(window.location.href);
-                  url.searchParams.set('tab', 'contatos');
-                  window.history.pushState({}, '', url.toString());
-                }}
               >
                 <Phone className="h-4 w-4" />
                 <span>Contatos</span>
@@ -2758,12 +2739,6 @@ export default function MinhaContaPage() {
               <TabsTrigger 
                 value="usuarios" 
                 className="flex items-center gap-2 data-[state=active]:border-b-2 data-[state=active]:border-purple-600 data-[state=active]:text-purple-600 rounded-none bg-transparent hover:bg-transparent data-[state=active]:bg-transparent px-4 py-3"
-                onClick={() => {
-                  // Atualiza a URL
-                  const url = new URL(window.location.href);
-                  url.searchParams.set('tab', 'usuarios');
-                  window.history.pushState({}, '', url.toString());
-                }}
               >
                 {renderTabIcon("usuarios")}
                 <span>Usuários</span>
@@ -2771,21 +2746,6 @@ export default function MinhaContaPage() {
               <TabsTrigger 
                 value="financeiro" 
                 className="flex items-center gap-2 data-[state=active]:border-b-2 data-[state=active]:border-purple-600 data-[state=active]:text-purple-600 rounded-none bg-transparent hover:bg-transparent data-[state=active]:bg-transparent px-4 py-3"
-                onClick={() => {
-                  // Atualiza a URL
-                  const url = new URL(window.location.href);
-                  url.searchParams.set('tab', 'financeiro');
-                  window.history.pushState({}, '', url.toString());
-
-                  // Início do carregamento
-                  if (user?.id) {
-                    // Limpar dados e ativar preloader
-                    setIsReloadingAssinatura(true);
-
-                    // Forçar refetch da API de assinatura
-                    refetchAssinatura();
-                  }
-                }}
               >
                 {renderTabIcon("financeiro")}
                 <span>Financeiro</span>
@@ -2793,12 +2753,6 @@ export default function MinhaContaPage() {
               <TabsTrigger 
                 value="seguranca" 
                 className="flex items-center gap-2 data-[state=active]:border-b-2 data-[state=active]:border-purple-600 data-[state=active]:text-purple-600 rounded-none bg-transparent hover:bg-transparent data-[state=active]:bg-transparent px-4 py-3"
-                onClick={() => {
-                  // Atualiza a URL
-                  const url = new URL(window.location.href);
-                  url.searchParams.set('tab', 'seguranca');
-                  window.history.pushState({}, '', url.toString());
-                }}
               >
                 {renderTabIcon("seguranca")}
                 <span>Segurança</span>

@@ -38,27 +38,30 @@ interface EnderecoFormValues extends z.infer<typeof enderecoSchema> {
 export default function EnderecosTab() {
   const { toast } = useToast();
   const { user } = useAuth();
-  const queryClient = useQueryClient();
 
-  // Query para buscar endereços - seguindo o padrão das outras abas
-  const { 
-    data: enderecosData, 
-    isLoading: isLoadingEnderecos, 
-    refetch: refetchEnderecos 
-  } = useQuery({
-    queryKey: ["/api/enderecos"],
-    // Permitir sempre buscar dados, seguindo o padrão das abas de Contatos e Usuários
-    enabled: true,
-    // Configurações para permitir atualização ao trocar de aba
-    staleTime: 0, // Considerar dados sempre obsoletos (permite refetch ao trocar de aba)
-    gcTime: 60000, // Manter no cache por 1 minuto
-    refetchOnWindowFocus: false, // Sem refetch no foco da janela
-    refetchOnMount: true, // Permitir refetch na montagem do componente
-    refetchOnReconnect: false, // Sem refetch na reconexão
-    retry: false // Não tentar novamente em caso de falha
-  });
+  // Estados para dados carregados via WebSocket
+  const [enderecosData, setEnderecosData] = useState<EnderecoFormValues[]>([]);
+  const [isLoadingEnderecos, setIsLoadingEnderecos] = useState(true);
 
-  // Use os dados da API ou um array vazio como fallback
+  // Função para buscar endereços via WebSocket/fetch
+  const fetchEnderecosData = async () => {
+    try {
+      setIsLoadingEnderecos(true);
+      const response = await fetch('/api/enderecos', {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setEnderecosData(Array.isArray(data) ? data : []);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar endereços:', error);
+    } finally {
+      setIsLoadingEnderecos(false);
+    }
+  };
+
+  // Estados locais para gerenciar endereços
   const [enderecos, setEnderecos] = useState<EnderecoFormValues[]>([]);
   
   // Estado para pesquisa
@@ -71,22 +74,29 @@ export default function EnderecosTab() {
   // Estado para controlar a exibição de loading inicial ao trocar de aba
   const [initialLoading, setInitialLoading] = useState(true);
 
-  // Mutations para operações CRUD
-
-  // Mutation para adicionar um endereço
-  const addEnderecoMutation = useMutation({
-    mutationFn: async (data: EnderecoFormValues) => {
-      return await apiRequest("POST", "/api/enderecos", {
-        ...data,
-        userId: user?.id
+  // Função para adicionar um endereço via WebSocket
+  const addEnderecoMutation = async (data: EnderecoFormValues) => {
+    try {
+      const response = await fetch('/api/enderecos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...data, userId: user?.id }),
+        credentials: 'include'
       });
-    },
-    onSuccess: () => {
-      // Fechar o formulário antes de mostrar o toast de sucesso
+
+      if (!response.ok) {
+        throw new Error(`Erro ao adicionar endereço: ${response.status}`);
+      }
+
+      const newEndereco = await response.json();
+      
+      // Atualizar dados locais
+      setEnderecosData(prev => [...prev, newEndereco]);
+      setEnderecos(prev => [...prev, newEndereco]);
+      
+      // Fechar o formulário e resetar
       setShowAddEndereco(false);
       setEditingEndereco(null);
-
-      // Limpar o formulário após o salvamento bem-sucedido
       enderecoForm.reset({
         cep: "",
         logradouro: "",
@@ -99,7 +109,6 @@ export default function EnderecosTab() {
         tipo: "comercial"
       });
 
-      // Resetar o estado de validação
       setCamposEnderecoValidados({
         tipo: true,
         cep: true,
