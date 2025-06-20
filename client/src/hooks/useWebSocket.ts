@@ -10,6 +10,7 @@ interface WebSocketMessage {
   message?: string;
   sessionToken?: string;
   timestamp?: string;
+  forceModal?: boolean;
 }
 
 export function useWebSocket() {
@@ -46,20 +47,20 @@ export function useWebSocket() {
       // Tratar evento de sessão encerrada
       console.log('🔒 Sessão encerrada pelo servidor:', data);
 
-      // Verificar se é a sessão atual que foi encerrada
-      const currentSessionToken = localStorage.getItem('sessionToken') || 
-                                 localStorage.getItem('token') || 
-                                 document.cookie.split(';').find(c => c.trim().startsWith('sessionToken='))?.split('=')[1] || 
-                                 '';
-
-      console.log('🔒 Verificando tokens:', {
-        current: currentSessionToken?.substring(0, 8) + '...',
-        terminated: data.sessionToken?.substring(0, 8) + '...',
-        match: currentSessionToken === data.sessionToken,
+      // NOVA ABORDAGEM: Forçar o modal sem verificar tokens específicos
+      // Se recebemos uma notificação de sessão encerrada, sempre mostrar o modal
+      console.log('🔒 NOVA LÓGICA: Sempre mostrar modal quando receber session_terminated');
+      console.log('🔒 Dados da sessão encerrada:', {
+        type: data.type,
+        message: data.message,
+        userId: data.userId,
+        sessionToken: data.sessionToken?.substring(0, 8) + '...',
+        forceModal: data.forceModal,
         currentPage: window.location.pathname
       });
 
-      if (currentSessionToken === data.sessionToken) {
+      // SEMPRE mostrar o modal se recebemos session_terminated
+      if (data.type === 'session_terminated') {
         console.log('🔒 Esta é a sessão atual - disparando evento de encerramento');
 
         // Invalidar imediatamente o queryClient para evitar requisições
@@ -134,10 +135,13 @@ export function useWebSocket() {
               font-weight: 600;
               cursor: pointer;
               font-size: 16px;
-            ">
+              transition: background-color 0.2s;
+            " onmouseover="this.style.background='#b91c1c'" onmouseout="this.style.background='#dc2626'">
               Sair Agora
             </button>
           `;
+
+          console.log('🔒 Modal HTML criado com sucesso');
 
           modal.appendChild(modalContent);
           document.body.appendChild(modal);
