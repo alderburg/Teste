@@ -410,8 +410,8 @@ export default function EnderecosTabWebSocket() {
         {/* Preloader de carregamento */}
         {isLoadingEnderecos || initialLoading ? (
           <div className="flex flex-col items-center justify-center p-8 text-center">
-            <Loader2 className="h-8 w-8 animate-spin text-purple-600 mb-2" />
-            <span className="text-gray-600">Carregando endereços...</span>
+            <div className="h-10 w-10 rounded-full border-4 border-gray-200 border-t-purple-600 animate-spin mb-2"></div>
+            <p className="text-gray-500">Carregando endereços...</p>
           </div>
         ) : (
           <>
