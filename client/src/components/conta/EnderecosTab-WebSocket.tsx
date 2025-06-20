@@ -13,8 +13,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { MapPin, PlusCircle, Edit3, Trash2, Save, X, Building, Home, Briefcase, CheckCircle, AlertTriangle, Loader2, Search } from "lucide-react";
 import { enderecoSchema } from "@/pages/conta/index";
 import { Checkbox } from "@/components/ui/checkbox";
-import { apiRequest } from "@/lib/queryClient";
 import InputMask from "react-input-mask";
+import { useWebSocketData } from "@/hooks/useWebSocketData";
 import { Pagination } from "@/components/Pagination";
 import {
   AlertDialog,
