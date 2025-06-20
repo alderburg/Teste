@@ -381,6 +381,18 @@ export default function MinhaContaPage() {
   const userId = user?.id || parseInt(localStorage.getItem('userId') || '0');
   const { balance: creditBalance, formattedBalance, hasCredits, isLoading: isLoadingCredits, refetch: refetchCredits } = useCreditBalance();
 
+  // Função para obter a aba ativa a partir dos parâmetros da URL (precisa ser declarada antes)
+  const getActiveTabFromURL = () => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    if (tab && ['dados', 'enderecos', 'contatos', 'usuarios', 'financeiro', 'seguranca'].includes(tab)) {
+      return tab;
+    }
+    return "dados"; // Aba padrão
+  };
+
+  const [activeTab, setActiveTab] = useState(getActiveTabFromURL());
+
   // Estados para armazenar dados obtidos via websocket
   const [perfilData, setPerfilData] = useState<any>(null);
   const [isLoadingPerfil, setIsLoadingPerfil] = useState(activeTab === "dados");
@@ -547,17 +559,7 @@ export default function MinhaContaPage() {
     }
   };
 
-  // Função para obter a aba ativa a partir dos parâmetros da URL
-  const getActiveTabFromURL = () => {
-    const params = new URLSearchParams(window.location.search);
-    const tab = params.get('tab');
-    if (tab && ['dados', 'enderecos', 'contatos', 'usuarios', 'financeiro', 'seguranca'].includes(tab)) {
-      return tab;
-    }
-    return "dados"; // Aba padrão
-  };
-
-  const [activeTab, setActiveTab] = useState(getActiveTabFromURL());
+  
   const [isUploading, setIsUploading] = useState(false);
   const [showAddCard, setShowAddCard] = useState(false);
   const [showHistoricoPagamentos, setShowHistoricoPagamentos] = useState(true); // Padrão ativo
