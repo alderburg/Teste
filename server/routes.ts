@@ -8449,16 +8449,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
         WHERE token = $1 AND user_id = $2
       `, [sessionId, userId]);
 
-      // Notificar via WebSocket sobre o encerramento da sessão
-      if (typeof (global as any).notifySessionTerminated === 'function') {
-        (global as any).notifySessionTerminated(userId, sessionId);
-      } else {
-        console.log(`⚠️ Sistema WebSocket não disponível para notificação de sessão`);
+      // Notificar APENAS a sessão específica que foi encerrada via WebSocket
+      const clients = (global as any).clientsInfo || new Map();
+      let sessionTerminatedNotified = false;
+      
+      for (const [ws, clientInfo] of clients.entries()) {
+        if (clientInfo.authenticated && 
+            clientInfo.sessionToken === sessionId && 
+            ws.readyState === WebSocket.OPEN) {
+          
+          // Enviar notificação de sessão encerrada APENAS para esta conexão específica
+          ws.send(JSON.stringify({
+            type: 'session_terminated',
+            message: 'Sua sessão foi encerrada por outro dispositivo',
+            sessionToken: sessionId,
+            forceModal: true,
+            targetSessionOnly: true
+          }));
+          
+          sessionTerminatedNotified = true;
+          console.log(`🎯 Notificação de sessão encerrada enviada para sessão específica: ${sessionId.substring(0, 8)}...`);
+          break;
+        }
       }
       
-      // Notificar clientes conectados via WebSocket sobre a atualização da lista de sessões
+      if (!sessionTerminatedNotified) {
+        console.log(`⚠️ Sessão ${sessionId.substring(0, 8)}... não encontrada nas conexões ativas para notificação`);
+      }
+      
+      // Notificar outros clientes do mesmo usuário sobre atualização da lista de sessões
       for (const [ws, clientInfo] of clients.entries()) {
-        if (clientInfo.userId === userId && ws.readyState === WebSocket.OPEN) {
+        if (clientInfo.authenticated && 
+            clientInfo.userId === userId && 
+            clientInfo.sessionToken !== sessionId && 
+            ws.readyState === WebSocket.OPEN) {
+          
           ws.send(JSON.stringify({
             type: 'data_update',
             resource: 'sessoes',
