@@ -92,7 +92,7 @@ export default function CardTokenizer({ onSuccess, onCancel }: CardTokenizerProp
       });
 
       // Atualizar cache
-      // WebSocket irá atualizar automaticamente
+      queryClient.invalidateQueries({ queryKey: ['/api/payment-methods'] });
 
       if (onSuccess) {
         onSuccess(saveResult);

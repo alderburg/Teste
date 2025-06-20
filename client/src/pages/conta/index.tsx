@@ -13,12 +13,21 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { isMobileDevice } from "@/lib/utils";
 import MobileContaPage from "./mobile-conta";
 import InputMask from "react-input-mask";
-import { Loader2, Shield, User, Clock } from "lucide-react";
+import { Loader2, Shield, User, Clock, Camera, Save, ArrowLeft, MapPin, CreditCard, FileText, Users, CheckCircle, CreditCard as CreditCardIcon, Download, Calendar, Landmark, UserCog, FileText as ReceiptIcon, Phone, XCircle, AlertTriangle, RefreshCw, DollarSign, Coins, Gift } from "lucide-react";
 import PaymentModal from "@/components/planos/PaymentModal";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Pagination } from '@/components/Pagination';
+import { cn } from "@/lib/utils";
 
+// Import dos componentes das abas
+import ContatosTab from "@/components/conta/ContatosTab-WebSocket";
+import EnderecosTab from "@/components/conta/EnderecosTab-WebSocket";
+import UsuariosTab from "@/components/conta/UsuariosTab-WebSocket";
+import { PaymentMethodsManager } from "@/components/conta/PaymentMethodsManager";
+import SegurancaTab from "./seguranca-tab";
+import { useCreditBalance } from "@/hooks/use-credit-balance";
+import { useWebSocketData } from "@/hooks/useWebSocketData";
 
 // Importações do Stripe
 import { loadStripe } from '@stripe/stripe-js';
@@ -263,22 +272,6 @@ const CountdownTimer = () => {
     </div>
   );
 };
-
-
-// Import dos componentes das abas
-import ContatosTab from "@/components/conta/ContatosTab-WebSocket";
-import EnderecosTab from "@/components/conta/EnderecosTab-WebSocket";
-import UsuariosTab from "@/components/conta/UsuariosTab-WebSocket";
-import { PaymentMethodsManager } from "@/components/conta/PaymentMethodsManager";
-import SegurancaTab from "./seguranca-tab";
-import { useCreditBalance } from "@/hooks/use-credit-balance";
-    import { 
-      Camera, Save,  ArrowLeft, 
-      MapPin, CreditCard, FileText,Users, CheckCircle, CreditCard as CreditCardIcon,
-      Download, Calendar, Landmark, UserCog, FileText as ReceiptIcon, Phone, XCircle, 
-       AlertTriangle, RefreshCw, DollarSign, Coins, Gift
-    } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 // Componente para exibir mensagens de erro
 const FormErrorMessage = ({ message }: { message: string }) => (
