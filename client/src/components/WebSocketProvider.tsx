@@ -282,20 +282,17 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
     }
   }, [connected, user, sendMessage]);
 
-  // Conectar apenas quando autenticado e não em páginas de auth
+  // Conectar WebSocket apenas quando necessário
   useEffect(() => {
     const currentPath = window.location.pathname;
     const authPages = ['/acessar', '/login', '/cadastre-se', '/recuperar', '/verificar-2fa'];
     const isAuthPage = authPages.includes(currentPath);
+    const isLandingPage = currentPath === '/' || currentPath === '';
 
-    if (user && !isLoading && !isAuthPage) {
-      console.log('🔗 Usuário autenticado e fora de páginas de auth, iniciando conexão WebSocket');
-     } else {
-      if (isAuthPage) {
-        console.log('🔌 Em página de autenticação, não conectando WebSocket');
-      } else {
-        console.log('🔌 Usuário não autenticado, desconectando WebSocket');
-      }
+    if (user && !isLoading && !isAuthPage && !isLandingPage) {
+      console.log('🔗 Usuário autenticado, iniciando conexão WebSocket');
+    } else {
+      console.log('🔌 WebSocket não necessário para esta página');
     }
   }, [user, isLoading]);
 

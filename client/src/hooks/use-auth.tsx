@@ -59,31 +59,42 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        // Verificar se estamos em uma página de autenticação
         const currentPath = window.location.pathname;
         const authPages = ['/acessar', '/login', '/cadastre-se', '/recuperar', '/verificar-2fa'];
         const isAuthPage = authPages.includes(currentPath);
-        
-        // Para páginas de autenticação, não fazer verificação automática para evitar loops
-        if (isAuthPage) {
-          console.log('🔍 Página de autenticação detectada, pulando verificação automática');
-          setUser(null);
-          setIsLoading(false);
-          return;
-        }
-
-        // Para landing page, também permitir sem autenticação
         const isLandingPage = currentPath === '/' || currentPath === '';
-        if (isLandingPage) {
-          console.log('🔍 Landing page detectada, verificação opcional');
+        
+        // Para páginas de autenticação e landing page, não fazer verificação para evitar loops
+        if (isAuthPage || isLandingPage) {
+          console.log('🔍 Página pública detectada, não verificando autenticação');
           setUser(null);
           setIsLoading(false);
           return;
         }
 
-        // Verificar se o usuário está autenticado chamando a API
+        // Verificar se há dados válidos no localStorage primeiro
+        const storedUserData = localStorage.getItem('userData');
+        let userData = null;
+        
+        if (storedUserData) {
+          try {
+            userData = JSON.parse(storedUserData);
+          } catch (e) {
+            localStorage.removeItem('userData');
+          }
+        }
+
+        // Se não há dados locais, não está autenticado
+        if (!userData) {
+          console.log('🔍 Nenhum dado de usuário encontrado localmente');
+          setUser(null);
+          setIsLoading(false);
+          return;
+        }
+
+        // Verificar com o servidor apenas se há dados locais
         const response = await fetch('/api/user', {
-          credentials: 'include', // Importante para enviar cookies de sessão
+          credentials: 'include',
           headers: {
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache',
@@ -92,14 +103,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         });
 
         if (response.ok) {
-          // API retornou OK, usuário autenticado
-          const userData = await response.json();
-          // Armazenar dados do usuário no localStorage para uso futuro
-          localStorage.setItem('userData', JSON.stringify(userData));
-          setUser(userData);
+          const serverUserData = await response.json();
+          localStorage.setItem('userData', JSON.stringify(serverUserData));
+          setUser(serverUserData);
         } else {
-          // Se a resposta não for ok, o usuário não está autenticado
-          // Garantir que todos os dados locais sejam limpos
+          // Servidor não reconhece a autenticação, limpar dados locais
           localStorage.removeItem('userData');
           localStorage.removeItem('user');
           localStorage.removeItem('token');
@@ -107,14 +115,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
       } catch (error) {
         console.error("Erro ao verificar autenticação:", error);
-        setUser(null);
+        // Em caso de erro, manter dados locais se existirem
+        const storedUserData = localStorage.getItem('userData');
+        if (storedUserData) {
+          try {
+            const userData = JSON.parse(storedUserData);
+            setUser(userData);
+          } catch (e) {
+            setUser(null);
+          }
+        } else {
+          setUser(null);
+        }
       } finally {
         setIsLoading(false);
       }
     };
 
     checkAuth();
-  }, [location]);
+  }, []);
 
   // Função de login
   const login = async (username: string, password: string) => {
@@ -340,44 +359,48 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 
   // Redirecionamento para login quando necessário
   useEffect(() => {
-    // Se já redirecionamos muitas vezes, podemos estar em um loop
-    if (redirectCount > 5) {
-      console.error("🚨 Loop de redirecionamento detectado no RequireAuth. Interrompendo redirecionamentos.");
-      localStorage.removeItem('twoFactorRedirect'); // Limpar para facilitar debug
-      return; // Parar redirecionamentos
+    // Prevenir loops de redirecionamento
+    if (redirectCount > 3) {
+      console.error("🚨 Loop de redirecionamento detectado no RequireAuth. Interrompendo.");
+      return;
     }
 
-    // Só redirecionamos quando tivermos certeza da autenticação (cliente e servidor)
-    if (!isLoading && !verificandoServidor) {
-      // Se não está autenticado no cliente
-      if (!isAuthenticated) {
-        console.log("Usuário não autenticado, redirecionando para login");
+    // Aguardar carregamento completo antes de redirecionar
+    if (isLoading || verificandoServidor) {
+      return;
+    }
 
-        // Limpar localStorage para garantir que dados antigos não causem problemas
-        localStorage.removeItem('userData');
-        localStorage.removeItem('user');
-        localStorage.removeItem('token');
-        setRedirectCount(prev => prev + 1);
-
-        // Usar o router para manter comportamento SPA
+    // Se não está autenticado no cliente, redirecionar para login
+    if (!isAuthenticated) {
+      console.log("Usuário não autenticado, redirecionando para login");
+      
+      // Limpar dados locais
+      localStorage.removeItem('userData');
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      
+      setRedirectCount(prev => prev + 1);
+      
+      // Usar setTimeout para evitar redirecionamento imediato
+      setTimeout(() => {
         navigate('/acessar', { replace: true });
-      }
-      // Se está autenticado mas não está autorizado pelo servidor E não estamos na página de verificação 2FA
-      else if (!autorizadoPeloServidor && window.location.pathname !== '/verificar-2fa') {
-        console.log("Usuário não autorizado pelo servidor, verificando necessidade de 2FA");
+      }, 100);
+      
+      return;
+    }
 
-        // Se já estamos salvando o caminho atual no localStorage para 2FA, não fazer nada
-        const currentRedirectPath = localStorage.getItem('twoFactorRedirect');
-        const currentPath = window.location.pathname;
-
-        // Se o caminho atual não é o mesmo que já foi salvo para redirecionamento, atualizar
-        if (currentRedirectPath !== currentPath) {
-          localStorage.setItem('twoFactorRedirect', currentPath);
-        }
-
-        setRedirectCount(prev => prev + 1);
+    // Se autenticado mas não autorizado pelo servidor (exceto página 2FA)
+    if (isAuthenticated && !autorizadoPeloServidor && window.location.pathname !== '/verificar-2fa') {
+      console.log("Usuário não autorizado pelo servidor");
+      
+      const currentPath = window.location.pathname;
+      localStorage.setItem('twoFactorRedirect', currentPath);
+      
+      setRedirectCount(prev => prev + 1);
+      
+      setTimeout(() => {
         navigate('/verificar-2fa', { replace: true });
-      }
+      }, 100);
     }
   }, [isLoading, verificandoServidor, isAuthenticated, autorizadoPeloServidor, navigate, redirectCount]);
 
@@ -415,8 +438,7 @@ export function RedirectIfAuthenticated({ children }: { children: ReactNode }) {
 
   // Efeito para verificar autenticação diretamente com o servidor
   useEffect(() => {
-    // Se temos parâmetro de logout na URL, significa que o logout foi realizado
-    // e não devemos verificar com o servidor para evitar problemas de cache
+    // Se temos parâmetro de logout na URL, não verificar com servidor
     if (hasLogoutParam) {
       console.log("Detectado parâmetro de logout na URL, ignorando verificação com o servidor");
       setIsVerifyingWithServer(false);
@@ -424,10 +446,26 @@ export function RedirectIfAuthenticated({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Verificar autenticação diretamente com o servidor
+    // Se não é página de auth, não verificar
+    if (!isAuthPage) {
+      setIsVerifyingWithServer(false);
+      setIsAuthenticatedOnServer(false);
+      return;
+    }
+
+    // Verificar se há dados de usuário no localStorage primeiro
+    const storedUserData = localStorage.getItem('userData');
+    if (!storedUserData) {
+      console.log("Nenhum dado de usuário no localStorage, não autenticado");
+      setIsVerifyingWithServer(false);
+      setIsAuthenticatedOnServer(false);
+      return;
+    }
+
+    // Verificar autenticação diretamente com o servidor apenas para páginas de auth
     const verifyWithServer = async () => {
       try {
-        console.log("Verificando autenticação diretamente com o servidor...");
+        console.log("Verificando autenticação com o servidor para página de auth...");
         const response = await fetch('/api/user', {
           credentials: 'include',
           headers: {
@@ -437,7 +475,6 @@ export function RedirectIfAuthenticated({ children }: { children: ReactNode }) {
           }
         });
 
-        // Somente considerar autenticado se o servidor retornar OK
         const isAuth = response.ok;
         console.log("Resposta do servidor:", isAuth ? "Autenticado" : "Não autenticado");
         setIsAuthenticatedOnServer(isAuth);
@@ -449,12 +486,7 @@ export function RedirectIfAuthenticated({ children }: { children: ReactNode }) {
       }
     };
 
-    // Somente verificar com o servidor se estamos em uma página de autenticação
-    if (isAuthPage) {
-      verifyWithServer();
-    } else {
-      setIsVerifyingWithServer(false);
-    }
+    verifyWithServer();
   }, [isAuthPage, hasLogoutParam]);
 
   // Efeito para redirecionamento após verificação com o servidor
