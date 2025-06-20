@@ -70,17 +70,20 @@ export function useWebSocket() {
           console.error('Erro ao limpar queryClient:', error);
         }
 
-        // AÇÃO IMEDIATA: Forçar o popup globalmente
+        // AÇÃO IMEDIATA: Forçar o popup globalmente de forma mais robusta
         const forceSessionTerminationPopup = () => {
-          console.log('🔒 FORÇANDO POPUP DE SESSÃO ENCERRADA');
+          console.log('🔒 FORÇANDO POPUP DE SESSÃO ENCERRADA - VERSÃO MELHORADA');
 
           // Verificar se já existe um popup
           if (document.querySelector('[data-session-terminated-modal]')) {
-            console.log('🔒 Modal já existe, não duplicar');
-            return;
+            console.log('🔒 Modal já existe, removendo para recriar');
+            const existingModal = document.querySelector('[data-session-terminated-modal]');
+            if (existingModal) {
+              existingModal.remove();
+            }
           }
 
-          // Criar modal diretamente no DOM
+          // Criar modal diretamente no DOM com design melhorado
           const modal = document.createElement('div');
           modal.setAttribute('data-session-terminated-modal', 'true');
           modal.style.cssText = `
@@ -89,12 +92,13 @@ export function useWebSocket() {
             left: 0 !important;
             width: 100vw !important;
             height: 100vh !important;
-            background: rgba(0, 0, 0, 0.8) !important;
+            background: rgba(0, 0, 0, 0.9) !important;
             z-index: 999999 !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
-            backdrop-filter: blur(4px) !important;
+            backdrop-filter: blur(5px) !important;
+            font-family: system-ui, -apple-system, sans-serif !important;r: blur(4px) !important;
           `;
 
           const modalContent = document.createElement('div');
@@ -178,8 +182,35 @@ export function useWebSocket() {
           }
         };
 
-        // Executar imediatamente
+        // ESTRATÉGIA MÚLTIPLA: Executar em diferentes momentos para garantir que apareça
+        
+        // 1. Executar imediatamente
         forceSessionTerminationPopup();
+        
+        // 2. Executar novamente após um pequeno delay para casos onde o DOM ainda está carregando
+        setTimeout(() => {
+          if (!document.querySelector('[data-session-terminated-modal]')) {
+            console.log('🔒 Modal não encontrado, tentando novamente...');
+            forceSessionTerminationPopup();
+          }
+        }, 100);
+        
+        // 3. Executar periodicamente até que o modal apareça (máximo 10 tentativas)
+        let attempts = 0;
+        const maxAttempts = 10;
+        const forceModalInterval = setInterval(() => {
+          attempts++;
+          if (document.querySelector('[data-session-terminated-modal]') || attempts >= maxAttempts) {
+            clearInterval(forceModalInterval);
+            if (attempts >= maxAttempts) {
+              console.log('🔒 Máximo de tentativas atingido para mostrar modal');
+            }
+            return;
+          }
+          
+          console.log(`🔒 Tentativa ${attempts} de forçar modal...`);
+          forceSessionTerminationPopup();
+        }, 200);
 
         // Disparar eventos para compatibilidade
         const sessionTerminatedEvent = new CustomEvent('session-terminated', { 
