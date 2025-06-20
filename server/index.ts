@@ -714,7 +714,7 @@ if (process.env.EXTERNAL_API_URL) {
         // Map para armazenar informações detalhadas dos clientes
         global.clientsInfo = new Map();
 
-        wss.on('connection', (ws, req) => {
+        wss.on('connection', async (ws, req) => {
           const clientId = Date.now() + Math.random();
           const connectionTime = new Date();
           const userAgent = req.headers['user-agent'] || 'Desconhecido';
