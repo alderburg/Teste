@@ -720,7 +720,8 @@ if (process.env.EXTERNAL_API_URL) {
           const userAgent = req.headers['user-agent'] || 'Desconhecido';
           const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'IP desconhecido';
 
-          // Informações iniciais do cliente          const clientInfo = {
+          // Informações iniciais do cliente
+          const clientInfo = {
             id: clientId,
             connectionTime,
             lastPing: connectionTime,
