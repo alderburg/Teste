@@ -59,26 +59,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        // HOTFIX: Remover verificação de landing page temporariamente
-        // para garantir que o login seja exigido em todas as rotas!
-        // Código antigo que permitia acesso sem autenticação:
-        //const isLandingPage = window.location.pathname === '/' || window.location.pathname === '';
-        //if (isLandingPage) {
-        //  setUser(null);
-        //  setIsLoading(false);
-        //  return;
-        //}
+        // Verificar se estamos em uma página de autenticação
+        const currentPath = window.location.pathname;
+        const authPages = ['/acessar', '/login', '/cadastre-se', '/recuperar', '/verificar-2fa'];
+        const isAuthPage = authPages.includes(currentPath);
+        
+        // Para páginas de autenticação, não fazer verificação automática para evitar loops
+        if (isAuthPage) {
+          console.log('🔍 Página de autenticação detectada, pulando verificação automática');
+          setUser(null);
+          setIsLoading(false);
+          return;
+        }
 
-        // NUNCA PULAR a verificação de autenticação (segurança crítica)
-
-        // IMPORTANTE: Verificamos SEMPRE com a API para garantir que o usuário está realmente logado
-        // no servidor. Isso corrige o problema de redirecionamento após logout, pois
-        // não confiamos em dados locais que podem estar desatualizados.
-
-        // Limpamos dados locais antigos para garantir
-        localStorage.removeItem('userData');
-        localStorage.removeItem('user');
-        localStorage.removeItem('token');
+        // Para landing page, também permitir sem autenticação
+        const isLandingPage = currentPath === '/' || currentPath === '';
+        if (isLandingPage) {
+          console.log('🔍 Landing page detectada, verificação opcional');
+          setUser(null);
+          setIsLoading(false);
+          return;
+        }
 
         // Verificar se o usuário está autenticado chamando a API
         const response = await fetch('/api/user', {
@@ -98,7 +99,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
           setUser(userData);
         } else {
           // Se a resposta não for ok, o usuário não está autenticado
-          // API retornou não-OK, usuário não autenticado
           // Garantir que todos os dados locais sejam limpos
           localStorage.removeItem('userData');
           localStorage.removeItem('user');

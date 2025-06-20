@@ -720,16 +720,46 @@ if (process.env.EXTERNAL_API_URL) {
           const userAgent = req.headers['user-agent'] || 'Desconhecido';
           const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'IP desconhecido';
 
+          // Verificar se o usuário está autenticado via sessão doExpress
+          const authenticated = req.isAuthenticated && typeof req.isAuthenticated === 'function' ? req.isAuthenticated() : false;
+
+          // Verificar também se existe sessão válida na tabela user_sessions
+          let validSession = false;
+          if (req.sessionID && authenticated) {
+            try {
+              const sessionCheck = await connectionManager.executeQuery(`
+                SELECT id FROM user_sessions_additional 
+                WHERE token = $1 AND is_active = true AND expires_at > NOW()
+              `, [req.sessionID]);
+              validSession = sessionCheck.rows.length > 0;
+            } catch (error) {
+              console.log('⚠️ Erro ao verificar sessão no WebSocket:', error);
+            }
+          }
+
+          const finalAuthStatus = authenticated && validSession;
+
+          console.log(`🔍 Debug autenticação WebSocket:`, {
+            authenticated,
+            validSession,
+            finalAuthStatus,
+            hasUser: !!req.user,
+            userId: req.user?.id,
+            sessionId: req.sessionID,
+            cookies: req.headers.cookie ? 'presentes' : 'ausentes'
+          });
+
           // Informações iniciais do cliente
           const clientInfo = {
             id: clientId,
             connectionTime,
             lastPing: connectionTime,
-            authenticated: false,
-            userId: null,
-            userAgent,
-            ip,
-            isAlive: true
+            ip: ip,
+            userAgent: userAgent,
+            authenticated: finalAuthStatus,
+            userId: finalAuthStatus ? req.user?.id : null,
+            username: finalAuthStatus ? req.user?.username : 'Não autenticado',
+            sessionId: req.sessionID
           };
 
           global.clientsInfo.set(ws, clientInfo);
