@@ -236,31 +236,49 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
   // Enviar informações de autenticação quando o usuário estiver logado
   useEffect(() => {
     if (connected && user) {
-      // Extrair sessionToken dos cookies
-      const getSessionTokenFromCookie = () => {
-        const cookies = document.cookie.split(';');
-        for (let cookie of cookies) {
-          const [name, value] = cookie.trim().split('=');
-          if (name === 'connect.sid') {
-            return decodeURIComponent(value);
+      // Extrair sessionToken de múltiplas fontes
+      const getSessionToken = () => {
+        // Tentar localStorage primeiro
+        let token = localStorage.getItem('sessionToken') || localStorage.getItem('token');
+        
+        if (!token) {
+          // Tentar cookies se não encontrou no localStorage
+          const cookies = document.cookie.split(';');
+          for (let cookie of cookies) {
+            const [name, value] = cookie.trim().split('=');
+            if (name === 'connect.sid' || name === 'sessionToken') {
+              token = decodeURIComponent(value);
+              break;
+            }
           }
         }
-        return null;
+        
+        return token;
       };
 
-      const sessionToken = getSessionTokenFromCookie();
+      const sessionToken = getSessionToken();
 
       if (sessionToken) {
         console.log(`🔐 Enviando autenticação WebSocket para usuário ${user.id}`);
-        console.log(`🔑 Session ID: ${sessionToken.substring(0, 8)}...`);
+        console.log(`🔑 Session Token: ${sessionToken.substring(0, 8)}...`);
 
-        sendMessage({
+        const authMessage = {
           type: 'auth',
           userId: user.id,
           sessionToken: sessionToken
-        });
+        };
+        
+        console.log('📤 Enviando mensagem de autenticação:', authMessage);
+        
+        const sent = sendMessage(authMessage);
+        
+        if (sent) {
+          console.log('✅ Autenticação WebSocket enviada com sucesso');
+        } else {
+          console.warn('⚠️ Falha ao enviar autenticação WebSocket');
+        }
       } else {
-        console.warn('⚠️ Session token não encontrado nos cookies');
+        console.warn('⚠️ Session token não encontrado em nenhuma fonte');
       }
     }
   }, [connected, user, sendMessage]);

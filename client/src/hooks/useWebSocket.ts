@@ -337,6 +337,36 @@ export function useWebSocket() {
         console.log('WebSocket conectado');
         setConnected(true);
         setReconnectAttempts(0); // Resetar contador de tentativas ao conectar com sucesso
+        
+        // Enviar autenticação imediatamente após conectar
+        const sessionToken = localStorage.getItem('sessionToken') || 
+                             localStorage.getItem('token') || 
+                             document.cookie.split(';').find(c => c.trim().startsWith('sessionToken='))?.split('=')[1] || 
+                             document.cookie.split(';').find(c => c.trim().startsWith('connect.sid='))?.split('=')[1] || 
+                             '';
+        
+        if (sessionToken) {
+          const userDataStr = localStorage.getItem('user');
+          if (userDataStr) {
+            try {
+              const userData = JSON.parse(userDataStr);
+              if (userData.id) {
+                const authMessage = {
+                  type: 'auth',
+                  userId: userData.id,
+                  sessionToken: sessionToken
+                };
+                
+                console.log(`🔐 Enviando autenticação WebSocket: usuário ${userData.id}, sessão ${sessionToken.substring(0, 8)}...`);
+                socket.send(JSON.stringify(authMessage));
+              }
+            } catch (error) {
+              console.error('Erro ao parsear dados do usuário para autenticação WebSocket:', error);
+            }
+          }
+        } else {
+          console.warn('⚠️ Nenhum sessionToken encontrado para autenticação WebSocket');
+        }
       });
 
       socket.addEventListener('message', (event) => {

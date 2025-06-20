@@ -104,6 +104,7 @@ export function SessionTerminatedModal({ isOpen, onClose, message }: SessionTerm
     <div 
       className={`fixed inset-0 ${isOpen ? 'block' : 'hidden'}`}
       style={{ zIndex: 10000000 }}
+      data-session-terminated="true"
     >
       {/* Overlay personalizado */}
       <div 
@@ -115,6 +116,7 @@ export function SessionTerminatedModal({ isOpen, onClose, message }: SessionTerm
       <div 
         className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-lg shadow-xl p-6"
         style={{ zIndex: 10000002 }}
+        data-session-terminated-modal="true"
       >
         <div className="flex items-center gap-2 text-amber-600 mb-4">
           <AlertTriangle className="h-5 w-5" />
