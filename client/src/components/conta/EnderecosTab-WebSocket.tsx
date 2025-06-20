@@ -974,7 +974,6 @@ export default function EnderecosTabWebSocket() {
             )}
           </>
         )}
-        )}
       </CardContent>
 
       {/* Dialog de confirmação de exclusão */}
