@@ -26,7 +26,6 @@ import {
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/use-auth";
-import { useWebSocketData } from "@/hooks/useWebSocketData";
 import { Badge } from "@/components/ui/badge";
 import { Pagination } from "@/components/Pagination";
 import {
