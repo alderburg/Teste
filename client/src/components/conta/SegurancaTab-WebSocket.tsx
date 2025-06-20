@@ -8,7 +8,6 @@ import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useWebSocketData } from "@/hooks/useWebSocketData";
 import { 
   Loader2, 
   Shield, 
@@ -81,6 +80,15 @@ interface SessaoData {
   deviceType?: string;
   activityText?: string;
   expiryText?: string;
+  user_id?: number;
+  user_type?: string;
+  nome_usuario?: string;
+  calculated_status?: string;
+  device_info?: string;
+  last_activity?: string;
+  expires_at?: string;
+  is_active?: boolean;
+  created_at?: string;
 }
 
 export default function SegurancaTabWebSocket() {
@@ -115,6 +123,8 @@ export default function SegurancaTabWebSocket() {
   const [itemsPerPage, setItemsPerPage] = useState(6);
   const [sessaoParaExcluir, setSessaoParaExcluir] = useState<SessaoData | null>(null);
   const [carregandoEncerramento, setCarregandoEncerramento] = useState<string | null>(null);
+  const [isLoadingSessoes, setIsLoadingSessoes] = useState(true);
+  const [sessoes, setSessoes] = useState<SessaoData[]>([]);
   
   // Estado local para controlar o preloader do botão, independente do estado do componente pai
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -140,40 +150,160 @@ export default function SegurancaTabWebSocket() {
     valido: false // True quando o código tem 6 dígitos numéricos
   });
   
-  // WebSocket para gerenciar sessões
-  const {
-    data: sessoesResponse,
-    loading: isLoadingSessoes,
-    deleteItem: deleteSessao,
-    refetch: refetchSessoes
-  } = useWebSocketData<any>({
-    endpoint: '/api/conta/sessoes',
-    resource: 'sessoes'
-  });
+  // Função para buscar sessões
+  const buscarSessoes = useCallback(async () => {
+    if (!user?.id) return;
 
-  // Extrair as sessões da resposta da API
-  const sessoes = Array.isArray(sessoesResponse) 
-    ? sessoesResponse 
-    : sessoesResponse?.sessions || [];
-
-  // Formulário para alteração de senha
-  const alterarSenhaForm = useForm<ChangePasswordData>({
-    resolver: zodResolver(changePasswordSchema),
-    defaultValues: {
-      senhaAtual: '',
-      novaSenha: '',
-      confirmarSenha: ''
-    },
-    mode: "onChange"
-  });
-
-  // Formulário para 2FA
-  const enable2FAForm = useForm<Enable2FAData>({
-    resolver: zodResolver(enable2FASchema),
-    defaultValues: {
-      codigo: ''
+    try {
+      setIsLoadingSessoes(true);
+      console.log('🔍 Buscando sessões para usuário:', user.id);
+      
+      const response = await fetch('/api/conta/sessoes', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('📋 Dados das sessões recebidos:', data);
+      
+      // Extrair as sessões da resposta
+      const sessoesRecebidas = data.sessions || [];
+      
+      // Mapear os dados para o formato esperado
+      const sessoesMapeadas = sessoesRecebidas.map((sessao: any) => {
+        // Determinar se é a sessão atual
+        const isCurrent = sessao.current || false;
+        
+        // Extrair informações do dispositivo do user agent
+        const userAgent = sessao.device_info || sessao.deviceInfo || '';
+        let dispositivo = 'Sistema desconhecido';
+        let navegador = 'Navegador desconhecido';
+        
+        if (userAgent) {
+          // Detectar sistema operacional
+          if (userAgent.includes('Windows NT 10.0')) dispositivo = 'Windows 10';
+          else if (userAgent.includes('Windows NT 6.3')) dispositivo = 'Windows 8.1';
+          else if (userAgent.includes('Windows NT 6.1')) dispositivo = 'Windows 7';
+          else if (userAgent.includes('Mac OS X')) dispositivo = 'macOS';
+          else if (userAgent.includes('X11') || userAgent.includes('Linux')) dispositivo = 'Linux';
+          else if (userAgent.includes('Android')) dispositivo = 'Android';
+          else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) dispositivo = 'iOS';
+          
+          // Detectar navegador
+          if (userAgent.includes('Chrome')) navegador = sessao.browser || 'Chrome';
+          else if (userAgent.includes('Firefox')) navegador = 'Firefox';
+          else if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) navegador = 'Safari';
+          else if (userAgent.includes('Edge')) navegador = 'Edge';
+          else navegador = sessao.browser || 'Navegador desconhecido';
+        }
+        
+        // Calcular texto de atividade
+        let activityText = 'Desconhecida';
+        if (sessao.last_activity || sessao.lastActivity) {
+          const lastActivity = new Date(sessao.last_activity || sessao.lastActivity);
+          const now = new Date();
+          const diffMs = now.getTime() - lastActivity.getTime();
+          const diffMinutes = Math.floor(diffMs / (1000 * 60));
+          const diffHours = Math.floor(diffMinutes / 60);
+          const diffDays = Math.floor(diffHours / 24);
+          
+          if (diffMinutes < 1) {
+            activityText = 'Agora mesmo';
+          } else if (diffMinutes < 60) {
+            activityText = `${diffMinutes} minuto${diffMinutes > 1 ? 's' : ''} atrás`;
+          } else if (diffHours < 24) {
+            activityText = `${diffHours} hora${diffHours > 1 ? 's' : ''} atrás`;
+          } else {
+            activityText = `${diffDays} dia${diffDays > 1 ? 's' : ''} atrás`;
+          }
+        }
+        
+        // Calcular texto de expiração
+        let expiryText = '';
+        if (sessao.expires_at || sessao.expiresAt) {
+          const expiryDate = new Date(sessao.expires_at || sessao.expiresAt);
+          const now = new Date();
+          const diffMs = expiryDate.getTime() - now.getTime();
+          const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+          
+          if (diffDays > 0) {
+            expiryText = `Expira em ${diffDays} dia${diffDays > 1 ? 's' : ''}`;
+          } else {
+            expiryText = 'Expirada';
+          }
+        }
+        
+        return {
+          id: String(sessao.id),
+          user_id: sessao.user_id || sessao.userId,
+          user_type: sessao.user_type || 'main',
+          ip: sessao.ip || 'Não disponível',
+          deviceInfo: userAgent,
+          device_info: userAgent,
+          browser: navegador,
+          location: sessao.location || 'Não identificada',
+          created_at: sessao.created_at || sessao.createdAt,
+          last_activity: sessao.last_activity || sessao.lastActivity,
+          expires_at: sessao.expires_at || sessao.expiresAt,
+          is_active: sessao.is_active !== false,
+          current: isCurrent,
+          isCurrentSession: isCurrent,
+          isActive: sessao.is_active !== false,
+          status: sessao.calculated_status || sessao.status || (sessao.is_active ? 'active' : 'inactive'),
+          nomeUsuario: sessao.nome_usuario || sessao.nomeUsuario || sessao.username || 'Usuário',
+          deviceType: userAgent.includes('Mobile') ? 'mobile' : 'desktop',
+          activityText,
+          expiryText,
+          device: dispositivo
+        };
+      });
+      
+      console.log('📋 Sessões mapeadas:', sessoesMapeadas);
+      setSessoes(sessoesMapeadas);
+      
+    } catch (error) {
+      console.error('❌ Erro ao buscar sessões:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar as sessões",
+        variant: "destructive"
+      });
+      setSessoes([]);
+    } finally {
+      setIsLoadingSessoes(false);
     }
-  });
+  }, [user?.id, toast]);
+
+  // Carregar sessões quando o componente montar
+  useEffect(() => {
+    buscarSessoes();
+  }, [buscarSessoes]);
+
+  // Função para deletar/encerrar sessão
+  const deleteSessao = async (sessionId: string) => {
+    const response = await fetch(`/api/conta/sessoes/${sessionId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Erro ao encerrar sessão');
+    }
+    
+    // Recarregar sessões após deletar
+    await buscarSessoes();
+  };
 
   // Mostrar notificação sobre 2FA quando o componente for carregado e 2FA não estiver ativado
   useEffect(() => {
@@ -402,6 +532,25 @@ export default function SegurancaTabWebSocket() {
       enable2FAForm.setValue('codigo', '');
     }
   }, [showPasswordSection, show2FASection, erroSenha, isSubmitting, alterarSenhaForm, enable2FAForm]);
+
+  // Formulário para alteração de senha
+  const alterarSenhaForm = useForm<ChangePasswordData>({
+    resolver: zodResolver(changePasswordSchema),
+    defaultValues: {
+      senhaAtual: '',
+      novaSenha: '',
+      confirmarSenha: ''
+    },
+    mode: "onChange"
+  });
+
+  // Formulário para 2FA
+  const enable2FAForm = useForm<Enable2FAData>({
+    resolver: zodResolver(enable2FASchema),
+    defaultValues: {
+      codigo: ''
+    }
+  });
 
   // Função para alterar senha
   const alterarSenha = async (data: ChangePasswordData) => {
@@ -1371,13 +1520,13 @@ export default function SegurancaTabWebSocket() {
                             ) : sessao.deviceType === 'mobile' ? (
                               <Smartphone className="h-5 w-5 text-gray-600" />
                             ) : (
-                              <Shield className="h-5 w-5 text-gray-600" />
+                              <Monitor className="h-5 w-5 text-gray-600" />
                             )}
                           </div>
                           <div>
                             <div className="flex items-center space-x-2">
                               <span className="font-medium">
-                                ID: {sessao.userId || 'N/A'} - {sessao.nomeUsuario || sessao.username}
+                                ID: {sessao.user_id || sessao.userId || 'N/A'} - {sessao.nomeUsuario || sessao.username || 'Usuário'}
                               </span>
                               {sessao.current && (
                                 <span className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">
@@ -1401,17 +1550,7 @@ export default function SegurancaTabWebSocket() {
                               )}
                             </div>
                             <div className="text-sm text-gray-500 mt-1">
-                              <strong>Dispositivo:</strong> {(() => {
-                                const userAgent = sessao.deviceInfo || '';
-                                if (userAgent.includes('Windows NT 10.0')) return 'Windows 10';
-                                if (userAgent.includes('Windows NT 6.3')) return 'Windows 8.1';
-                                if (userAgent.includes('Windows NT 6.1')) return 'Windows 7';
-                                if (userAgent.includes('Mac OS X')) return 'macOS';
-                                if (userAgent.includes('X11') || userAgent.includes('Linux')) return 'Linux';
-                                if (userAgent.includes('Android')) return 'Android';
-                                if (userAgent.includes('iPhone') || userAgent.includes('iPad')) return 'iOS';
-                                return 'Sistema desconhecido';
-                              })()} - {sessao.browser || 'Navegador desconhecido'}
+                              <strong>Dispositivo:</strong> {sessao.device || 'Sistema desconhecido'} - {sessao.browser || 'Navegador desconhecido'}
                             </div>
 
                             <div className="text-sm text-gray-500">
@@ -1479,7 +1618,7 @@ export default function SegurancaTabWebSocket() {
                     variant="outline"
                     size="sm"
                     className="mt-4"
-                    onClick={() => refetchSessoes()}
+                    onClick={() => buscarSessoes()}
                     disabled={isLoadingSessoes}
                   >
                     {isLoadingSessoes ? (
@@ -1489,7 +1628,7 @@ export default function SegurancaTabWebSocket() {
                       </>
                     ) : (
                       <>
-                        <Shield className="h-4 w-4 mr-2" />
+                        <RefreshCw className="h-4 w-4 mr-2" />
                         Recarregar sessões
                       </>
                     )}
