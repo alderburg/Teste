@@ -383,17 +383,17 @@ export default function MinhaContaPage() {
 
   // Estados para armazenar dados obtidos via websocket
   const [perfilData, setPerfilData] = useState<any>(null);
-  const [isLoadingPerfil, setIsLoadingPerfil] = useState(activeTab === "dados");
+  const [isLoadingPerfil, setIsLoadingPerfil] = useState(true);
   const [enderecosData, setEnderecosData] = useState<any[]>([]);
-  const [isLoadingEnderecos, setIsLoadingEnderecos] = useState(false);
+  const [isLoadingEnderecos, setIsLoadingEnderecos] = useState(true);
   const [contatosData, setContatosData] = useState<any[]>([]);
-  const [isLoadingContatos, setIsLoadingContatos] = useState(false);
+  const [isLoadingContatos, setIsLoadingContatos] = useState(true);
   const [usuariosData, setUsuariosData] = useState<any[]>([]);
-  const [isLoadingUsuarios, setIsLoadingUsuarios] = useState(false);
+  const [isLoadingUsuarios, setIsLoadingUsuarios] = useState(true);
   const [historicoAssinaturasData, setHistoricoAssinaturasData] = useState<any[]>([]);
-  const [isLoadingHistoricoAssinaturas, setIsLoadingHistoricoAssinaturas] = useState(false);
+  const [isLoadingHistoricoAssinaturas, setIsLoadingHistoricoAssinaturas] = useState(true);
   const [historicoPagamentosData, setHistoricoPagamentosData] = useState<any[]>([]);
-  const [isLoadingHistoricoPagamentos, setIsLoadingHistoricoPagamentos] = useState(false);
+  const [isLoadingHistoricoPagamentos, setIsLoadingHistoricoPagamentos] = useState(true);
 
   // Guardar o ID do usuário no localStorage para persistir entre reloads
   useEffect(() => {
@@ -406,25 +406,15 @@ export default function MinhaContaPage() {
   // Carregar dados quando o componente monta ou userId muda
   useEffect(() => {
     if (userId) {
-      // Apenas carregar dados da aba ativa no início
-      if (activeTab === "dados") {
-        fetchPerfilDataWS();
-      } else if (activeTab === "enderecos") {
-        fetchEnderecosDataWS();
-      } else if (activeTab === "contatos") {
-        fetchContatosDataWS();
-      } else if (activeTab === "usuarios") {
-        fetchUsuariosDataWS();
-      } else if (activeTab === "financeiro") {
-        fetchAssinaturaDataWS();
-        fetchHistoricoAssinaturasWS();
-        fetchHistoricoPagamentosWS();
-      } else {
-        // Para aba padrão (dados), sempre carregar
-        fetchPerfilDataWS();
-      }
+      fetchPerfilDataWS();
+      fetchEnderecosDataWS();
+      fetchContatosDataWS();
+      fetchUsuariosDataWS();
+      fetchAssinaturaDataWS();
+      fetchHistoricoAssinaturasWS();
+      fetchHistoricoPagamentosWS();
     }
-  }, [userId, activeTab]);
+  }, [userId]);
   const { toast } = useToast();
 
   // Funções para buscar dados via fetch direto (substituindo websocket temporariamente)
@@ -2666,7 +2656,13 @@ export default function MinhaContaPage() {
     </div>
   );
 
-  // Não mostrar loading global - cada aba terá seu próprio loading interno se necessário
+  // Verificar se qualquer query principal ainda está carregando
+  const isAnyLoading = isLoadingPerfil || isLoadingEnderecos || isLoadingContatos || isLoadingUsuarios;
+
+  // Se ainda está carregando, mostrar o componente de loading
+  if (isAnyLoading) {
+    return <LoadingComponent />;
+  }
 
   return (
     <div className="space-y-6">
@@ -2696,7 +2692,6 @@ export default function MinhaContaPage() {
 
               // Refetch data based on active tab apenas se necessário
               if (value === "dados" && user?.id && !perfilData) {
-                setIsLoadingPerfil(true);
                 fetchPerfilDataWS();
               } else if (value === "enderecos" && user?.id && enderecosData.length === 0) {
                 fetchEnderecosDataWS();
