@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 
 // Import dos componentes das abas
 import ContatosTab from "@/components/conta/ContatosTab-WebSocket";
-import EnderecosTab from "@/components/conta/EnderecosTab";
+import EnderecosTab from "@/components/conta/EnderecosTab-WebSocket";
 import UsuariosTab from "@/components/conta/UsuariosTab-WebSocket";
 import { PaymentMethodsManager } from "@/components/conta/PaymentMethodsManager";
 import SegurancaTab from "./seguranca-tab";
