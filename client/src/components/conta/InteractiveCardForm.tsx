@@ -187,12 +187,6 @@ export default function InteractiveCardForm({ onClose, onSuccess }: InteractiveC
     mutationFn: async (data: CreditCardFormData) => {
       try {
         setIsProcessing(true);
-        // Mostrar mensagem de carregamento
-        toast({
-          title: "Processando cartão",
-          description: "Verificando dados do cartão...",
-          variant: "default"
-        });
 
         console.log("Iniciando processamento do cartão:", data.cardNumber.substring(0, 4) + "xxxx");
 
@@ -234,12 +228,6 @@ export default function InteractiveCardForm({ onClose, onSuccess }: InteractiveC
 
         // 2. Usar o endpoint de SetupIntent para tokenização segura
         console.log("Criando SetupIntent para tokenização segura...");
-
-        toast({
-          title: "Configurando pagamento",
-          description: "Preparando para processar o cartão de forma segura...",
-          variant: "default"
-        });
 
         // Obter SetupIntent do servidor
         let setupIntentResult;
@@ -345,18 +333,14 @@ export default function InteractiveCardForm({ onClose, onSuccess }: InteractiveC
 
           console.log("Cartão salvo com sucesso:", saveResult);
 
-          toast({
-            title: "Cartão adicionado com sucesso!",
-            description: "Seu método de pagamento foi configurado e está pronto para uso.",
-            variant: "default"
-          });
-
           // Invalidar cache para atualizar lista de cartões
           queryClient.invalidateQueries({ queryKey: ['/api/payment-methods'] });
 
           if (onSuccess) {
             onSuccess(saveResult);
           }
+
+          return saveResult;
 
         } catch (saveError) {
           console.error("Erro ao salvar cartão:", saveError);
@@ -372,10 +356,9 @@ export default function InteractiveCardForm({ onClose, onSuccess }: InteractiveC
     },
     onSuccess: () => {
       toast({
-        title: "Cartão adicionado",
-        description: "Seu cartão foi adicionado com sucesso",
-        variant: "default",
-        className: "bg-white border-gray-200",
+        title: "Cartão adicionado com sucesso!",
+        description: "Seu método de pagamento foi configurado e está pronto para uso.",
+        variant: "default"
       });
 
       queryClient.invalidateQueries({ queryKey: ["/api/payment-methods"] });
@@ -535,6 +518,13 @@ export default function InteractiveCardForm({ onClose, onSuccess }: InteractiveC
     if (!validarFormulario()) {
       return;
     }
+
+    // Mostrar notificação de processamento apenas no início
+    toast({
+      title: "Processando cartão",
+      description: "Validando e salvando seus dados de pagamento...",
+      variant: "default"
+    });
 
     // Formatar os dados para envio (adicionar zero à esquerda no mês se necessário)
     let expiryMonth = formData.expiryMonth;
