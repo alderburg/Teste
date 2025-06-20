@@ -25,7 +25,7 @@ import ContatosTab from "@/components/conta/ContatosTab-WebSocket";
 import EnderecosTab from "@/components/conta/EnderecosTab-WebSocket";
 import UsuariosTab from "@/components/conta/UsuariosTab-WebSocket";
 import { PaymentMethodsManager } from "@/components/conta/PaymentMethodsManager";
-import SegurancaTab from "./seguranca-tab";
+import SegurancaTabWebSocket from "@/components/conta/SegurancaTab-WebSocket";
 import { useCreditBalance } from "@/hooks/use-credit-balance";
 import { useWebSocketData } from "@/hooks/useWebSocketData";
 
@@ -2688,25 +2688,28 @@ export default function MinhaContaPage() {
               } else {
                 url.searchParams.set('tab', value);
               }
-              window.history.pushState({}, '', url.toString());
+              window.history.replaceState({}, '', url.toString());
 
-              // Refetch data based on active tab
-              if (value === "dados" && user?.id) {
+              // Refetch data based on active tab apenas se necessário
+              if (value === "dados" && user?.id && !perfilData) {
                 fetchPerfilDataWS();
-              } else if (value === "enderecos" && user?.id) {
+              } else if (value === "enderecos" && user?.id && enderecosData.length === 0) {
                 fetchEnderecosDataWS();
-              } else if (value === "contatos" && user?.id) {
+              } else if (value === "contatos" && user?.id && contatosData.length === 0) {
                 fetchContatosDataWS();
-              } else if (value === "usuarios" && user?.id) {
+              } else if (value === "usuarios" && user?.id && usuariosData.length === 0) {
                 fetchUsuariosDataWS();
               } else if (value === "financeiro" && user?.id) {
-                setFinalPlanoData(null);
-                setIsReloadingAssinatura(true);
-                setForceShowPreloader(true);
-                refetchAssinatura();
-                refetchCredits(); // Recarregar créditos também
-                fetchHistoricoPagamentosWS();
-                fetchHistoricoAssinaturasWS();
+                // Apenas refetch se necessário para tab financeiro
+                if (!finalPlanoData) {
+                  setFinalPlanoData(null);
+                  setIsReloadingAssinatura(true);
+                  setForceShowPreloader(true);
+                  refetchAssinatura();
+                  refetchCredits();
+                  fetchHistoricoPagamentosWS();
+                  fetchHistoricoAssinaturasWS();
+                }
               }
             }}
             className="w-full"
@@ -3855,32 +3858,9 @@ export default function MinhaContaPage() {
               )}
             </TabsContent>
 
-            {/* Tab: Segurança da Conta */}
+            {/* Tab: Segurança - Migrado para WebSocket */}
             <TabsContent value="seguranca" className="space-y-4">
-              <SegurancaTab 
-                usuarioAtual={{id: perfilData?.userId || 1}}
-                sessoes={sessoes}
-                is2FAEnabled={is2FAEnabled}
-                qrCode2FA={qrCode2FA}
-                secret2FA={secret2FA}
-                erroSenha={erroSenha}
-                sucessoSenha={sucessoSenha}
-                carregandoSenha={carregandoSenha}
-                erro2FA={erro2FA}
-                sucesso2FA={sucesso2FA}
-                carregando2FA={carregando2FA}
-                carregandoSessoes={carregandoSessoes}
-                showPasswordSection={showPasswordSection}
-                show2FASection={show2FASection}
-                setShowPasswordSection={setShowPasswordSection}
-                setShow2FASection={setShow2FASection}
-                alterarSenha={alterarSenha}
-                iniciar2FA={iniciar2FA}
-                ativar2FA={ativar2FA}
-                desativar2FA={desativar2FA}
-                encerrarSessao={encerrarSessao}
-                recarregarSessoes={fetchSessoes}
-              />
+              <SegurancaTabWebSocket />
             </TabsContent>
           </Tabs>
 

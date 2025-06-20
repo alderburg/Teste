@@ -972,6 +972,17 @@ export default function EnderecosTabWebSocket() {
             )}
           </>
         )}
+
+        {!isLoadingEnderecos && filteredEnderecos.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            itemsPerPage={itemsPerPage}
+            onItemsPerPageChange={setItemsPerPage}
+            totalItems={filteredEnderecos.length}
+          />
+        )}
       </CardContent>
 
       {/* Dialog de confirmação de exclusão */}
