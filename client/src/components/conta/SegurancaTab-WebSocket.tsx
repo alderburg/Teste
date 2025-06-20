@@ -239,6 +239,25 @@ export default function SegurancaTabWebSocket() {
     return () => clearTimeout(timeoutId);
   }, [is2FAEnabled, toast]);
 
+  // Formulário para alteração de senha
+  const alterarSenhaForm = useForm<ChangePasswordData>({
+    resolver: zodResolver(changePasswordSchema),
+    defaultValues: {
+      senhaAtual: '',
+      novaSenha: '',
+      confirmarSenha: ''
+    },
+    mode: "onChange"
+  });
+
+  // Formulário para 2FA
+  const enable2FAForm = useForm<Enable2FAData>({
+    resolver: zodResolver(enable2FASchema),
+    defaultValues: {
+      codigo: ''
+    }
+  });
+
   // Verificar status do 2FA ao carregar o componente
   useEffect(() => {
     verificar2FAStatus();
@@ -448,25 +467,6 @@ export default function SegurancaTabWebSocket() {
       enable2FAForm.setValue('codigo', '');
     }
   }, [showPasswordSection, show2FASection, erroSenha, isSubmitting, alterarSenhaForm, enable2FAForm]);
-
-  // Formulário para alteração de senha
-  const alterarSenhaForm = useForm<ChangePasswordData>({
-    resolver: zodResolver(changePasswordSchema),
-    defaultValues: {
-      senhaAtual: '',
-      novaSenha: '',
-      confirmarSenha: ''
-    },
-    mode: "onChange"
-  });
-
-  // Formulário para 2FA
-  const enable2FAForm = useForm<Enable2FAData>({
-    resolver: zodResolver(enable2FASchema),
-    defaultValues: {
-      codigo: ''
-    }
-  });
 
   // Função para alterar senha
   const alterarSenha = async (data: ChangePasswordData) => {
