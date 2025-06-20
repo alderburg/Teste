@@ -576,10 +576,10 @@ export default function MinhaContaPage() {
         valorAnualTotal: displayData.plano.valorAnualTotal,
         economiaAnual: displayData.plano.economiaAnual,
         limitesCadastro: displayData.plano.limitesCadastro || {
-          produtos: displayData.plano.limiteProdutos || 50,
+          produtos: 50,
           servicos: 50,
           categorias: 50,
-          usuarios: displayData.plano.limiteUsuarios || 1
+          usuarios: 1
         }
       };
 
@@ -1222,10 +1222,7 @@ export default function MinhaContaPage() {
       // Recarregar dados do perfil
       await fetchPerfilDataWS();
 
-      // Notificar outros clientes via WebSocket
-      if (websocketService) {
-        websocketService.notify('perfil', 'update', result, user?.id);
-      }
+      // Dados atualizados via fetch/WebSocket
 
       return result;
     } catch (error: any) {
@@ -2153,11 +2150,11 @@ export default function MinhaContaPage() {
   };
 
   // Função para remover o logo
-  const handleRemoveLogo = () => {
+  const handleRemoveLogo = async () => {
     if (window.confirm("Tem certeza que deseja remover seu logo?")) {
       perfilForm.setValue("logoUrl", "");
       const data = perfilForm.getValues();
-      updatePerfilMutation.mutate(data);
+      await updatePerfilMutation(data);
     }
   };
 
@@ -3379,18 +3376,18 @@ export default function MinhaContaPage() {
                                     Plano {displayData.plano.nome || 'Atual'}
                                   </div>
                                   <div className="text-sm text-gray-600 mt-1">
-                                    Faturamento {displayData.assinatura.tipoCobranca === 'anual' ? 'Anual' : 'Mensal'}
+                                    Faturamento {displayData.assinatura?.tipoCobranca === 'anual' ? 'Anual' : 'Mensal'}
                                   </div>
                                 </div>
                                 <div className="text-right">
                                   <div className="text-2xl font-bold text-purple-700">
-                                    R$ {displayData.assinatura.tipoCobranca === 'anual' ? 
-                                      parseFloat(displayData.assinatura.valorPago).toFixed(2).replace('.', ',') :
+                                    R$ {displayData.assinatura?.tipoCobranca === 'anual' ? 
+                                      parseFloat(displayData.assinatura?.valorPago || "0").toFixed(2).replace('.', ',') :
                                       (displayData.plano.valorMensal ? 
                                         parseFloat(displayData.plano.valorMensal).toFixed(2).replace('.', ',') : 
                                         "87,90")
                                     }<span className="text-sm font-normal text-gray-600">
-                                      {displayData.assinatura.tipoCobranca === 'anual' ? '/ano' : '/mês'}
+                                      {displayData.assinatura?.tipoCobranca === 'anual' ? '/ano' : '/mês'}
                                     </span>
                                   </div>
                                   <div className="text-sm text-green-600 mt-1">
