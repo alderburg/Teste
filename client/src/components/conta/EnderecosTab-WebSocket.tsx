@@ -405,21 +405,21 @@ export default function EnderecosTabWebSocket() {
         {!isLoadingEnderecos && !initialLoading && (
           <>
             {/* Campo de pesquisa */}
-        {!showAddEndereco && (
-          <div className="mb-6 mt-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Pesquisar endereços..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          </div>
-        )}
+            {!showAddEndereco && (
+              <div className="mb-6 mt-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Pesquisar endereços..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+            )}
 
-        {showAddEndereco ? (
+            {showAddEndereco ? (
           <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-6">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-medium">
