@@ -348,17 +348,6 @@ export default function EnderecosTabWebSocket() {
     }
   };
 
-  if (isLoadingEnderecos || initialLoading) {
-    return (
-      <div className="space-y-6">
-        <div className="flex justify-center items-center py-8">
-          <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
-          <span className="ml-2 text-gray-600">Carregando endereços...</span>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <Card className="shadow-sm">
       <CardHeader className="pb-3">
@@ -369,7 +358,7 @@ export default function EnderecosTabWebSocket() {
               Gerencie os endereços associados à sua conta
             </CardDescription>
           </div>
-          {!showAddEndereco && (
+          {!showAddEndereco && !isLoadingEnderecos && !initialLoading && (
             <Button 
               onClick={() => {
                 setEditingEndereco(null);
@@ -404,6 +393,17 @@ export default function EnderecosTabWebSocket() {
         </div>
       </CardHeader>
       <CardContent>
+        {/* Preloader de carregamento */}
+        {(isLoadingEnderecos || initialLoading) && (
+          <div className="flex justify-center items-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+            <span className="ml-2 text-gray-600">Carregando endereços...</span>
+          </div>
+        )}
+
+        {/* Conteúdo quando não está carregando */}
+        {!isLoadingEnderecos && !initialLoading && (
+          <>
         {/* Campo de pesquisa */}
         {!showAddEndereco && (
           <div className="mb-6 mt-4">
@@ -973,6 +973,7 @@ export default function EnderecosTabWebSocket() {
               />
             )}
           </>
+        )}
         )}
       </CardContent>
 
