@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -93,17 +94,17 @@ interface SessaoData {
 export default function SegurancaTabWebSocket() {
   const { user } = useAuth();
   const { toast } = useToast();
-
+  
   // Estados para controle de seções
   const [showPasswordSection, setShowPasswordSection] = useState(false);
   const [show2FASection, setShow2FASection] = useState(false);
-
+  
   // Estados para 2FA
   const [is2FAEnabled, setIs2FAEnabled] = useState(false);
   const [qrCode2FA, setQrCode2FA] = useState<string | null>(null);
   const [secret2FA, setSecret2FA] = useState<string | null>(null);
   const [codigo2FA, setCodigo2FA] = useState('');
-
+  
   // Estados de loading e erros
   const [carregandoSenha, setCarregandoSenha] = useState(false);
   const [carregando2FA, setCarregando2FA] = useState(false);
@@ -111,12 +112,12 @@ export default function SegurancaTabWebSocket() {
   const [erro2FA, setErro2FA] = useState<string | null>(null);
   const [sucessoSenha, setSucessoSenha] = useState(false);
   const [sucesso2FA, setSucesso2FA] = useState(false);
-
+  
   // Estados para controle de visibilidade das senhas
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
+  
   // Estados para sessões
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(6);
@@ -124,7 +125,7 @@ export default function SegurancaTabWebSocket() {
   const [carregandoEncerramento, setCarregandoEncerramento] = useState<string | null>(null);
   const [isLoadingSessoes, setIsLoadingSessoes] = useState(true);
   const [sessoes, setSessoes] = useState<SessaoData[]>([]);
-
+  
   // Estado local para controlar o preloader do botão, independente do estado do componente pai
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [show2FACode, setShow2FACode] = useState(false);
@@ -148,7 +149,7 @@ export default function SegurancaTabWebSocket() {
     digitado: false, // True quando o usuário já digitou algum código
     valido: false // True quando o código tem 6 dígitos numéricos
   });
-
+  
   // Função para buscar sessões
   const buscarSessoes = useCallback(async () => {
     if (!user?.id) return;
@@ -156,7 +157,7 @@ export default function SegurancaTabWebSocket() {
     try {
       setIsLoadingSessoes(true);
       console.log('🔍 Buscando sessões para usuário:', user.id);
-
+      
       const response = await fetch('/api/conta/sessoes', {
         method: 'GET',
         headers: {
@@ -164,141 +165,24 @@ export default function SegurancaTabWebSocket() {
         },
         credentials: 'include'
       });
-
+      
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-
+      
       const data = await response.json();
       console.log('📋 Dados das sessões recebidos:', data);
-
-      // Verificar se recebemos dados válidos
-      if (!data.success || !Array.isArray(data.sessions)) {
-        console.warn('⚠️ Dados de sessões inválidos recebidos:', data);
-        setSessoes([]);
-        return;
+      
+      if (!data.success) {
+        throw new Error(data.message || 'Erro ao carregar sessões');
       }
-
+      
       // Extrair as sessões da resposta
-      const sessoesRecebidas = data.sessions;
-
-      // Mapear os dados para o formato esperado
-      const sessoesMapeadas = sessoesRecebidas.map((sessao: any) => {
-        // Determinar se é a sessão atual
-        const isCurrent = sessao.current || false;
-
-        // Extrair informações do dispositivo do user agent
-        const userAgent = sessao.deviceInfo || sessao.device_info || '';
-        let dispositivo = 'Sistema desconhecido';
-        let navegador = 'Navegador desconhecido';
-
-        if (userAgent) {
-          // Detectar sistema operacional
-          if (userAgent.includes('Windows NT 10.0')) dispositivo = 'Windows 10';
-          else if (userAgent.includes('Windows NT 6.3')) dispositivo = 'Windows 8.1';
-          else if (userAgent.includes('Windows NT 6.1')) dispositivo = 'Windows 7';
-          else if (userAgent.includes('Mac OS X')) dispositivo = 'macOS';
-          else if (userAgent.includes('X11') || userAgent.includes('Linux')) dispositivo = 'Linux';
-          else if (userAgent.includes('Android')) dispositivo = 'Android';
-          else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) dispositivo = 'iOS';
-
-          // Detectar navegador
-          if (userAgent.includes('Chrome')) navegador = sessao.browser || 'Chrome';
-          else if (userAgent.includes('Firefox')) navegador = 'Firefox';
-          else if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) navegador = 'Safari';
-          else if (userAgent.includes('Edge')) navegador = 'Edge';
-          else navegador = sessao.browser || 'Navegador desconhecido';
-        }
-
-        // Calcular texto de atividade
-        let activityText = 'Desconhecida';
-        if (sessao.lastActivity || sessao.last_activity) {
-          const lastActivityStr = sessao.lastActivity || sessao.last_activity;
-          if (lastActivityStr && lastActivityStr !== 'Desconhecida') {
-            try {
-              const lastActivity = new Date(lastActivityStr);
-              const now = new Date();
-              const diffMs = now.getTime() - lastActivity.getTime();
-              const diffMinutes = Math.floor(diffMs / (1000 * 60));
-              const diffHours = Math.floor(diffMinutes / 60);
-              const diffDays = Math.floor(diffHours / 24);
-
-              if (diffMinutes < 1) {
-                activityText = 'Agora mesmo';
-              } else if (diffMinutes < 60) {
-                activityText = `${diffMinutes} minuto${diffMinutes > 1 ? 's' : ''} atrás`;
-              } else if (diffHours < 24) {
-                activityText = `${diffHours} hora${diffHours > 1 ? 's' : ''} atrás`;
-              } else {
-                activityText = `${diffDays} dia${diffDays > 1 ? 's' : ''} atrás`;
-              }
-            } catch (e) {
-              activityText = sessao.activityText || 'Desconhecida';
-            }
-          } else {
-            activityText = sessao.activityText || 'Desconhecida';
-          }
-        }
-
-        // Calcular texto de expiração
-        let expiryText = '';
-        if (sessao.expiresAt || sessao.expires_at) {
-          try {
-            const expiryDate = new Date(sessao.expiresAt || sessao.expires_at);
-            const now = new Date();
-            const diffMs = expiryDate.getTime() - now.getTime();
-            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-            if (diffDays > 0) {
-              expiryText = `Expira em ${diffDays} dia${diffDays > 1 ? 's' : ''}`;
-            } else {
-              expiryText = 'Expirada';
-            }
-          } catch (e) {
-            expiryText = sessao.expiryText || '';
-          }
-        } else {
-          expiryText = sessao.expiryText || '';
-        }
-
-        // Determinar status da sessão
-        let sessionStatus = sessao.status || 'active';
-        if (!sessao.isActive) {
-          sessionStatus = 'inactive';
-        }
-
-        // Determinar o nome correto do usuário
-        let nomeUsuario = sessao.nomeUsuario || sessao.username || 'Usuário';
-        let userType = sessao.userType || 'main';
-
-        return {
-          id: String(sessao.id),
-          user_id: sessao.userId || sessao.user_id,
-          user_type: userType,
-          ip: sessao.ip || 'Não disponível',
-          deviceInfo: userAgent,
-          device_info: userAgent,
-          browser: navegador,
-          location: sessao.location || 'Não identificada',
-          created_at: sessao.createdAt || sessao.created_at,
-          last_activity: sessao.lastActivity || sessao.last_activity,
-          expires_at: sessao.expiresAt || sessao.expires_at,
-          is_active: sessao.isActive !== false,
-          current: isCurrent,
-          isCurrentSession: isCurrent,
-          isActive: sessao.isActive !== false,
-          status: sessionStatus,
-          nomeUsuario,
-          deviceType: userAgent.includes('Mobile') ? 'mobile' : 'desktop',
-          activityText,
-          expiryText,
-          device: dispositivo
-        };
-      });
-
-      console.log('📋 Sessões mapeadas:', sessoesMapeadas);
-      setSessoes(sessoesMapeadas);
-
+      const sessoesRecebidas = data.sessions || [];
+      
+      console.log(`✅ Retornando ${sessoesRecebidas.length} sessões para usuário ${user.id}`);
+      setSessoes(sessoesRecebidas);
+      
     } catch (error) {
       console.error('❌ Erro ao buscar sessões:', error);
       toast({
@@ -326,12 +210,12 @@ export default function SegurancaTabWebSocket() {
       },
       credentials: 'include'
     });
-
+    
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Erro ao encerrar sessão');
     }
-
+    
     // Recarregar sessões após deletar
     await buscarSessoes();
   };
@@ -402,7 +286,8 @@ export default function SegurancaTabWebSocket() {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({ 
-              password: value.senhaAtual || ''
+              password: value.senhaAtual || '',
+              userId: user?.id
             })
           });
 
@@ -527,7 +412,7 @@ export default function SegurancaTabWebSocket() {
     });
 
     return () => subscription.unsubscribe();
-  }, [alterarSenhaForm, camposSenhaValidados.senhaAtualVerificada]);
+  }, [alterarSenhaForm, camposSenhaValidados.senhaAtualVerificada, user?.id]);
 
   // Limpar validações ao alternar entre abas ou ao fechar seções
   useEffect(() => {
@@ -607,7 +492,7 @@ export default function SegurancaTabWebSocket() {
       setSucessoSenha(true);
       setShowPasswordSection(false);
       alterarSenhaForm.reset();
-
+      
       toast({
         title: "Senha alterada",
         description: "Sua senha foi alterada com sucesso",
@@ -645,7 +530,7 @@ export default function SegurancaTabWebSocket() {
       }
 
       const data = await response.json();
-
+      
       if (data.otpauthUrl && data.secret) {
         setQrCode2FA(data.otpauthUrl);
         setSecret2FA(data.secret);
@@ -742,7 +627,7 @@ export default function SegurancaTabWebSocket() {
       }
 
       setIs2FAEnabled(false);
-
+      
       toast({
         title: "2FA desativado",
         description: "A autenticação em dois fatores foi desativada com sucesso",
@@ -846,10 +731,10 @@ export default function SegurancaTabWebSocket() {
   // Função para encerrar sessão
   const handleEncerrarSessao = async (sessao: SessaoData) => {
     setCarregandoEncerramento(sessao.id);
-
+    
     try {
       await deleteSessao(sessao.id);
-
+      
       toast({
         title: "Sessão encerrada",
         description: "A sessão foi encerrada com sucesso",
@@ -1546,7 +1431,7 @@ export default function SegurancaTabWebSocket() {
                       <div key={sessao.id || index} className="flex items-center justify-between p-4 border rounded-lg bg-gray-50">
                         <div className="flex items-center space-x-4">
                           <div className="p-2 bg-white rounded-lg border">
-                            {sessao.current ? (
+                            {sessao.current || sessao.isCurrentSession ? (
                               <CheckCircle className="h-5 w-5 text-green-600" />
                             ) : sessao.deviceType === 'mobile' ? (
                               <Smartphone className="h-5 w-5 text-gray-600" />
@@ -1557,24 +1442,24 @@ export default function SegurancaTabWebSocket() {
                           <div>
                             <div className="flex items-center space-x-2">
                               <span className="font-medium">
-                                ID: {sessao.user_id || sessao.userId || 'N/A'} - {sessao.nomeUsuario || sessao.username || 'Usuário'}
+                                ID: {sessao.user_id || sessao.userId || sessao.id || 'N/A'} - {sessao.nomeUsuario || sessao.username || 'Usuário'}
                               </span>
-                              {sessao.current && (
+                              {(sessao.current || sessao.isCurrentSession) && (
                                 <span className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">
                                   Sessão atual
                                 </span>
                               )}
-                              {!sessao.current && !sessao.isActive && (
+                              {!(sessao.current || sessao.isCurrentSession) && !(sessao.isActive || sessao.is_active) && (
                                 <span className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded-full">
                                   Inativa
                                 </span>
                               )}
-                              {!sessao.current && sessao.status === 'expired' && (
+                              {!(sessao.current || sessao.isCurrentSession) && sessao.status === 'expired' && (
                                 <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-700 rounded-full">
                                   Expirada
                                 </span>
                               )}
-                              {!sessao.current && sessao.isActive && sessao.status === 'active' && (
+                              {!(sessao.current || sessao.isCurrentSession) && (sessao.isActive || sessao.is_active) && sessao.status === 'active' && (
                                 <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full">
                                   Ativa
                                 </span>
@@ -1602,7 +1487,7 @@ export default function SegurancaTabWebSocket() {
                         </div>
 
                         <div className="flex items-center space-x-2">
-                          {sessao.current ? (
+                          {(sessao.current || sessao.isCurrentSession) ? (
                             <span className="text-sm text-green-600 font-medium">
                               Esta sessão
                             </span>
