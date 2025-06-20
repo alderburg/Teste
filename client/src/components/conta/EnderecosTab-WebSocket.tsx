@@ -404,7 +404,7 @@ export default function EnderecosTabWebSocket() {
         {/* Conteúdo quando não está carregando */}
         {!isLoadingEnderecos && !initialLoading && (
           <>
-        {/* Campo de pesquisa */}
+            {/* Campo de pesquisa */}
         {!showAddEndereco && (
           <div className="mb-6 mt-4">
             <div className="relative">
