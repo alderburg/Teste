@@ -556,7 +556,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         console.log(`🔔 Notificando usuários relacionados sobre delete em sessoes para usuário ${userIdForNotification}`);
-        // notifyRelatedUsers('sessoes', 'delete', { sessionId: sessionId }, userIdForNotification); // WebSocket movido para index.ts
+        
+        // Notificar via WebSocket sobre atualização das sessões
+        if (typeof (global as any).notifySessionUpdate === 'function') {
+          (global as any).notifySessionUpdate(userIdForNotification);
+        }
+        
+        // Enviar evento específico para atualização da lista de sessões
+        if (typeof (global as any).wsClients !== 'undefined') {
+          const message = JSON.stringify({
+            type: 'data_update',
+            resource: 'sessoes',
+            action: 'delete',
+            data: { sessionId: sessionId },
+            userId: userIdForNotification
+          });
+          
+          (global as any).wsClients.forEach((ws: any) => {
+            if (ws.readyState === 1) { // WebSocket.OPEN
+              try {
+                ws.send(message);
+              } catch (error) {
+                console.error('Erro ao enviar notificação WebSocket:', error);
+              }
+            }
+          });
+        }
         
         res.json({
           success: true,

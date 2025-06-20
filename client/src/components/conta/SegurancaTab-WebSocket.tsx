@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -94,17 +93,17 @@ interface SessaoData {
 export default function SegurancaTabWebSocket() {
   const { user } = useAuth();
   const { toast } = useToast();
-  
+
   // Estados para controle de seções
   const [showPasswordSection, setShowPasswordSection] = useState(false);
   const [show2FASection, setShow2FASection] = useState(false);
-  
+
   // Estados para 2FA
   const [is2FAEnabled, setIs2FAEnabled] = useState(false);
   const [qrCode2FA, setQrCode2FA] = useState<string | null>(null);
   const [secret2FA, setSecret2FA] = useState<string | null>(null);
   const [codigo2FA, setCodigo2FA] = useState('');
-  
+
   // Estados de loading e erros
   const [carregandoSenha, setCarregandoSenha] = useState(false);
   const [carregando2FA, setCarregando2FA] = useState(false);
@@ -112,12 +111,12 @@ export default function SegurancaTabWebSocket() {
   const [erro2FA, setErro2FA] = useState<string | null>(null);
   const [sucessoSenha, setSucessoSenha] = useState(false);
   const [sucesso2FA, setSucesso2FA] = useState(false);
-  
+
   // Estados para controle de visibilidade das senhas
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  
+
   // Estados para sessões
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(6);
@@ -125,7 +124,7 @@ export default function SegurancaTabWebSocket() {
   const [carregandoEncerramento, setCarregandoEncerramento] = useState<string | null>(null);
   const [isLoadingSessoes, setIsLoadingSessoes] = useState(true);
   const [sessoes, setSessoes] = useState<SessaoData[]>([]);
-  
+
   // Estado local para controlar o preloader do botão, independente do estado do componente pai
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [show2FACode, setShow2FACode] = useState(false);
@@ -149,7 +148,7 @@ export default function SegurancaTabWebSocket() {
     digitado: false, // True quando o usuário já digitou algum código
     valido: false // True quando o código tem 6 dígitos numéricos
   });
-  
+
   // Função para buscar sessões
   const buscarSessoes = useCallback(async () => {
     if (!user?.id) return;
@@ -157,7 +156,7 @@ export default function SegurancaTabWebSocket() {
     try {
       setIsLoadingSessoes(true);
       console.log('🔍 Buscando sessões para usuário:', user.id);
-      
+
       const response = await fetch('/api/conta/sessoes', {
         method: 'GET',
         headers: {
@@ -165,27 +164,34 @@ export default function SegurancaTabWebSocket() {
         },
         credentials: 'include'
       });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      
+
       const data = await response.json();
       console.log('📋 Dados das sessões recebidos:', data);
-      
+
+      // Verificar se recebemos dados válidos
+      if (!data.success || !Array.isArray(data.sessions)) {
+        console.warn('⚠️ Dados de sessões inválidos recebidos:', data);
+        setSessoes([]);
+        return;
+      }
+
       // Extrair as sessões da resposta
-      const sessoesRecebidas = data.sessions || [];
-      
+      const sessoesRecebidas = data.sessions;
+
       // Mapear os dados para o formato esperado
       const sessoesMapeadas = sessoesRecebidas.map((sessao: any) => {
         // Determinar se é a sessão atual
         const isCurrent = sessao.current || false;
-        
+
         // Extrair informações do dispositivo do user agent
-        const userAgent = sessao.device_info || sessao.deviceInfo || '';
+        const userAgent = sessao.deviceInfo || sessao.device_info || '';
         let dispositivo = 'Sistema desconhecido';
         let navegador = 'Navegador desconhecido';
-        
+
         if (userAgent) {
           // Detectar sistema operacional
           if (userAgent.includes('Windows NT 10.0')) dispositivo = 'Windows 10';
@@ -195,7 +201,7 @@ export default function SegurancaTabWebSocket() {
           else if (userAgent.includes('X11') || userAgent.includes('Linux')) dispositivo = 'Linux';
           else if (userAgent.includes('Android')) dispositivo = 'Android';
           else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) dispositivo = 'iOS';
-          
+
           // Detectar navegador
           if (userAgent.includes('Chrome')) navegador = sessao.browser || 'Chrome';
           else if (userAgent.includes('Firefox')) navegador = 'Firefox';
@@ -203,71 +209,96 @@ export default function SegurancaTabWebSocket() {
           else if (userAgent.includes('Edge')) navegador = 'Edge';
           else navegador = sessao.browser || 'Navegador desconhecido';
         }
-        
+
         // Calcular texto de atividade
         let activityText = 'Desconhecida';
-        if (sessao.last_activity || sessao.lastActivity) {
-          const lastActivity = new Date(sessao.last_activity || sessao.lastActivity);
-          const now = new Date();
-          const diffMs = now.getTime() - lastActivity.getTime();
-          const diffMinutes = Math.floor(diffMs / (1000 * 60));
-          const diffHours = Math.floor(diffMinutes / 60);
-          const diffDays = Math.floor(diffHours / 24);
-          
-          if (diffMinutes < 1) {
-            activityText = 'Agora mesmo';
-          } else if (diffMinutes < 60) {
-            activityText = `${diffMinutes} minuto${diffMinutes > 1 ? 's' : ''} atrás`;
-          } else if (diffHours < 24) {
-            activityText = `${diffHours} hora${diffHours > 1 ? 's' : ''} atrás`;
+        if (sessao.lastActivity || sessao.last_activity) {
+          const lastActivityStr = sessao.lastActivity || sessao.last_activity;
+          if (lastActivityStr && lastActivityStr !== 'Desconhecida') {
+            try {
+              const lastActivity = new Date(lastActivityStr);
+              const now = new Date();
+              const diffMs = now.getTime() - lastActivity.getTime();
+              const diffMinutes = Math.floor(diffMs / (1000 * 60));
+              const diffHours = Math.floor(diffMinutes / 60);
+              const diffDays = Math.floor(diffHours / 24);
+
+              if (diffMinutes < 1) {
+                activityText = 'Agora mesmo';
+              } else if (diffMinutes < 60) {
+                activityText = `${diffMinutes} minuto${diffMinutes > 1 ? 's' : ''} atrás`;
+              } else if (diffHours < 24) {
+                activityText = `${diffHours} hora${diffHours > 1 ? 's' : ''} atrás`;
+              } else {
+                activityText = `${diffDays} dia${diffDays > 1 ? 's' : ''} atrás`;
+              }
+            } catch (e) {
+              activityText = sessao.activityText || 'Desconhecida';
+            }
           } else {
-            activityText = `${diffDays} dia${diffDays > 1 ? 's' : ''} atrás`;
+            activityText = sessao.activityText || 'Desconhecida';
           }
         }
-        
+
         // Calcular texto de expiração
         let expiryText = '';
-        if (sessao.expires_at || sessao.expiresAt) {
-          const expiryDate = new Date(sessao.expires_at || sessao.expiresAt);
-          const now = new Date();
-          const diffMs = expiryDate.getTime() - now.getTime();
-          const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-          
-          if (diffDays > 0) {
-            expiryText = `Expira em ${diffDays} dia${diffDays > 1 ? 's' : ''}`;
-          } else {
-            expiryText = 'Expirada';
+        if (sessao.expiresAt || sessao.expires_at) {
+          try {
+            const expiryDate = new Date(sessao.expiresAt || sessao.expires_at);
+            const now = new Date();
+            const diffMs = expiryDate.getTime() - now.getTime();
+            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+            if (diffDays > 0) {
+              expiryText = `Expira em ${diffDays} dia${diffDays > 1 ? 's' : ''}`;
+            } else {
+              expiryText = 'Expirada';
+            }
+          } catch (e) {
+            expiryText = sessao.expiryText || '';
           }
+        } else {
+          expiryText = sessao.expiryText || '';
         }
-        
+
+        // Determinar status da sessão
+        let sessionStatus = sessao.status || 'active';
+        if (!sessao.isActive) {
+          sessionStatus = 'inactive';
+        }
+
+        // Determinar o nome correto do usuário
+        let nomeUsuario = sessao.nomeUsuario || sessao.username || 'Usuário';
+        let userType = sessao.userType || 'main';
+
         return {
           id: String(sessao.id),
-          user_id: sessao.user_id || sessao.userId,
-          user_type: sessao.user_type || 'main',
+          user_id: sessao.userId || sessao.user_id,
+          user_type: userType,
           ip: sessao.ip || 'Não disponível',
           deviceInfo: userAgent,
           device_info: userAgent,
           browser: navegador,
           location: sessao.location || 'Não identificada',
-          created_at: sessao.created_at || sessao.createdAt,
-          last_activity: sessao.last_activity || sessao.lastActivity,
-          expires_at: sessao.expires_at || sessao.expiresAt,
-          is_active: sessao.is_active !== false,
+          created_at: sessao.createdAt || sessao.created_at,
+          last_activity: sessao.lastActivity || sessao.last_activity,
+          expires_at: sessao.expiresAt || sessao.expires_at,
+          is_active: sessao.isActive !== false,
           current: isCurrent,
           isCurrentSession: isCurrent,
-          isActive: sessao.is_active !== false,
-          status: sessao.calculated_status || sessao.status || (sessao.is_active ? 'active' : 'inactive'),
-          nomeUsuario: sessao.nome_usuario || sessao.nomeUsuario || sessao.username || 'Usuário',
+          isActive: sessao.isActive !== false,
+          status: sessionStatus,
+          nomeUsuario,
           deviceType: userAgent.includes('Mobile') ? 'mobile' : 'desktop',
           activityText,
           expiryText,
           device: dispositivo
         };
       });
-      
+
       console.log('📋 Sessões mapeadas:', sessoesMapeadas);
       setSessoes(sessoesMapeadas);
-      
+
     } catch (error) {
       console.error('❌ Erro ao buscar sessões:', error);
       toast({
@@ -295,12 +326,12 @@ export default function SegurancaTabWebSocket() {
       },
       credentials: 'include'
     });
-    
+
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Erro ao encerrar sessão');
     }
-    
+
     // Recarregar sessões após deletar
     await buscarSessoes();
   };
@@ -576,7 +607,7 @@ export default function SegurancaTabWebSocket() {
       setSucessoSenha(true);
       setShowPasswordSection(false);
       alterarSenhaForm.reset();
-      
+
       toast({
         title: "Senha alterada",
         description: "Sua senha foi alterada com sucesso",
@@ -614,7 +645,7 @@ export default function SegurancaTabWebSocket() {
       }
 
       const data = await response.json();
-      
+
       if (data.otpauthUrl && data.secret) {
         setQrCode2FA(data.otpauthUrl);
         setSecret2FA(data.secret);
@@ -711,7 +742,7 @@ export default function SegurancaTabWebSocket() {
       }
 
       setIs2FAEnabled(false);
-      
+
       toast({
         title: "2FA desativado",
         description: "A autenticação em dois fatores foi desativada com sucesso",
@@ -815,10 +846,10 @@ export default function SegurancaTabWebSocket() {
   // Função para encerrar sessão
   const handleEncerrarSessao = async (sessao: SessaoData) => {
     setCarregandoEncerramento(sessao.id);
-    
+
     try {
       await deleteSessao(sessao.id);
-      
+
       toast({
         title: "Sessão encerrada",
         description: "A sessão foi encerrada com sucesso",

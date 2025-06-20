@@ -169,6 +169,24 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
           activateSessionProtection(event.detail.message || "Sua sessão foi encerrada por outro usuário");
         }
       }
+
+      // Handler para atualizações de dados (incluindo sessões)
+      if (event.detail && event.detail.type === 'data_update') {
+        const { resource, action, data } = event.detail;
+        
+        console.log('🔔 Atualização de dados via WebSocket:', {
+          resource,
+          action,
+          data,
+          currentPage: window.location.pathname
+        });
+
+        // Disparar evento personalizado para componentes que precisam atualizar
+        const customEvent = new CustomEvent('websocket-data-update', {
+          detail: { resource, action, data }
+        });
+        window.dispatchEvent(customEvent);
+      }
     };
 
     const handleSessionTerminated = (event: any) => {

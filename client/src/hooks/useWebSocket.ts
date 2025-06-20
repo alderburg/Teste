@@ -45,23 +45,23 @@ export function useWebSocket() {
     else if (data.type === 'session_terminated') {
       // Tratar evento de sessão encerrada
       console.log('🔒 Sessão encerrada pelo servidor:', data);
-      
+
       // Verificar se é a sessão atual que foi encerrada
       const currentSessionToken = localStorage.getItem('sessionToken') || 
                                  localStorage.getItem('token') || 
                                  document.cookie.split(';').find(c => c.trim().startsWith('sessionToken='))?.split('=')[1] || 
                                  '';
-      
+
       console.log('🔒 Verificando tokens:', {
         current: currentSessionToken?.substring(0, 8) + '...',
         terminated: data.sessionToken?.substring(0, 8) + '...',
         match: currentSessionToken === data.sessionToken,
         currentPage: window.location.pathname
       });
-      
+
       if (currentSessionToken === data.sessionToken) {
         console.log('🔒 Esta é a sessão atual - disparando evento de encerramento');
-        
+
         // Invalidar imediatamente o queryClient para evitar requisições
         try {
           queryClient.invalidateQueries();
@@ -69,17 +69,17 @@ export function useWebSocket() {
         } catch (error) {
           console.error('Erro ao limpar queryClient:', error);
         }
-        
+
         // AÇÃO IMEDIATA: Forçar o popup globalmente
         const forceSessionTerminationPopup = () => {
           console.log('🔒 FORÇANDO POPUP DE SESSÃO ENCERRADA');
-          
+
           // Verificar se já existe um popup
           if (document.querySelector('[data-session-terminated-modal]')) {
             console.log('🔒 Modal já existe, não duplicar');
             return;
           }
-          
+
           // Criar modal diretamente no DOM
           const modal = document.createElement('div');
           modal.setAttribute('data-session-terminated-modal', 'true');
@@ -96,7 +96,7 @@ export function useWebSocket() {
             justify-content: center !important;
             backdrop-filter: blur(4px) !important;
           `;
-          
+
           const modalContent = document.createElement('div');
           modalContent.style.cssText = `
             background: white !important;
@@ -108,7 +108,7 @@ export function useWebSocket() {
             text-align: center !important;
             font-family: system-ui, -apple-system, sans-serif !important;
           `;
-          
+
           let countdown = 10;
           modalContent.innerHTML = `
             <div style="color: #dc2626; font-size: 48px; margin-bottom: 16px;">⚠️</div>
@@ -134,42 +134,42 @@ export function useWebSocket() {
               Sair Agora
             </button>
           `;
-          
+
           modal.appendChild(modalContent);
           document.body.appendChild(modal);
-          
+
           // Countdown e logout automático
           const countdownElement = document.getElementById('countdown');
           const logoutButton = document.getElementById('logout-now');
-          
+
           const countdownInterval = setInterval(() => {
             countdown--;
             if (countdownElement) {
               countdownElement.textContent = countdown.toString();
             }
-            
+
             if (countdown <= 0) {
               clearInterval(countdownInterval);
               performLogout();
             }
           }, 1000);
-          
+
           const performLogout = () => {
             console.log('🔒 Executando logout forçado');
-            
+
             // Limpar dados locais
             localStorage.clear();
             sessionStorage.clear();
-            
+
             // Limpar cookies
             document.cookie.split(";").forEach(function(c) { 
               document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
             });
-            
+
             // Redirecionar
             window.location.href = '/acessar';
           };
-          
+
           if (logoutButton) {
             logoutButton.addEventListener('click', () => {
               clearInterval(countdownInterval);
@@ -177,10 +177,10 @@ export function useWebSocket() {
             });
           }
         };
-        
+
         // Executar imediatamente
         forceSessionTerminationPopup();
-        
+
         // Disparar eventos para compatibilidade
         const sessionTerminatedEvent = new CustomEvent('session-terminated', { 
           detail: { 
@@ -191,7 +191,7 @@ export function useWebSocket() {
           } 
         });
         window.dispatchEvent(sessionTerminatedEvent);
-        
+
         const webSocketEvent = new CustomEvent('websocket-message-received', { 
           detail: { 
             type: 'session_terminated',
@@ -202,7 +202,7 @@ export function useWebSocket() {
         });
         window.dispatchEvent(webSocketEvent);
       }
-      
+
       return;
     }
 
@@ -281,7 +281,7 @@ export function useWebSocket() {
 
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.host; // Inclui porta se existir
-        
+
         return `${protocol}//${host}/ws`;
       };
 
