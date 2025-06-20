@@ -29,7 +29,7 @@ interface WebSocketProviderProps {
 
 export default function WebSocketProvider({ children }: WebSocketProviderProps) {
   const { connected, sendMessage } = useWebSocket();
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const [lastUpdated, setLastUpdated] = useState<Date | undefined>(undefined);
   const [sessionTerminated, setSessionTerminated] = useState(false);
   const [terminationMessage, setTerminationMessage] = useState<string>("");
