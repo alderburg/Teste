@@ -718,35 +718,98 @@ if (process.env.EXTERNAL_API_URL) {
           const clientId = Date.now() + Math.random();
           const connectionTime = new Date();
           const userAgent = req.headers['user-agent'] || 'Desconhecido';
-          const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'IP desconhecido';
+          const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'IP desconhecido';          const cookies = req.headers.cookie ? req.headers.cookie.split(';').map(c => c.trim()) : [];
 
-          // Verificar se o usuário está autenticado via sessão doExpress
-          const authenticated = req.isAuthenticated && typeof req.isAuthenticated === 'function' ? req.isAuthenticated() : false;
+          // Importar executeQuery dinamicamente para evitar dependência circular
+          const { connectionManager } = await import('./connection-manager');
+          const executeQuery = connectionManager.executeQuery;
 
-          // Verificar também se existe sessão válida na tabela user_sessions
-          let validSession = false;
-          if (req.sessionID && authenticated) {
-            try {
-              const sessionCheck = await connectionManager.executeQuery(`
-                SELECT id FROM user_sessions_additional 
-                WHERE token = $1 AND is_active = true AND expires_at > NOW()
-              `, [req.sessionID]);
-              validSession = sessionCheck.rows.length > 0;
-            } catch (error) {
-              console.log('⚠️ Erro ao verificar sessão no WebSocket:', error);
+          // Autenticação WebSocket melhorada - Extrair session ID de forma mais robusta
+          let sessionId: string | undefined;
+          let sessionToken: string | undefined;
+
+          // 1. Tentar extrair do cookie connect.sid
+          const connectSidCookie = cookies?.find(c => c.trim().startsWith('connect.sid='));
+          if (connectSidCookie) {
+            const cookieValue = connectSidCookie.split('=')[1];
+            if (cookieValue) {
+              // Decodificar o cookie do connect.sid
+              const decodedValue = decodeURIComponent(cookieValue);
+              // Extrair o session ID (formato: s:sessionId.signature)
+              const match = decodedValue.match(/^s:([^.]+)\./);
+              if (match) {
+                sessionId = match[1];
+              }
             }
           }
 
-          const finalAuthStatus = authenticated && validSession;
+          // 2. Tentar extrair sessionToken direto dos cookies
+          const sessionTokenCookie = cookies?.find(c => c.trim().startsWith('sessionToken='));
+          if (sessionTokenCookie) {
+            sessionToken = sessionTokenCookie.split('=')[1];
+          }
 
-          console.log(`🔍 Debug autenticação WebSocket:`, {
-            authenticated,
+          let userId: number | undefined;
+          let validSession = false;
+          let hasUser = false;
+
+          // Verificar autenticação usando session ID primeiro
+          if (sessionId) {
+            try {
+              const sessionQuery = `
+                SELECT sess->'user' as user_data, sess->'authenticated' as authenticated
+                FROM user_sessions_store 
+                WHERE sid = $1
+              `;
+              const sessionResult = await executeQuery(sessionQuery, [sessionId]);
+
+              if (sessionResult.rows.length > 0) {
+                const sessionData = sessionResult.rows[0];
+                const userData = sessionData.user_data;
+                const isAuthenticated = sessionData.authenticated;
+
+                if (userData && isAuthenticated) {
+                  userId = typeof userData === 'object' ? userData.id : userData;
+                  validSession = true;
+                  hasUser = true;
+                }
+              }
+            } catch (error) {
+              console.log('🔍 Erro ao verificar sessão por session ID:', error);
+            }
+          }
+
+          // Se não encontrou por session ID, tentar por session token
+          if (!validSession && sessionToken) {
+            try {
+              const tokenQuery = `
+                SELECT s.user_id, u.id as user_id, u.username, u.email 
+                FROM user_sessions s 
+                JOIN users u ON s.user_id = u.id 
+                WHERE s.token = $1 AND s.active = true
+              `;
+              const tokenResult = await executeQuery(tokenQuery, [sessionToken]);
+
+              if (tokenResult.rows.length > 0) {
+                userId = tokenResult.rows[0].user_id;
+                validSession = true;
+                hasUser = true;
+              }
+            } catch (error) {
+              console.log('🔍 Erro ao verificar sessão por token:', error);
+            }
+          }
+
+          console.log('🔍 Debug autenticação WebSocket:', {
+            authenticated: validSession,
             validSession,
-            finalAuthStatus,
-            hasUser: !!req.user,
-            userId: req.user?.id,
-            sessionId: req.sessionID,
-            cookies: req.headers.cookie ? 'presentes' : 'ausentes'
+            finalAuthStatus: validSession && userId,
+            hasUser,
+            userId,
+            sessionId: sessionId?.substring(0, 8) + '...' || 'não encontrado',
+            sessionToken: sessionToken?.substring(0, 8) + '...' || 'não encontrado',
+            cookies: cookies ? 'presentes' : 'ausentes',
+            cookieCount: cookies?.length || 0
           });
 
           // Informações iniciais do cliente
@@ -754,12 +817,13 @@ if (process.env.EXTERNAL_API_URL) {
             id: clientId,
             connectionTime,
             lastPing: connectionTime,
-            ip: ip,
-            userAgent: userAgent,
-            authenticated: finalAuthStatus,
-            userId: finalAuthStatus ? req.user?.id : null,
-            username: finalAuthStatus ? req.user?.username : 'Não autenticado',
-            sessionId: req.sessionID
+            userAgent,
+            ip,
+            isAuthenticated: validSession && !!userId,
+            userId: userId || null,
+            username: null,
+            sessionToken: sessionToken || null,
+            sessionId: sessionId || null
           };
 
           global.clientsInfo.set(ws, clientInfo);
