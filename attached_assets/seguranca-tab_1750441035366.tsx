@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,114 +7,65 @@ import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { 
-  Loader2, 
-  Shield, 
-  LogOut, 
-  Smartphone, 
-  Eye, 
-  EyeOff, 
-  AlertTriangle, 
-  CheckCircle, 
-  X, 
-  Lock,
-  Monitor,
-  Trash2,
-  RefreshCw
-} from "lucide-react";
+import { changePasswordSchema, enable2FASchema, type ChangePasswordData } from "@shared/schema";
+import { Loader2, Shield, LogOut, Smartphone, Eye, EyeOff, AlertTriangle, CheckCircle, X, Lock } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { useWebSocketContext } from "@/components/WebSocketProvider";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { useWebSocketData } from "@/hooks/useWebSocketData";
-import { Badge } from "@/components/ui/badge";
-import { Pagination } from "@/components/Pagination";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 
-// Schema para alteração de senha
-const changePasswordSchema = z.object({
-  senhaAtual: z.string().min(6, "Senha atual é obrigatória"),
-  novaSenha: z.string()
-    .min(8, "A nova senha deve ter pelo menos 8 caracteres")
-    .regex(/[A-Z]/, "A senha deve conter pelo menos uma letra maiúscula")
-    .regex(/[a-z]/, "A senha deve conter pelo menos uma letra minúscula")
-    .regex(/[0-9]/, "A senha deve conter pelo menos um número"),
-  confirmarSenha: z.string().min(1, "Confirmação da senha é obrigatória")
-}).refine((data) => data.novaSenha === data.confirmarSenha, {
-  message: "As senhas não coincidem",
-  path: ["confirmarSenha"],
-});
-
-// Schema para 2FA
-const enable2FASchema = z.object({
-  codigo: z.string().length(6, "O código deve ter 6 dígitos").regex(/^\d+$/, "O código deve conter apenas números")
-});
-
-type ChangePasswordData = z.infer<typeof changePasswordSchema>;
-type Enable2FAData = z.infer<typeof enable2FASchema>;
-
-interface SessaoData {
-  id: string;
-  ip: string;
-  userAgent: string;
-  createdAt: string;
-  lastActivity: string;
-  isCurrentSession: boolean;
-  location?: string;
-  device?: string;
-  deviceInfo?: string;
-  browser?: string;
-  current?: boolean;
-  isActive?: boolean;
-  status?: string;
-  userId?: number;
-  nomeUsuario?: string;
-  username?: string;
-  deviceType?: string;
-  activityText?: string;
-  expiryText?: string;
+// Definição de tipo para as props do componente
+interface SegurancaTabProps {
+  usuarioAtual: { id: number } | null;
+  is2FAEnabled: boolean;
+  qrCode2FA: string | null;
+  secret2FA: string | null; // Adicionado secret2FA como prop
+  erroSenha: string | null;
+  sucessoSenha: boolean;
+  carregandoSenha: boolean;
+  erro2FA: string | null;
+  sucesso2FA: boolean;
+  carregando2FA: boolean;
+  showPasswordSection: boolean;
+  show2FASection: boolean;
+  setShowPasswordSection: (show: boolean) => void;
+  setShow2FASection: (show: boolean) => void;
+  alterarSenha: (data: ChangePasswordData) => Promise<void>;
+  iniciar2FA: () => Promise<void>;
+  ativar2FA: (data: { codigo: string, secret: string }) => Promise<void>;
+  desativar2FA: () => Promise<void>;
 }
 
-export default function SegurancaTabWebSocket() {
+const SegurancaTab: React.FC<SegurancaTabProps> = ({
+  usuarioAtual,
+  is2FAEnabled,
+  qrCode2FA,
+  secret2FA,
+  erroSenha,
+  sucessoSenha,
+  carregandoSenha,
+  erro2FA,
+  sucesso2FA,
+  carregando2FA,
+  showPasswordSection,
+  show2FASection,
+  setShowPasswordSection,
+  setShow2FASection,
+  alterarSenha,
+  iniciar2FA,
+  ativar2FA,
+  desativar2FA,
+}) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  
-  // Estados para controle de seções
-  const [showPasswordSection, setShowPasswordSection] = useState(false);
-  const [show2FASection, setShow2FASection] = useState(false);
-  
-  // Estados para 2FA
-  const [is2FAEnabled, setIs2FAEnabled] = useState(false);
-  const [qrCode2FA, setQrCode2FA] = useState<string | null>(null);
-  const [secret2FA, setSecret2FA] = useState<string | null>(null);
-  const [codigo2FA, setCodigo2FA] = useState('');
-  
-  // Estados de loading e erros
-  const [carregandoSenha, setCarregandoSenha] = useState(false);
-  const [carregando2FA, setCarregando2FA] = useState(false);
-  const [erroSenha, setErroSenha] = useState<string | null>(null);
-  const [erro2FA, setErro2FA] = useState<string | null>(null);
-  const [sucessoSenha, setSucessoSenha] = useState(false);
-  const [sucesso2FA, setSucesso2FA] = useState(false);
-  
-  // Estados para controle de visibilidade das senhas
+  const queryClient = useQueryClient();
+  const [carregandoEncerramento, setCarregandoEncerramento] = useState<string | null>(null);
+
+  // Estados para controlar a visibilidade das senhas
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  
-  // Estados para sessões
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(6);
-  const [sessaoParaExcluir, setSessaoParaExcluir] = useState<SessaoData | null>(null);
-  const [carregandoEncerramento, setCarregandoEncerramento] = useState<string | null>(null);
-  
+
   // Estado local para controlar o preloader do botão, independente do estado do componente pai
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [show2FACode, setShow2FACode] = useState(false);
@@ -123,57 +73,6 @@ export default function SegurancaTabWebSocket() {
   const [verificando2FAStatus, setVerificando2FAStatus] = useState(true);
   // Estado para controlar quando o usuário cancelou intencionalmente
   const [userCancelled, setUserCancelled] = useState(false);
-
-  // Estado para controlar a validação e feedback visual nos campos - simplificado
-  const [camposSenhaValidados, setCamposSenhaValidados] = useState({
-    senhaAtual: false, // True quando a senha estiver correta
-    novaSenha: false, // Iniciar como false (inválido)
-    confirmarSenha: false, // Iniciar como false (inválido)
-    senhasIguais: false, // Nova senha não pode ser igual à atual
-    confirmacaoCorreta: false, // Confirmação deve ser igual à nova senha
-    senhaAtualVerificada: false // Indica se a verificação já foi realizada
-  });
-
-  // Estado para controlar a validação do código 2FA
-  const [codigo2FAValidado, setCodigo2FAValidado] = useState({
-    digitado: false, // True quando o usuário já digitou algum código
-    valido: false // True quando o código tem 6 dígitos numéricos
-  });
-  
-  // WebSocket para gerenciar sessões
-  const {
-    data: sessoesResponse,
-    loading: isLoadingSessoes,
-    deleteItem: deleteSessao,
-    refetch: refetchSessoes
-  } = useWebSocketData<any>({
-    endpoint: '/api/conta/sessoes',
-    resource: 'sessoes'
-  });
-
-  // Extrair as sessões da resposta da API
-  const sessoes = Array.isArray(sessoesResponse) 
-    ? sessoesResponse 
-    : sessoesResponse?.sessions || [];
-
-  // Formulário para alteração de senha
-  const alterarSenhaForm = useForm<ChangePasswordData>({
-    resolver: zodResolver(changePasswordSchema),
-    defaultValues: {
-      senhaAtual: '',
-      novaSenha: '',
-      confirmarSenha: ''
-    },
-    mode: "onChange"
-  });
-
-  // Formulário para 2FA
-  const enable2FAForm = useForm<Enable2FAData>({
-    resolver: zodResolver(enable2FASchema),
-    defaultValues: {
-      codigo: ''
-    }
-  });
 
   // Mostrar notificação sobre 2FA quando o componente for carregado e 2FA não estiver ativado
   useEffect(() => {
@@ -194,26 +93,103 @@ export default function SegurancaTabWebSocket() {
     return () => clearTimeout(timeoutId);
   }, [is2FAEnabled, toast]);
 
-  // Verificar status do 2FA ao carregar o componente
-  useEffect(() => {
-    verificar2FAStatus();
-  }, []);
+  // Estado para controlar a validação e feedback visual nos campos - simplificado
+  const [camposSenhaValidados, setCamposSenhaValidados] = useState({
+    senhaAtual: false, // True quando a senha estiver correta
+    novaSenha: false, // Iniciar como false (inválido)
+    confirmarSenha: false, // Iniciar como false (inválido)
+    senhasIguais: false, // Nova senha não pode ser igual à atual
+    confirmacaoCorreta: false, // Confirmação deve ser igual à nova senha
+    senhaAtualVerificada: false // Indica se a verificação já foi realizada
+  });
 
-  // Função para verificar status do 2FA
-  const verificar2FAStatus = async () => {
-    try {
-      const response = await fetch('/api/conta/2fa/status', {
-        method: 'GET',
-        credentials: 'include'
-      });
+  // Estado para controlar a validação do código 2FA
+  const [codigo2FAValidado, setCodigo2FAValidado] = useState({
+    digitado: false, // True quando o usuário já digitou algum código
+    valido: false // True quando o código tem 6 dígitos numéricos
+  });
 
-      if (response.ok) {
-        const data = await response.json();
-        setIs2FAEnabled(data.enabled || false);
+  // Formulário para alteração de senha
+  const alterarSenhaForm = useForm<ChangePasswordData>({
+    resolver: zodResolver(changePasswordSchema),
+    defaultValues: {
+      senhaAtual: '',
+      novaSenha: '',
+      confirmarSenha: ''
+    },
+    mode: "onChange" // Ativar validação durante a digitação
+  });
+
+  // Função para validar os campos do formulário
+  const validarCamposSenha = async () => {
+    const valores = alterarSenhaForm.getValues();
+
+    // IMPORTANTE: verificações rigorosas de preenchimento
+    // Verificar se os campos estão preenchidos
+    const senhaAtualPreenchida = !!valores.senhaAtual && valores.senhaAtual.trim() !== '';
+    const novaSenhaPreenchida = !!valores.novaSenha && valores.novaSenha.trim() !== '';
+    const confirmacaoPreenchida = !!valores.confirmarSenha && valores.confirmarSenha.trim() !== '';
+
+    // IMPORTANTE: Nova senha deve ser DIFERENTE da atual
+    // O campo senhasDiferentes === true significa que elas são diferentes, como esperado
+    const senhasDiferentes = valores.senhaAtual !== valores.novaSenha;
+
+    // IMPORTANTE: Confirmação deve ser IGUAL à nova senha
+    // O campo confirmacaoCorreta === true significa que elas são iguais, como esperado
+    const confirmacaoCorreta = valores.novaSenha === valores.confirmarSenha;
+
+    // Verificar senha atual com o servidor
+    let senhaAtualCorreta = false;
+
+    if (senhaAtualPreenchida) {
+      try {
+        // Precisamos do ID do usuário para validação rigorosa
+        const userId = usuarioAtual?.id;
+
+        if (!userId) {
+          return false;
+        }
+
+        const response = await fetch('/api/password/verify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            password: valores.senhaAtual
+          })
+        });
+
+        const result = await response.json();
+        // API retorna { success: boolean, message: string }
+        senhaAtualCorreta = result.success;
+        console.log(`- Senha atual correta: ${senhaAtualCorreta ? 'SIM' : 'NÃO'}`);
+      } catch (error) {
+        console.error('Erro ao validar senha:', error);
+        senhaAtualCorreta = false;
       }
-    } catch (error) {
-      console.error('Erro ao verificar status do 2FA:', error);
     }
+
+    // Verificar se a nova senha contém caracteres especiais
+    const contemCaracterEspecial = /[!@#$%^&*(),.?":{}|<>]/.test(valores.novaSenha || '');
+
+    // Atualizar o estado visual dos campos
+    setCamposSenhaValidados(prev => ({
+      ...prev,
+      senhaAtual: senhaAtualCorreta,
+      novaSenha: novaSenhaPreenchida,
+      confirmarSenha: confirmacaoPreenchida,
+      senhasIguais: senhasDiferentes, // true quando diferentes (como esperado)
+      confirmacaoCorreta: confirmacaoCorreta,
+      senhaAtualVerificada: senhaAtualPreenchida
+    }));
+
+    // IMPORTANTE: Verificação final - todos os critérios devem ser atendidos
+    const formValido = senhaAtualPreenchida && novaSenhaPreenchida && confirmacaoPreenchida 
+                     && senhasDiferentes && confirmacaoCorreta && senhaAtualCorreta
+                     && contemCaracterEspecial;
+
+    return formValido;
   };
 
   // Monitorar os campos do formulário para validação quando perder foco
@@ -234,8 +210,23 @@ export default function SegurancaTabWebSocket() {
         }
 
         try {
+          // Precisamos enviar o userId junto com a senha para verificação
+          const userId = usuarioAtual?.id;
+
+          console.log('Verificando senha para usuário:', userId);
+
+          if (!userId) {
+            console.error('Erro: ID do usuário não disponível para verificação de senha');
+            setCamposSenhaValidados(prev => ({
+              ...prev,
+              senhaAtual: false,
+              senhaAtualVerificada: true
+            }));
+            return;
+          }
+
           // Verificação simplificada - apenas se a senha está correta ou não
-          const response = await fetch('/api/password/verify', {
+          const response = await fetch('/api/password/verify-partial', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -246,9 +237,13 @@ export default function SegurancaTabWebSocket() {
           });
 
           const result = await response.json();
+          // API agora retorna informações simplificadas:
+          // { success, message, isComplete }
+
           const isPasswordCorrect = result.success;
 
           console.log(`Verificação de senha: ${isPasswordCorrect ? 'CORRETA ✓' : 'INCORRETA ✗'}`);
+          console.log("Resposta:", result);
 
           // Atualiza o estado com o resultado da validação
           setCamposSenhaValidados(prev => ({
@@ -289,6 +284,8 @@ export default function SegurancaTabWebSocket() {
             ...prev,
             senhasIguais: false
           }));
+
+          // Remover notificação toast duplicada - será mostrada no submit
         } else if (senhasDiferentes) {
           // Limpar erro se as senhas agora são diferentes
           if (currentError) {
@@ -337,6 +334,8 @@ export default function SegurancaTabWebSocket() {
       }
 
       // Verificar preenchimento dos campos - NÃO VALIDAMOS SENHA ATUAL AQUI
+      // IMPORTANTE: Não devemos validar senhaAtual apenas verificando se está preenchida
+      // Isso deve ser feito através das verificações de segurança completas
       if (name === 'senhaAtual' && type !== 'blur') {
         // Não validamos a senha atual aqui, apenas quando perder o foco
         // Porém podemos resetar o estado de verificação quando o usuário começa a digitar novamente
@@ -366,7 +365,24 @@ export default function SegurancaTabWebSocket() {
     });
 
     return () => subscription.unsubscribe();
-  }, [alterarSenhaForm, camposSenhaValidados.senhaAtualVerificada]);
+  }, [alterarSenhaForm, toast, usuarioAtual?.id, camposSenhaValidados.senhaAtualVerificada]);
+
+  // Formulário para ativação do 2FA
+  const ativar2FAForm = useForm<z.infer<typeof enable2FASchema>>({
+    resolver: zodResolver(enable2FASchema),
+    defaultValues: {
+      codigo: '',
+      secret: secret2FA || ''  // Usar secret2FA diretamente
+    }
+  });
+
+  // Atualiza o valor do secret quando o secret muda
+  useEffect(() => {
+    if (secret2FA) {
+      ativar2FAForm.setValue('secret', secret2FA);
+      console.log("Atualizando secret no formulário:", secret2FA);
+    }
+  }, [secret2FA, ativar2FAForm]);
 
   // Limpar validações ao alternar entre abas ou ao fechar seções
   useEffect(() => {
@@ -398,195 +414,18 @@ export default function SegurancaTabWebSocket() {
         valido: false
       });
 
-      // Resetar apenas o campo de código
-      enable2FAForm.setValue('codigo', '');
+      // Resetar apenas o campo de código, mantendo o secret
+      ativar2FAForm.setValue('codigo', '');
     }
-  }, [showPasswordSection, show2FASection, erroSenha, isSubmitting, alterarSenhaForm, enable2FAForm]);
-
-  // Função para alterar senha
-  const alterarSenha = async (data: ChangePasswordData) => {
-    setCarregandoSenha(true);
-    setErroSenha(null);
-    setSucessoSenha(false);
-
-    try {
-      const response = await fetch('/api/conta/alterar-senha', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include',
-        body: JSON.stringify(data)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Erro ao alterar senha');
-      }
-
-      setSucessoSenha(true);
-      setShowPasswordSection(false);
-      alterarSenhaForm.reset();
-      
-      toast({
-        title: "Senha alterada",
-        description: "Sua senha foi alterada com sucesso",
-        variant: "default"
-      });
-    } catch (error: any) {
-      setErroSenha(error.message);
-      toast({
-        title: "Erro ao alterar senha",
-        description: error.message,
-        variant: "destructive"
-      });
-    } finally {
-      setCarregandoSenha(false);
-    }
-  };
-
-  // Função para iniciar 2FA
-  const iniciar2FA = async () => {
-    setCarregando2FA(true);
-    setErro2FA(null);
-
-    try {
-      const response = await fetch('/api/conta/2fa/iniciar', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Erro ao iniciar 2FA: ${response.status}`);
-      }
-
-      const data = await response.json();
-      
-      if (data.otpauthUrl && data.secret) {
-        setQrCode2FA(data.otpauthUrl);
-        setSecret2FA(data.secret);
-        setShow2FASection(true);
-      } else {
-        throw new Error("Dados incompletos recebidos do servidor");
-      }
-    } catch (error: any) {
-      setErro2FA('Não foi possível iniciar a configuração do 2FA. Tente novamente mais tarde.');
-      toast({
-        title: "Erro ao iniciar 2FA",
-        description: error.message,
-        variant: "destructive"
-      });
-    } finally {
-      setCarregando2FA(false);
-    }
-  };
-
-  // Função para ativar 2FA
-  const ativar2FA = async (data: Enable2FAData) => {
-    if (!secret2FA) {
-      setErro2FA('Secret não informado para ativação do 2FA');
-      return;
-    }
-
-    setCarregando2FA(true);
-    setErro2FA(null);
-
-    try {
-      const response = await fetch('/api/conta/2fa/ativar', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          codigo: data.codigo,
-          secret: secret2FA
-        })
-      });
-
-      if (!response.ok) {
-        const responseData = await response.json();
-        throw new Error(responseData.message || 'Código inválido ou expirado');
-      }
-
-      // Reset dos campos do 2FA
-      setCodigo2FA('');
-      setQrCode2FA(null);
-      setSecret2FA(null);
-      enable2FAForm.reset();
-
-      // Atualiza o estado do 2FA
-      setIs2FAEnabled(true);
-      setSucesso2FA(true);
-      setShow2FASection(false);
-
-      toast({
-        title: "2FA ativado",
-        description: "A autenticação em dois fatores foi ativada com sucesso",
-        variant: "default"
-      });
-    } catch (error: any) {
-      setErro2FA(error.message);
-      toast({
-        title: "Erro ao ativar 2FA",
-        description: error.message,
-        variant: "destructive"
-      });
-    } finally {
-      setCarregando2FA(false);
-    }
-  };
-
-  // Função para desativar 2FA
-  const desativar2FA = async () => {
-    setCarregando2FA(true);
-    setErro2FA(null);
-
-    try {
-      const response = await fetch('/api/conta/2fa/desativar', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Erro ao desativar 2FA: ${response.status}`);
-      }
-
-      setIs2FAEnabled(false);
-      
-      toast({
-        title: "2FA desativado",
-        description: "A autenticação em dois fatores foi desativada com sucesso",
-        variant: "default"
-      });
-    } catch (error: any) {
-      setErro2FA('Não foi possível desativar o 2FA. Tente novamente mais tarde.');
-      toast({
-        title: "Erro ao desativar 2FA",
-        description: error.message,
-        variant: "destructive"
-      });
-    } finally {
-      setCarregando2FA(false);
-    }
-  };
+  }, [showPasswordSection, show2FASection, erroSenha, isSubmitting, alterarSenhaForm, ativar2FAForm]);
 
   // Submissão de formulário de 2FA
-  const handleAtivacao2FA = async (data: Enable2FAData) => {
+  const handleAtivacao2FA = async (data: z.infer<typeof enable2FASchema>) => {
     console.log("Dados recebidos no formulário 2FA:", data);
 
     const codigo = data.codigo?.trim();
 
-    // Verificar se temos o código
+    // Verificar se temos o código e o secret
     if (!codigo || codigo.length !== 6) {
       console.log("Código inválido: vazio ou não tem 6 dígitos:", codigo);
       setCodigo2FAValidado({
@@ -614,12 +453,29 @@ export default function SegurancaTabWebSocket() {
     }
 
     try {
+      // Verificar se temos o secret
+      if (!data.secret) {
+        console.error("Secret não fornecido para a ativação do 2FA");
+        toast({
+          title: "Erro",
+          description: "Informações de configuração incompletas. Tente reiniciar o processo.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      console.log("Enviando dados para ativação 2FA:", {
+        codigo: codigo,
+        secret: data.secret
+      });
+
       await ativar2FA({
-        codigo: codigo
+        codigo: codigo,
+        secret: data.secret
       });
 
       // Limpar o código após tentativa
-      enable2FAForm.setValue('codigo', '');
+      ativar2FAForm.setValue('codigo', '');
 
     } catch (error) {
       console.error("Erro na ativação do 2FA:", error);
@@ -663,27 +519,50 @@ export default function SegurancaTabWebSocket() {
     }
   }, [erroSenha, showPasswordSection, userCancelled]);
 
-  // Função para encerrar sessão
-  const handleEncerrarSessao = async (sessao: SessaoData) => {
-    setCarregandoEncerramento(sessao.id);
-    
-    try {
-      await deleteSessao(sessao.id);
-      
+  useEffect(() => {
+    if (erro2FA) {
       toast({
-        title: "Sessão encerrada",
-        description: "A sessão foi encerrada com sucesso",
-        variant: "default"
-      });
-    } catch (error: any) {
-      toast({
-        title: "Erro ao encerrar sessão",
-        description: error.message,
+        title: "Erro no 2FA",
+        description: erro2FA,
         variant: "destructive"
       });
-    } finally {
-      setCarregandoEncerramento(null);
-      setSessaoParaExcluir(null);
+    }
+  }, [erro2FA, toast]);
+
+  useEffect(() => {
+    if (sucesso2FA) {
+      toast({
+        title: "2FA ativado",
+        description: "Autenticação de dois fatores ativada com sucesso!",
+        variant: "default",
+        className: "bg-green-100 border-green-300"
+      });
+    }
+  }, [sucesso2FA, toast]);
+
+  // Função para formatar data usando horário brasileiro
+  const formatarData = (data: string | Date) => {
+    if (!data) return 'Não disponível';
+
+    try {
+      const date = typeof data === 'string' ? new Date(data) : data;
+      if (isNaN(date.getTime())) return 'Data inválida';
+
+      // Converter para horário brasileiro usando timezone
+      const formatter = new Intl.DateTimeFormat('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        day: '2-digit',
+        month: '2-digit', 
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+
+      return formatter.format(date);
+    } catch (error) {
+      console.error('Erro ao formatar data:', error, 'Data original:', data);
+      return 'Erro na data';
     }
   };
 
@@ -793,15 +672,87 @@ export default function SegurancaTabWebSocket() {
     }
   });
 
-  // Paginação das sessões
-  const totalPages = Math.ceil(sessoes.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedSessoes = sessoes.slice(startIndex, startIndex + itemsPerPage);
+  // Query para buscar sessões ativas
+  const { data: sessoesData, isLoading: carregandoSessoes, error: erroSessoes, refetch: recarregarSessoes } = useQuery({
+    queryKey: ["/api/conta/sessoes", user?.id],
+    queryFn: async () => {
+      console.log('🔍 Buscando sessões para usuário:', user?.id);
 
-  // Reset da página quando itens por página mudam
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [itemsPerPage]);
+      const response = await fetch('/api/conta/sessoes', {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erro ao buscar sessões: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('📋 Sessões carregadas:', data);
+      return data;
+    },
+    enabled: !!user?.id,
+    staleTime: 30000, // Cache por 30 segundos
+    refetchInterval: 60000, // Refetch a cada minuto
+  });
+
+  // Dados das sessões formatados
+  const sessoes = sessoesData?.sessions || [];
+  const estatisticasSessoes = sessoesData?.stats || {};
+
+  // Função para recarregar sessões usando useCallback
+  const recarregarSessoesCallback = useCallback(() => {
+    console.log('🔄 Recarregando sessões...');
+    recarregarSessoes();
+  }, [recarregarSessoes]);
+
+  // Função para encerrar uma sessão específica
+  const encerrarSessao = async (sessionId: string) => {
+    if (!sessionId) return;
+
+    setCarregandoEncerramento(sessionId);
+
+    try {
+      console.log('🔄 Encerrando sessão:', sessionId);
+
+      const response = await fetch(`/api/conta/sessoes/${sessionId}`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Erro ao encerrar sessão: ${response.status}`);
+      }
+
+      // Recarregar a lista de sessões
+      await recarregarSessoes();
+
+      toast({
+        title: "Sessão encerrada",
+        description: "A sessão foi encerrada e o usuário foi deslogado automaticamente",
+        variant: "default",
+        className: "bg-green-100 border-green-300"
+      });
+    } catch (error) {
+      console.error('❌ Erro ao encerrar sessão:', error);
+      toast({
+        title: "Erro ao encerrar sessão",
+        description: error instanceof Error ? error.message : "Não foi possível encerrar a sessão. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setCarregandoEncerramento(null);
+    }
+  };
 
   return (
     <Card className="shadow-sm">
@@ -899,8 +850,7 @@ export default function SegurancaTabWebSocket() {
                               : field.value?.trim() !== '' && 
                                 field.value.length >= 8 && 
                                 /[A-Z]/.test(field.value) && 
-                                /[a-z]/.test(field.value) && 
-                                /[0-9]/.test(field.value) &&
+                                /[a-z]/.test(field.value) &&                                /[0-9]/.test(field.value) &&
                                 /[!@#$%^&*(),.?":{}|<>]/.test(field.value) &&
                                 camposSenhaValidados.senhasIguais
                               ? 'text-green-500 font-semibold'
@@ -1001,7 +951,7 @@ export default function SegurancaTabWebSocket() {
                                       ? 'border-red-500 ring-1 ring-red-500 focus:ring-red-500 focus-visible:ring-red-500' 
                                       : field.value?.trim() !== '' && camposSenhaValidados.confirmacaoCorreta
                                         ? 'border-green-500 ring-1 ring-green-500 focus:ring-green-500 focus-visible:ring-green-500'
-                                        : ''
+                                                                       : ''
                                   }`}
                                   {...field}
                                 />
@@ -1044,6 +994,8 @@ export default function SegurancaTabWebSocket() {
                           });
 
                           // Redefinir estado de validação para valores iniciais
+                          // IMPORTANTE: Não definimos senhaAtual como true aqui, 
+                          // pois isso causaria um falso positivo na validação
                           setCamposSenhaValidados({
                             senhaAtual: false,
                             novaSenha: false,
@@ -1206,10 +1158,37 @@ export default function SegurancaTabWebSocket() {
                           Digite o código de 6 dígitos gerado pelo aplicativo para verificar a configuração.
                         </p>
 
-                        <Form {...enable2FAForm}>
-                          <form onSubmit={enable2FAForm.handleSubmit(handleAtivacao2FA)} className="space-y-4">
+                        <Form {...ativar2FAForm}>
+                          <form onSubmit={(e) => {
+                            e.preventDefault();
+
+                            // Verificando secret antes de prosseguir
+                            if (!secret2FA) {
+                              console.error("Secret não disponível para ativação 2FA");
+                              toast({
+                                title: "Erro",
+                                description: "Informações de configuração incompletas. Tente reiniciar o processo.",
+                                variant: "destructive"
+                              });
+                              return;
+                            }
+
+                            // Garantindo que o secret está definido no formulário
+                            ativar2FAForm.setValue('secret', secret2FA);
+
+                            // Continuando com o processamento normal
+                            ativar2FAForm.handleSubmit(handleAtivacao2FA)(e);
+                          }} 
+                          className="space-y-4">
+                            {/* Campo oculto para o secret */}
+                            <input 
+                              type="hidden" 
+                              name="secret" 
+                              value={secret2FA || ''} 
+                            />
+
                             <FormField
-                              control={enable2FAForm.control}
+                              control={ativar2FAForm.control}
                               name="codigo"
                               render={({ field }) => (
                                 <FormItem>
@@ -1267,6 +1246,7 @@ export default function SegurancaTabWebSocket() {
                                       )}
                                     </div>
                                   )}
+                                  {/* Removemos o FormMessage para evitar validação dupla */}
                                 </FormItem>
                               )}
                             />
@@ -1276,8 +1256,9 @@ export default function SegurancaTabWebSocket() {
                                 variant="outline"
                                 onClick={() => {
                                   // Limpar o campo de código e resetar a validação
-                                  enable2FAForm.reset({
-                                    codigo: ''
+                                  ativar2FAForm.reset({
+                                    codigo: '',
+                                    secret: secret2FA || ''
                                   });
 
                                   // Resetar o estado de validação
@@ -1355,14 +1336,27 @@ export default function SegurancaTabWebSocket() {
             <h3 className="text-lg font-medium">Sessões Ativas</h3>
             <p className="text-sm text-gray-500 mt-1 mb-4">Gerencie os dispositivos conectados à sua conta</p>
 
-            {isLoadingSessoes ? (
+            {carregandoSessoes ? (
                 <div className="flex justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
                   <span className="ml-2 text-sm text-gray-500">Carregando sessões...</span>
                 </div>
+              ) : erroSessoes ? (
+                <div className="text-center py-8 text-red-600">
+                  <AlertTriangle className="mx-auto h-8 w-8 mb-2" />
+                  <p>Erro ao carregar sessões: {typeof erroSessoes === 'string' ? erroSessoes : 'Erro desconhecido'}</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-4"
+                    onClick={recarregarSessoesCallback}
+                  >
+                    Tentar novamente
+                  </Button>
+                </div>
               ) : sessoes && sessoes.length > 0 ? (
                   <div className="space-y-4">
-                    {paginatedSessoes.map((sessao: any, index: number) => (
+                    {sessoes.map((sessao: any, index: number) => (
                       <div key={sessao.id || index} className="flex items-center justify-between p-4 border rounded-lg bg-gray-50">
                         <div className="flex items-center space-x-4">
                           <div className="p-2 bg-white rounded-lg border">
@@ -1441,7 +1435,7 @@ export default function SegurancaTabWebSocket() {
                               variant="ghost"
                               size="sm"
                               disabled={carregandoEncerramento === sessao.id}
-                              onClick={() => setSessaoParaExcluir(sessao)}
+                              onClick={() => encerrarSessao(sessao.id)}
                               className="text-red-600 hover:text-red-700 hover:bg-red-50"
                             >
                               {carregandoEncerramento === sessao.id ? (
@@ -1457,75 +1451,19 @@ export default function SegurancaTabWebSocket() {
                         </div>
                       </div>
                     ))}
-
-                    {sessoes.length > itemsPerPage && (
-                      <Pagination
-                        currentPage={currentPage}
-                        totalPages={totalPages}
-                        onPageChange={setCurrentPage}
-                        itemsPerPage={itemsPerPage}
-                        onItemsPerPageChange={setItemsPerPage}
-                        totalItems={sessoes.length}
-                      />
-                    )}
                   </div>
                 ) : (
                 <div className="text-center py-8 text-gray-500">
                   <Shield className="mx-auto h-12 w-12 text-gray-300 mb-4" />
                   <h4 className="text-lg font-medium mb-2">Nenhuma sessão ativa encontrada</h4>
                   <p className="mb-4">As sessões aparecerão aqui quando você fizer login em diferentes dispositivos.</p>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-4"
-                    onClick={() => refetchSessoes()}
-                    disabled={isLoadingSessoes}
-                  >
-                    {isLoadingSessoes ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Carregando...
-                      </>
-                    ) : (
-                      <>
-                        <Shield className="h-4 w-4 mr-2" />
-                        Recarregar sessões
-                      </>
-                    )}
-                  </Button>
                 </div>
               )}
             </div>
           </div>
         </CardContent>
-
-        {/* AlertDialog para confirmação de exclusão de sessão */}
-        <AlertDialog open={sessaoParaExcluir !== null} onOpenChange={(open) => !open && setSessaoParaExcluir(null)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Encerrar sessão</AlertDialogTitle>
-              <AlertDialogDescription>
-                Tem certeza que deseja encerrar esta sessão?
-                <br />
-                <span className="font-semibold">
-                  {sessaoParaExcluir?.device} - {sessaoParaExcluir?.ip}
-                </span>
-                <br />
-                Esta ação não pode ser desfeita.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => sessaoParaExcluir && handleEncerrarSessao(sessaoParaExcluir)}
-                className="bg-red-600 hover:bg-red-700"
-              >
-                Encerrar Sessão
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </Card>
   );
-}
+};
+
+export default SegurancaTab;
