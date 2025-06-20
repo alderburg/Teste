@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,7 @@ import {
 
 // Schema de validação para endereços
 const enderecoSchema = z.object({
-  tipo: z.enum(["comercial", "residencial", "outro"], {
+  tipo: z.enum(["comercial", "residencial", "entrega", "outro"], {
     required_error: "Selecione um tipo de endereço",
   }),
   cep: z.string().min(8, "CEP deve ter pelo menos 8 caracteres"),
@@ -47,7 +48,7 @@ interface EnderecoFormValues extends z.infer<typeof enderecoSchema> {
   updatedAt?: string;
 }
 
-export default function EnderecosTab() {
+export default function EnderecosTabWebSocket() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [showAddEndereco, setShowAddEndereco] = useState(false);
@@ -72,8 +73,13 @@ export default function EnderecosTab() {
   const [isLoadingCep, setIsLoadingCep] = useState(false);
   const [cepErro, setCepErro] = useState<string | null>(null);
 
+  // Estado para controlar quais botões estão desabilitados durante operações
+  const [disabledButtons, setDisabledButtons] = useState<{[key: number]: boolean}>({});
+
   // Usar WebSocket para gerenciar dados
   const {
+    data: enderecos,
+    loading: isLoadingEnderecos,
     createItem: createEndereco,
     updateItem: updateEndereco,
     deleteItem: deleteEndereco
@@ -99,49 +105,26 @@ export default function EnderecosTab() {
     mode: "onSubmit",
   });
 
-  // Estados para armazenar dados obtidos via websocket/fetch direto
-  const [enderecosData, setEnderecosData] = useState<any[]>([]);
-  const [isLoadingEnderecos, setIsLoadingEnderecos] = useState(true);
-
-  // Use os dados da API ou um array vazio como fallback
-  const [enderecos, setEnderecos] = useState<EnderecoFormValues[]>([]);
-
-  // Função para buscar dados via fetch direto (substituindo websocket temporariamente)
-  const fetchEnderecosData = async () => {
-    try {
-      setIsLoadingEnderecos(true);
-      const response = await fetch(`/api/enderecos`, {
-        credentials: 'include'
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setEnderecosData(data || []);
-      }
-    } catch (error) {
-      console.error("Erro ao buscar endereços:", error);
-    } finally {
-      setIsLoadingEnderecos(false);
-    }
-  };
-
-  // Estado para controlar a exibição de loading inicial ao trocar de aba
+  // Estados para ordenação e loading inicial
+  const [enderecosOrdenados, setEnderecosOrdenados] = useState<EnderecoFormValues[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
 
-  // Carregar dados quando o componente monta
+  // Atualizar endereços ordenados quando os dados mudarem
   useEffect(() => {
-    if (user?.id) {
-      fetchEnderecosData();
-    }
-  }, [user?.id]);
-
-  // Atualizar o estado local quando os dados de endereços forem carregados
-  useEffect(() => {
-    if (enderecosData && Array.isArray(enderecosData)) {
-      console.log("Dados de endereços carregados:", enderecosData);
-      setEnderecos(enderecosData);
+    if (enderecos && Array.isArray(enderecos)) {
+      console.log("Dados de endereços carregados:", enderecos);
+      
+      // Reordenar para colocar o endereço principal no topo
+      const ordenados = [...enderecos].sort((a, b) => {
+        if (a.principal && !b.principal) return -1;
+        if (!a.principal && b.principal) return 1;
+        return 0;
+      });
+      
+      setEnderecosOrdenados(ordenados);
       setInitialLoading(false);
     }
-  }, [enderecosData]);
+  }, [enderecos]);
 
   // Função para consultar o CEP e preencher automaticamente os campos
   const consultarCep = async (cep: string) => {
@@ -195,16 +178,6 @@ export default function EnderecosTab() {
     }
   };
 
-  // Função para formatar CEP
-  const formatarCep = (cep: string) => {
-    const cepLimpo = cep.replace(/\D/g, '');
-    if (cepLimpo.length <= 5) {
-      return cepLimpo;
-    } else {
-      return cepLimpo.slice(0, 5) + '-' + cepLimpo.slice(5, 8);
-    }
-  };
-
   // Função para lidar com o evento onBlur dos campos de endereço
   const handleEnderecoInputBlur = () => {
     const tipo = enderecoForm.getValues().tipo;
@@ -230,71 +203,12 @@ export default function EnderecosTab() {
   const onSubmit = useCallback(async (data: EnderecoFormValues) => {
     try {
       if (editingEndereco) {
-        const response = await fetch(`/api/enderecos/${editingEndereco.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-          credentials: 'include'
-        });
-
-        if (!response.ok) {
-          if (response.status === 404) {
-            throw new Error("Endereço não encontrado");
-          }
-          throw new Error(`Erro ao atualizar endereço: ${response.status}`);
-        }
-
-        let updatedEndereco;
-        try {
-          updatedEndereco = await response.json();
-        } catch (error) {
-          updatedEndereco = { 
-            ...data,
-            id: editingEndereco.id,
-            success: true, 
-            message: "Endereço atualizado com sucesso"
-          };
-        }
-
-        // Atualizar dados locais
-        setEnderecosData(prev => prev.map(endereco => 
-          endereco.id === editingEndereco.id ? updatedEndereco : endereco
-        ));
-
-        toast({
-          title: "Endereço atualizado",
-          description: "O endereço foi atualizado com sucesso",
-          variant: "default",
-          className: "bg-white border-gray-200",
-        });
+        await updateEndereco(editingEndereco.id!, data);
         setEditingEndereco(null);
       } else {
-        const response = await fetch(`/api/enderecos`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...data,
-            userId: user?.id
-          }),
-          credentials: 'include'
-        });
-
-        if (!response.ok) {
-          throw new Error(`Erro ao criar endereço: ${response.status}`);
-        }
-
-        const newEndereco = await response.json();
-
-        // Atualizar dados locais
-        setEnderecosData(prev => [...prev, newEndereco]);
-
-        toast({
-          title: "Endereço adicionado",
-          description: "O endereço foi adicionado com sucesso",
-          variant: "default",
-          className: "bg-white border-gray-200",
-        });
+        await createEndereco(data);
       }
+      
       setShowAddEndereco(false);
       enderecoForm.reset();
       setCamposEnderecoValidados({
@@ -307,54 +221,17 @@ export default function EnderecosTab() {
         estado: true
       });
     } catch (error) {
-      console.error("Erro ao adicionar/editar endereço:", error);
-      toast({
-        title: "Erro!",
-        description: error.message,
-        variant: "destructive",
-      });
+      // Erro já tratado no hook useWebSocketData
     }
-  }, [editingEndereco, enderecoForm, user?.id]);
+  }, [editingEndereco, updateEndereco, createEndereco, enderecoForm]);
 
   // Função para confirmar exclusão
   const confirmarExclusaoEndereco = useCallback(async () => {
     if (enderecoParaExcluir) {
-      const id = enderecoParaExcluir.id!;
-      try {
-        const response = await fetch(`/api/enderecos/${id}`, {
-          method: 'DELETE',
-          credentials: 'include'
-        });
-
-        if (!response.ok) {
-          if (response.status === 404) {
-            throw new Error("Endereço não encontrado");
-          }
-          const jsonResponse = await response.json().catch(() => ({}));
-          throw new Error(jsonResponse.message || "Erro desconhecido ao excluir endereço");
-        }
-
-        // Atualizar dados locais
-        setEnderecosData(prev => prev.filter(endereco => endereco.id !== id));
-
-        toast({
-          title: "Endereço excluído",
-          description: "O endereço foi excluído com sucesso",
-          variant: "default",
-          className: "bg-white border-gray-200",
-        });
-      } catch (error) {
-        console.error("Erro ao excluir endereço:", error);
-        toast({
-          title: "Erro!",
-          description: error.message,
-          variant: "destructive",
-        });
-      } finally {
-        setEnderecoParaExcluir(null);
-      }
+      await deleteEndereco(enderecoParaExcluir.id!);
+      setEnderecoParaExcluir(null);
     }
-  }, [enderecoParaExcluir]);
+  }, [enderecoParaExcluir, deleteEndereco]);
 
   // Função para editar endereço
   const handleEditEndereco = useCallback((endereco: EnderecoFormValues) => {
@@ -376,6 +253,16 @@ export default function EnderecosTab() {
   const handleSetPrincipal = useCallback(async (endereco: EnderecoFormValues) => {
     try {
       const id = endereco.id!;
+      
+      // Desabilitar todos os botões temporariamente
+      const allButtons: {[key: number]: boolean} = {};
+      if (Array.isArray(enderecosOrdenados)) {
+        enderecosOrdenados.forEach(e => {
+          if (e.id) allButtons[e.id] = true;
+        });
+      }
+      setDisabledButtons(allButtons);
+
       const response = await fetch(`/api/enderecos/${id}/principal`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -390,33 +277,31 @@ export default function EnderecosTab() {
         throw new Error(jsonResponse.message || "Erro desconhecido ao definir endereço como principal");
       }
 
-      const principalData = await response.json();
-
-      // Atualizar dados locais
-      setEnderecosData(prev => prev.map(endereco => ({
-        ...endereco,
-        principal: endereco.id === id
-      })));
-
       toast({
         title: "Endereço principal atualizado",
         description: "O endereço foi definido como principal com sucesso",
         variant: "default",
         className: "bg-white border-gray-200",
       });
-    } catch (error) {
+
+      // Reabilitar botões após operação
+      setTimeout(() => {
+        setDisabledButtons({});
+      }, 1000);
+    } catch (error: any) {
       console.error('Erro ao definir endereço principal:', error);
       toast({
         title: "Erro!",
         description: error.message,
         variant: "destructive",
       });
+      setDisabledButtons({});
     }
-  }, []);
+  }, [enderecosOrdenados]);
 
   // Filtrar endereços e aplicar paginação
   const { filteredEnderecos, paginatedEnderecos, totalPages } = useMemo(() => {
-    const filtered = enderecos.filter(endereco => {
+    const filtered = enderecosOrdenados.filter(endereco => {
       if (!searchTerm) return true;
       const searchLower = searchTerm.toLowerCase();
       return (
@@ -440,7 +325,7 @@ export default function EnderecosTab() {
       paginatedEnderecos: paginated,
       totalPages
     };
-  }, [enderecos, searchTerm, currentPage, itemsPerPage]);
+  }, [enderecosOrdenados, searchTerm, currentPage, itemsPerPage]);
 
   // Reset da página quando filtros mudarem
   useEffect(() => {
@@ -454,14 +339,16 @@ export default function EnderecosTab() {
         return <Home className="h-5 w-5 text-blue-600" />;
       case "comercial":
         return <Building className="h-5 w-5 text-purple-600" />;
-      case "outro":
+      case "entrega":
         return <Briefcase className="h-5 w-5 text-green-600" />;
+      case "outro":
+        return <MapPin className="h-5 w-5 text-orange-600" />;
       default:
         return <MapPin className="h-5 w-5 text-gray-600" />;
     }
   };
 
-  if (isLoadingEnderecos) {
+  if (isLoadingEnderecos || initialLoading) {
     return (
       <div className="space-y-6">
         <div className="flex justify-center items-center py-8">
@@ -610,17 +497,25 @@ export default function EnderecosTab() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className={!camposEnderecoValidados.tipo ? 'text-red-500' : ''}>
-                          Tipo de Endereço: <span className="text-red-500">*</span>
+                          Tipo: <span className="text-red-500">*</span>
                         </FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger className={!camposEnderecoValidados.tipo ? 'border-red-500' : ''}>
-                              <SelectValue placeholder="Selecione o tipo" />
-                            </SelectTrigger>
-                          </FormControl>
+                        <Select 
+                          value={field.value} 
+                          onValueChange={(value) => {
+                            field.onChange(value);
+                            setCamposEnderecoValidados(prev => ({
+                              ...prev,
+                              tipo: value.trim() !== ''
+                            }));
+                          }}
+                        >
+                          <SelectTrigger className={!camposEnderecoValidados.tipo ? 'border-red-500' : ''}>
+                            <SelectValue placeholder="Selecione o tipo de endereço" />
+                          </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="comercial">Comercial</SelectItem>
                             <SelectItem value="residencial">Residencial</SelectItem>
+                            <SelectItem value="entrega">Entrega</SelectItem>
                             <SelectItem value="outro">Outro</SelectItem>
                           </SelectContent>
                         </Select>
@@ -629,7 +524,6 @@ export default function EnderecosTab() {
                             <AlertTriangle className="w-3 h-3 mr-1" /> Selecione um tipo de endereço
                           </p>
                         )}
-                        <FormMessage />
                       </FormItem>
                     )}
                   />
@@ -650,9 +544,7 @@ export default function EnderecosTab() {
                               mask="99999-999"
                               value={field.value}
                               onChange={(e) => {
-                                const formattedValue = formatarCep(e.target.value);
-                                field.onChange(formattedValue);
-
+                                field.onChange(e);
                                 setCamposEnderecoValidados(prev => ({
                                   ...prev,
                                   cep: e.target.value.trim() !== ''
@@ -663,12 +555,7 @@ export default function EnderecosTab() {
                                   consultarCep(cepLimpo);
                                 }
                               }}
-                              onBlur={() => {
-                                if (field.value && field.value.length >= 8) {
-                                  consultarCep(field.value);
-                                }
-                                handleEnderecoInputBlur();
-                              }}
+                              onBlur={handleEnderecoInputBlur}
                             >
                               {(inputProps: any) => (
                                 <Input 
@@ -784,7 +671,7 @@ export default function EnderecosTab() {
                       <FormItem>
                         <FormLabel>Complemento</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="Apto, Casa, etc." />
+                          <Input {...field} placeholder="Bloco, Sala, Apto..." />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -804,7 +691,6 @@ export default function EnderecosTab() {
                         <FormControl>
                           <Input 
                             {...field} 
-                            placeholder="Nome do bairro" 
                             className={!camposEnderecoValidados.bairro ? 'border-red-500' : ''}
                             onBlur={handleEnderecoInputBlur}
                             onChange={(e) => {
@@ -837,7 +723,6 @@ export default function EnderecosTab() {
                         <FormControl>
                           <Input 
                             {...field} 
-                            placeholder="Nome da cidade" 
                             className={!camposEnderecoValidados.cidade ? 'border-red-500' : ''}
                             onBlur={handleEnderecoInputBlur}
                             onChange={(e) => {
@@ -910,8 +795,7 @@ export default function EnderecosTab() {
                             <SelectItem value="TO">TO</SelectItem>
                           </SelectContent>
                         </Select>
-                        {!camposEnderecoValidados```text
-.estado && (
+                        {!camposEnderecoValidados.estado && (
                           <p className="mt-1 text-red-300 text-xs flex items-center">
                             <AlertTriangle className="w-3 h-3 mr-1" /> Selecione um estado
                           </p>
@@ -926,7 +810,7 @@ export default function EnderecosTab() {
                   control={enderecoForm.control}
                   name="principal"
                   render={({ field }) => (
-                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 mt-4">
                       <FormControl>
                         <Checkbox
                           checked={field.value}
@@ -942,21 +826,24 @@ export default function EnderecosTab() {
                   )}
                 />
 
-                <div className="flex gap-3 pt-4">
-                  <Button 
-                    type="submit" 
-                    className="bg-purple-600 hover:bg-purple-700"
-                  >
-                    <Save className="h-4 w-4 mr-2" />
-                    {editingEndereco ? 'Atualizar' : 'Salvar'}
-                  </Button>
+                <div className="flex justify-end gap-2 mt-6">
                   <Button 
                     type="button" 
-                    variant="outline" 
+                    variant="outline"
                     onClick={() => {
                       setShowAddEndereco(false);
                       setEditingEndereco(null);
-                      enderecoForm.reset();
+                      enderecoForm.reset({
+                        cep: "",
+                        logradouro: "",
+                        numero: "",
+                        complemento: "",
+                        bairro: "",
+                        cidade: "",
+                        estado: "",
+                        principal: false,
+                        tipo: "comercial"
+                      });
                       setCamposEnderecoValidados({
                         tipo: true,
                         cep: true,
@@ -966,10 +853,18 @@ export default function EnderecosTab() {
                         cidade: true,
                         estado: true
                       });
+                      setCepErro(null);
                     }}
                   >
                     <X className="h-4 w-4 mr-2" />
                     Cancelar
+                  </Button>
+                  <Button 
+                    type="submit"
+                    className="bg-purple-600 hover:bg-purple-700"
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    {editingEndereco ? "Atualizar Endereço" : "Salvar Endereço"}
                   </Button>
                 </div>
               </form>
@@ -1021,6 +916,7 @@ export default function EnderecosTab() {
                       <span className={`text-xs px-2 py-1 rounded-full uppercase font-medium mr-2 ${
                         endereco.tipo === 'comercial' ? 'bg-purple-100 text-purple-700' : 
                         endereco.tipo === 'residencial' ? 'bg-blue-100 text-blue-700' : 
+                        endereco.tipo === 'entrega' ? 'bg-green-100 text-green-700' : 
                         'bg-gray-100 text-gray-700'
                       }`}>
                         {endereco.tipo}
@@ -1037,6 +933,7 @@ export default function EnderecosTab() {
                           size="sm" 
                           className="text-xs text-purple-600 hover:text-purple-700 p-0 h-7"
                           onClick={() => handleSetPrincipal(endereco)}
+                          disabled={endereco.id ? disabledButtons[endereco.id] : false}
                         >
                           Definir como principal
                         </Button>
