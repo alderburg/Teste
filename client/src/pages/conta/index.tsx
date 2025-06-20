@@ -2763,13 +2763,62 @@ export default function MinhaContaPage() {
             <TabsContent value="dados" className="space-y-4">
               <Card className="shadow-sm">
                 <CardContent className="pt-6">
-                  {/* Removido o indicador de carregamento conforme solicitado */}
+                  {isLoadingPerfil ? (
+                    <div className="space-y-6 animate-pulse">
+                      {/* Logo e tipo de pessoa skeleton */}
+                      <div className="bg-white p-6 rounded-lg border border-gray-200">
+                        <div className="h-5 bg-gray-200 rounded w-40 mb-4"></div>
+                        <div className="flex flex-row gap-4 items-start">
+                          <div className="w-40 h-24 bg-gray-200 rounded-lg"></div>
+                          <div className="flex-1">
+                            <div className="bg-purple-50 p-4 rounded-md border-l-4 border-purple-500">
+                              <div className="h-4 bg-gray-200 rounded w-32 mb-2"></div>
+                              <div className="h-10 bg-gray-200 rounded"></div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                          <div className="space-y-2">
+                            <div className="h-4 bg-gray-200 rounded w-24"></div>
+                            <div className="h-10 bg-gray-200 rounded"></div>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="h-4 bg-gray-200 rounded w-20"></div>
+                            <div className="h-10 bg-gray-200 rounded"></div>
+                          </div>
+                        </div>
+                      </div>
 
-                  {/* Se não houver dados do perfil, permitiremos que o formulário seja preenchido sem mostrar erro */}
+                      {/* Responsável skeleton */}
+                      <div className="bg-white p-6 rounded-lg border border-gray-200">
+                        <div className="h-5 bg-gray-200 rounded w-40 mb-4"></div>
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <div className="h-4 bg-gray-200 rounded w-32"></div>
+                            <div className="h-10 bg-gray-200 rounded"></div>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {[0, 1].map((i) => (
+                              <div key={i} className="space-y-2">
+                                <div className="h-4 bg-gray-200 rounded w-20"></div>
+                                <div className="h-10 bg-gray-200 rounded"></div>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="space-y-2">
+                            <div className="h-4 bg-gray-200 rounded w-16"></div>
+                            <div className="h-10 bg-gray-200 rounded"></div>
+                          </div>
+                        </div>
+                      </div>
 
-                  {/* Toast de erro é mostrado na função de erro da query */}
-
-                  <Form {...perfilForm}>
+                      {/* Botão skeleton */}
+                      <div className="flex justify-end">
+                        <div className="h-10 bg-purple-200 rounded w-40"></div>
+                      </div>
+                    </div>
+                  ) : (
+                    <Form {...perfilForm}>
                     <form className="space-y-4" noValidate 
                       onSubmit={perfilForm.handleSubmit((data) => {
                         console.log("Formulário submetido com dados:", data);
@@ -3321,6 +3370,7 @@ export default function MinhaContaPage() {
                       </div>
                     </form>
                   </Form>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
