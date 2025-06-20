@@ -168,6 +168,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
         mapUsuariosAdicionais[ua.id] = ua.nome;
       });
 
+      // Função para detectar sistema operacional do User-Agent
+      const getOSFromUserAgent = (userAgent: string): string => {
+        if (!userAgent) return 'Sistema desconhecido';
+        
+        try {
+          console.log(`🔍 Detectando SO para User-Agent: ${userAgent}`);
+          
+          // Windows
+          if (userAgent.includes('Windows NT 10.0')) return 'Windows 10/11';
+          if (userAgent.includes('Windows NT 6.3')) return 'Windows 8.1';
+          if (userAgent.includes('Windows NT 6.2')) return 'Windows 8';
+          if (userAgent.includes('Windows NT 6.1')) return 'Windows 7';
+          if (userAgent.includes('Windows NT 6.0')) return 'Windows Vista';
+          if (userAgent.includes('Windows NT 5.1')) return 'Windows XP';
+          if (userAgent.includes('Windows NT')) return 'Windows';
+          if (userAgent.includes('Win64') || userAgent.includes('WOW64')) return 'Windows 64-bit';
+          if (userAgent.includes('Windows')) return 'Windows';
+          
+          // macOS / Mac OS X
+          if (userAgent.includes('Mac OS X 10_15')) return 'macOS Catalina';
+          if (userAgent.includes('Mac OS X 10_14')) return 'macOS Mojave';
+          if (userAgent.includes('Mac OS X 10_13')) return 'macOS High Sierra';
+          if (userAgent.includes('Mac OS X')) return 'macOS';
+          if (userAgent.includes('Macintosh')) return 'macOS';
+          
+          // iOS
+          if (userAgent.includes('iPhone')) return 'iOS (iPhone)';
+          if (userAgent.includes('iPad')) return 'iOS (iPad)';
+          if (userAgent.includes('iPod')) return 'iOS (iPod)';
+          
+          // Android
+          if (userAgent.includes('Android')) {
+            const match = userAgent.match(/Android ([0-9.]+)/);
+            const version = match ? match[1] : '';
+            return version ? `Android ${version}` : 'Android';
+          }
+          
+          // Linux
+          if (userAgent.includes('Ubuntu')) return 'Ubuntu Linux';
+          if (userAgent.includes('Fedora')) return 'Fedora Linux';
+          if (userAgent.includes('Debian')) return 'Debian Linux';
+          if (userAgent.includes('CentOS')) return 'CentOS Linux';
+          if (userAgent.includes('Red Hat')) return 'Red Hat Linux';
+          if (userAgent.includes('SUSE')) return 'SUSE Linux';
+          if (userAgent.includes('Linux')) return 'Linux';
+          
+          // Outros sistemas Unix-like
+          if (userAgent.includes('FreeBSD')) return 'FreeBSD';
+          if (userAgent.includes('OpenBSD')) return 'OpenBSD';
+          if (userAgent.includes('NetBSD')) return 'NetBSD';
+          if (userAgent.includes('SunOS')) return 'Solaris';
+          if (userAgent.includes('X11')) return 'Unix/Linux';
+          
+          console.warn(`⚠️ SO não identificado para User-Agent: ${userAgent}`);
+          return 'Sistema desconhecido';
+        } catch (error) {
+          console.error('❌ Erro ao detectar SO:', error);
+          return 'Sistema desconhecido';
+        }
+      };
+
       // Função para extrair nome do navegador do User-Agent
       const getBrowserFromUserAgent = (userAgent: string): string => {
         if (!userAgent) return 'Navegador desconhecido';
@@ -304,10 +365,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userType = 'additional';
         }
 
+        // Detectar SO e navegador
+        const userAgent = session.device_info || '';
+        const operatingSystem = getOSFromUserAgent(userAgent);
+        const browser = getBrowserFromUserAgent(userAgent);
+        
         return {
           id: session.id,
           deviceInfo: session.device_info || 'Dispositivo desconhecido',
-          browser: session.browser || getBrowserFromUserAgent(session.device_info || ''),
+          browser: browser,
+          operatingSystem: operatingSystem,
+          device: `${operatingSystem} - ${browser}`,
           deviceType: session.device_type,
           ip: session.ip || 'IP desconhecido',
           location: session.location || 'Localização não identificada',
@@ -699,10 +767,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         };
 
+        // Detectar SO e navegador
+        const userAgent = session.device_info || '';
+        const operatingSystem = getOSFromUserAgent(userAgent);
+        const browser = getBrowserFromUserAgent(userAgent);
+        
         return {
           id: session.id,
           deviceInfo: session.device_info || 'Dispositivo desconhecido',
-          browser: getBrowserFromUserAgent(session.browser || session.device_info || ''),
+          browser: browser,
+          operatingSystem: operatingSystem,
+          device: `${operatingSystem} - ${browser}`,
           ip: session.ip || 'IP não disponível',
           location: session.location || 'Localização não identificada',
           current: session.current,
