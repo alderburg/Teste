@@ -24,4 +24,5 @@ declare global {
   }
 
   var wsClients: Set<any>;
+  var clientsInfo: Map<any, any>;
 }

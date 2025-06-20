@@ -573,12 +573,12 @@ if (process.env.EXTERNAL_API_URL) {
       };
 
       let notificationsSent = 0;
-      
+
       // Procurar especificamente o cliente com a sessão encerrada
       global.wsClients.forEach((ws: any) => {
         if (ws.readyState === 1) { // WebSocket.OPEN = 1
-          const client = clientsInfo.get(ws);
-          
+          const client = global.clientsInfo?.get(ws);
+
           // Notificar o cliente específico da sessão encerrada
           if (client && client.sessionToken === sessionToken) {
             try {
@@ -594,10 +594,10 @@ if (process.env.EXTERNAL_API_URL) {
 
       if (notificationsSent === 0) {
         console.log(`⚠️ Cliente com sessão ${sessionToken.substring(0, 8)}... não encontrado entre os ${global.wsClients.size} cliente(s) conectado(s)`);
-        
+
         // Debug: mostrar sessões dos clientes conectados
         global.wsClients.forEach((ws: any) => {
-          const client = clientsInfo.get(ws);
+          const client = global.clientsInfo?.get(ws);
           if (client && client.authenticated) {
             console.log(`   - Cliente ${client.id}: sessão ${client.sessionToken?.substring(0, 8)}... (usuário ${client.userId})`);
           }
@@ -688,7 +688,7 @@ if (process.env.EXTERNAL_API_URL) {
         // Configurar upgrade de WebSocket no servidor proxy
         proxyServer.on('upgrade', (request, socket, head) => {
           const { pathname } = new URL(request.url, 'http://localhost');
-          
+
           if (pathname === '/ws') {
             wss.handleUpgrade(request, socket, head, (websocket) => {
               wss.emit('connection', websocket, request);
@@ -699,14 +699,14 @@ if (process.env.EXTERNAL_API_URL) {
         });
 
         // Map para armazenar informações detalhadas dos clientes
-        const clientsInfo = new Map();
+        global.clientsInfo = new Map();
 
         wss.on('connection', (ws, req) => {
           const clientId = Date.now() + Math.random();
           const connectionTime = new Date();
           const userAgent = req.headers['user-agent'] || 'Desconhecido';
           const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'IP desconhecido';
-          
+
           // Informações iniciais do cliente
           const clientInfo = {
             id: clientId,
@@ -718,19 +718,19 @@ if (process.env.EXTERNAL_API_URL) {
             ip,
             isAlive: true
           };
-          
-          clientsInfo.set(ws, clientInfo);
+
+          global.clientsInfo.set(ws, clientInfo);
           global.wsClients.add(ws);
-          
+
           console.log(`✅ WebSocket client conectado - ID: ${clientId}, IP: ${ip}`);
-          
+
           // Configurar ping/pong automático
           ws.isAlive = true;
           ws.on('pong', () => {
             ws.isAlive = true;
-            if (clientsInfo.has(ws)) {
-              clientsInfo.get(ws).lastPing = new Date();
-              clientsInfo.get(ws).isAlive = true;
+            if (global.clientsInfo.has(ws)) {
+              global.clientsInfo.get(ws).lastPing = new Date();
+              global.clientsInfo.get(ws).isAlive = true;
             }
           });
 
@@ -738,8 +738,8 @@ if (process.env.EXTERNAL_API_URL) {
           ws.on('message', async (data) => {
             try {
               const message = JSON.parse(data.toString());
-              const client = clientsInfo.get(ws);
-              
+              const client = global.clientsInfo?.get(ws);
+
               if (message.type === 'auth' && message.userId && message.sessionToken) {
                 // Verificar se a sessão é válida no banco
                 try {
@@ -748,13 +748,13 @@ if (process.env.EXTERNAL_API_URL) {
                     FROM session s 
                     WHERE s.sid = $1 AND s.expire > NOW()
                   `;
-                  
+
                   // Usar connectionManager para executar a query
                   const sessionResult = await connectionManager.executeQuery(sessionQuery, [message.sessionToken]);
-                  
+
                   if (sessionResult.rows.length > 0) {
                     const sessionData = sessionResult.rows[0].sess;
-                    
+
                     if (sessionData.passport?.user === message.userId) {
                       // Autenticação válida
                       client.authenticated = true;
@@ -779,10 +779,10 @@ if (process.env.EXTERNAL_API_URL) {
               console.error('Erro ao processar mensagem WebSocket:', error);
             }
           });
-    
+
           ws.on('close', () => {
             console.log(`❌ WebSocket client desconectado - ID: ${clientId}`);
-            clientsInfo.delete(ws);
+            global.clientsInfo?.delete(ws);
             global.wsClients.delete(ws);
           });
 
@@ -795,17 +795,17 @@ if (process.env.EXTERNAL_API_URL) {
         const heartbeatInterval = setInterval(() => {
           console.log('\n🔄 === HEARTBEAT WEBSOCKET ===');
           console.log(`📊 Total de clientes conectados: ${global.wsClients.size}`);
-          
+
           const now = new Date();
           const activeClients = [];
           const staleClients = [];
-          
+
           global.wsClients.forEach(ws => {
-            const client = clientsInfo.get(ws);
+            const client = global.clientsInfo?.get(ws);
             if (client) {
               const timeSinceLastPing = now - client.lastPing;
               const connectionDuration = now - client.connectionTime;
-              
+
               const clientStatus = {
                 id: client.id,
                 authenticated: client.authenticated,
@@ -815,7 +815,7 @@ if (process.env.EXTERNAL_API_URL) {
                 lastPing: Math.floor(timeSinceLastPing / 1000) + 's atrás',
                 isAlive: client.isAlive && timeSinceLastPing < 60000 // 60 segundos
               };
-              
+
               if (clientStatus.isAlive) {
                 activeClients.push(clientStatus);
               } else {
@@ -823,18 +823,18 @@ if (process.env.EXTERNAL_API_URL) {
               }
             }
           });
-          
+
           // Mostrar clientes ativos
           if (activeClients.length > 0) {
             const authenticatedCount = activeClients.filter(c => c.authenticated).length;
             console.log(`✅ Clientes ativos: ${activeClients.length} (${authenticatedCount} autenticados)`);
-            
+
             activeClients.forEach(client => {
               const authStatus = client.authenticated ? '🔐' : '🔓';
               console.log(`   ${authStatus} ID: ${client.id} | Usuário: ${client.userId} | IP: ${client.ip} | Conectado há: ${client.connectionDuration} | Último ping: ${client.lastPing}`);
             });
           }
-          
+
           // Mostrar clientes inativos
           if (staleClients.length > 0) {
             console.log('⚠️ Clientes inativos (serão desconectados):');
@@ -842,19 +842,19 @@ if (process.env.EXTERNAL_API_URL) {
               console.log(`   - ID: ${client.id} | Usuário: ${client.userId} | Último ping: ${client.lastPing}`);
             });
           }
-          
+
           // Enviar ping para todos os clientes e remover os que não respondem
           global.wsClients.forEach(ws => {
             if (ws.isAlive === false) {
-              console.log(`🗑️ Removendo cliente inativo: ${clientsInfo.get(ws)?.id}`);
-              clientsInfo.delete(ws);
+              console.log(`🗑️ Removendo cliente inativo: ${global.clientsInfo?.get(ws)?.id}`);
+              global.clientsInfo?.delete(ws);
               global.wsClients.delete(ws);
               return ws.terminate();
             }
-            
+
             ws.isAlive = false;
             ws.ping();
-            
+
             // Enviar ping customizado também
             try {
               ws.send(JSON.stringify({
@@ -869,16 +869,16 @@ if (process.env.EXTERNAL_API_URL) {
               console.error('Erro ao enviar ping:', error);
             }
           });
-          
+
           console.log('=== FIM HEARTBEAT ===\n');
         }, 30000); // A cada 30 segundos
-        
+
         // Limpar interval quando o processo for encerrado
         process.on('SIGINT', () => {
           clearInterval(heartbeatInterval);
           console.log('🛑 Heartbeat WebSocket encerrado');
         });
-    
+
         console.log('🔗 WebSocket server iniciado no caminho /ws');
         console.log('💓 Sistema de heartbeat ativado (30s)');
 
