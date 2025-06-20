@@ -1,17 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth } from "@/hooks/use-auth";
+import { useWebSocketData } from "@/hooks/useWebSocketData";
 import { MapPin, PlusCircle, Edit3, Trash2, Save, X, Building, Home, Briefcase, CheckCircle, Loader2, Search } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useWebSocketData } from "@/hooks/useWebSocketData";
 import InputMask from "react-input-mask";
 import { Pagination } from "@/components/Pagination";
 import {
@@ -40,7 +39,6 @@ const enderecoSchema = z.object({
   principal: z.boolean().default(false),
 });
 
-// Interface para EnderecoFormValues
 interface EnderecoFormValues extends z.infer<typeof enderecoSchema> {
   id?: number;
   userId?: number;
@@ -49,45 +47,30 @@ interface EnderecoFormValues extends z.infer<typeof enderecoSchema> {
 }
 
 export default function EnderecosTab() {
-  const { toast } = useToast();
   const { user } = useAuth();
-
-  // Estados para dados carregados via WebSocket/fetch
-  const [enderecosData, setEnderecosData] = useState<EnderecoFormValues[]>([]);
-  const [isLoadingEnderecos, setIsLoadingEnderecos] = useState(true);
-
-  // Estados locais para gerenciar endereços
-  const [enderecos, setEnderecos] = useState<EnderecoFormValues[]>([]);
-  
-  // Estado para pesquisa
-  const [searchTerm, setSearchTerm] = useState("");
-
-  // Estados para paginação
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(6);
-
-  // Estados para controle de UI
   const [showAddEndereco, setShowAddEndereco] = useState(false);
   const [editingEndereco, setEditingEndereco] = useState<EnderecoFormValues | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(6);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [enderecoParaExcluir, setEnderecoParaExcluir] = useState<EnderecoFormValues | null>(null);
-  const [camposEnderecoValidados, setCamposEnderecoValidados] = useState({
-    tipo: true,
-    cep: true,
-    logradouro: true,
-    numero: true,
-    bairro: true,
-    cidade: true,
-    estado: true
-  });
 
   // Estados para CEP
   const [isLoadingCep, setIsLoadingCep] = useState(false);
   const [cepErro, setCepErro] = useState<string | null>(null);
 
-  // Estados para loading de operações
-  const [isAddingEndereco, setIsAddingEndereco] = useState(false);
-  const [isUpdatingEndereco, setIsUpdatingEndereco] = useState(false);
-  const [isDeletingEndereco, setIsDeletingEndereco] = useState(false);
+  // Usar WebSocket para gerenciar dados
+  const {
+    data: enderecos,
+    loading: isLoadingEnderecos,
+    createItem: createEndereco,
+    updateItem: updateEndereco,
+    deleteItem: deleteEndereco
+  } = useWebSocketData<EnderecoFormValues>({
+    endpoint: '/api/enderecos',
+    resource: 'enderecos'
+  });
 
   // Form para endereços
   const enderecoForm = useForm<EnderecoFormValues>({
@@ -105,233 +88,6 @@ export default function EnderecosTab() {
     },
     mode: "onSubmit",
   });
-
-  // Função para buscar endereços via fetch
-  const fetchEnderecosData = async () => {
-    try {
-      setIsLoadingEnderecos(true);
-      const response = await fetch('/api/enderecos', {
-        credentials: 'include'
-      });
-      if (response.ok) {
-        const data = await response.json();
-        const enderecosArray = Array.isArray(data) ? data : [];
-        setEnderecosData(enderecosArray);
-        setEnderecos(enderecosArray);
-      }
-    } catch (error) {
-      console.error('Erro ao buscar endereços:', error);
-    } finally {
-      setIsLoadingEnderecos(false);
-    }
-  };
-
-  // Função para adicionar um endereço
-  const addEnderecoMutation = async (data: EnderecoFormValues) => {
-    try {
-      setIsAddingEndereco(true);
-      const response = await fetch('/api/enderecos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...data, userId: user?.id }),
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        throw new Error(`Erro ao adicionar endereço: ${response.status}`);
-      }
-
-      const newEndereco = await response.json();
-      
-      // Atualizar dados locais
-      setEnderecosData(prev => [...prev, newEndereco]);
-      setEnderecos(prev => [...prev, newEndereco]);
-      
-      // Fechar o formulário e resetar
-      setShowAddEndereco(false);
-      setEditingEndereco(null);
-      enderecoForm.reset({
-        cep: "",
-        logradouro: "",
-        numero: "",
-        complemento: "",
-        bairro: "",
-        cidade: "",
-        estado: "",
-        principal: false,
-        tipo: "comercial"
-      });
-
-      setCamposEnderecoValidados({
-        tipo: true,
-        cep: true,
-        logradouro: true,
-        numero: true,
-        bairro: true,
-        cidade: true,
-        estado: true,
-      });
-
-      toast({
-        title: "Endereço adicionado",
-        description: "O endereço foi adicionado com sucesso.",
-        variant: "default",
-        className: "bg-white border-gray-200",
-      });
-
-      return newEndereco;
-    } catch (error: any) {
-      toast({
-        title: "Erro ao adicionar endereço",
-        description: error.message || "Ocorreu um erro ao adicionar o endereço.",
-        variant: "destructive",
-      });
-      throw error;
-    } finally {
-      setIsAddingEndereco(false);
-    }
-  };
-
-  // Função para atualizar um endereço
-  const updateEnderecoMutation = async ({ id, data }: { id: number, data: EnderecoFormValues }) => {
-    try {
-      setIsUpdatingEndereco(true);
-      const response = await fetch(`/api/enderecos/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        throw new Error(`Erro ao atualizar endereço: ${response.status}`);
-      }
-
-      const updatedEndereco = await response.json();
-      
-      // Atualizar dados locais
-      setEnderecosData(prev => prev.map(endereco => endereco.id === id ? updatedEndereco : endereco));
-      setEnderecos(prev => prev.map(endereco => endereco.id === id ? updatedEndereco : endereco));
-      
-      // Fechar o formulário e resetar
-      setShowAddEndereco(false);
-      setEditingEndereco(null);
-      enderecoForm.reset({
-        cep: "",
-        logradouro: "",
-        numero: "",
-        complemento: "",
-        bairro: "",
-        cidade: "",
-        estado: "",
-        principal: false,
-        tipo: "comercial"
-      });
-
-      setCamposEnderecoValidados({
-        tipo: true,
-        cep: true,
-        logradouro: true,
-        numero: true,
-        bairro: true,
-        cidade: true,
-        estado: true,
-      });
-
-      toast({
-        title: "Endereço atualizado",
-        description: "O endereço foi atualizado com sucesso.",
-        variant: "default",
-        className: "bg-white border-gray-200",
-      });
-
-      return updatedEndereco;
-    } catch (error: any) {
-      toast({
-        title: "Erro ao atualizar endereço",
-        description: error.message || "Ocorreu um erro ao atualizar o endereço.",
-        variant: "destructive",
-      });
-      throw error;
-    } finally {
-      setIsUpdatingEndereco(false);
-    }
-  };
-
-  // Função para excluir um endereço
-  const deleteEnderecoMutation = async (id: number) => {
-    try {
-      setIsDeletingEndereco(true);
-      const response = await fetch(`/api/enderecos/${id}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        throw new Error(`Erro ao excluir endereço: ${response.status}`);
-      }
-
-      // Atualizar dados locais
-      setEnderecosData(prev => prev.filter(endereco => endereco.id !== id));
-      setEnderecos(prev => prev.filter(endereco => endereco.id !== id));
-      
-      setEnderecoParaExcluir(null);
-
-      toast({
-        title: "Endereço removido",
-        description: "O endereço foi removido com sucesso.",
-        variant: "default",
-        className: "bg-white border-gray-200",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Erro ao remover endereço",
-        description: error.message || "Ocorreu um erro ao remover o endereço.",
-        variant: "destructive",
-      });
-      throw error;
-    } finally {
-      setIsDeletingEndereco(false);
-    }
-  };
-
-  // Função para definir endereço como principal
-  const setPrincipalMutation = async (id: number) => {
-    try {
-      const response = await fetch(`/api/enderecos/${id}/principal`, {
-        method: 'POST',
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        throw new Error(`Erro ao definir endereço principal: ${response.status}`);
-      }
-
-      // Recarregar dados
-      await fetchEnderecosData();
-
-      toast({
-        title: "Endereço principal definido",
-        description: "O endereço foi definido como principal com sucesso.",
-        variant: "default",
-        className: "bg-white border-gray-200",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Erro ao definir endereço principal",
-        description: error.message || "Ocorreu um erro ao definir o endereço como principal.",
-        variant: "destructive",
-      });
-      throw error;
-    }
-  };
-
-  // Carregamento inicial
-  useEffect(() => {
-    if (user?.id) {
-      fetchEnderecosData();
-    }
-  }, [user?.id]);
 
   // Função para consultar CEP
   const consultarCep = async (cep: string) => {
@@ -351,7 +107,6 @@ export default function EnderecosTab() {
 
       if (data.erro) {
         setCepErro('CEP não encontrado');
-        setIsLoadingCep(false);
         return;
       }
 
@@ -359,14 +114,6 @@ export default function EnderecosTab() {
       enderecoForm.setValue('bairro', data.bairro || '');
       enderecoForm.setValue('cidade', data.localidade || '');
       enderecoForm.setValue('estado', data.uf || '');
-
-      setCamposEnderecoValidados(prev => ({
-        ...prev,
-        logradouro: data.logradouro ? true : prev.logradouro,
-        bairro: data.bairro ? true : prev.bairro,
-        cidade: data.localidade ? true : prev.cidade,
-        estado: data.uf ? true : prev.estado
-      }));
 
       if (!enderecoForm.getValues().numero) {
         setTimeout(() => {
@@ -376,11 +123,10 @@ export default function EnderecosTab() {
           }
         }, 100);
       }
-
-      setIsLoadingCep(false);
     } catch (error) {
       console.error('Erro ao consultar CEP:', error);
       setCepErro('Erro ao consultar o CEP. Verifique sua conexão.');
+    } finally {
       setIsLoadingCep(false);
     }
   };
@@ -395,56 +141,64 @@ export default function EnderecosTab() {
     }
   };
 
-  // Handlers
-  const handleSaveEndereco = async (formData: EnderecoFormValues) => {
+  // Função para submeter o formulário
+  const onSubmit = useCallback(async (data: EnderecoFormValues) => {
+    setIsSubmitting(true);
     try {
-      if (editingEndereco && editingEndereco.id) {
-        await updateEnderecoMutation({
-          id: editingEndereco.id,
-          data: formData
-        });
+      if (editingEndereco) {
+        await updateEndereco(editingEndereco.id!, data);
+        setEditingEndereco(null);
       } else {
-        await addEnderecoMutation(formData);
+        await createEndereco(data);
       }
-    } catch (error: any) {
-      console.error('Erro ao salvar endereço:', error);
+      setShowAddEndereco(false);
+      enderecoForm.reset();
+    } catch (error) {
+      // Erro já tratado no hook useWebSocketData
+    } finally {
+      setIsSubmitting(false);
     }
-  };
+  }, [editingEndereco, updateEndereco, createEndereco, enderecoForm]);
 
-  const handleEditEndereco = (endereco: EnderecoFormValues) => {
+  // Função para confirmar exclusão
+  const confirmarExclusaoEndereco = useCallback(async () => {
+    if (enderecoParaExcluir) {
+      await deleteEndereco(enderecoParaExcluir.id!);
+      setEnderecoParaExcluir(null);
+    }
+  }, [enderecoParaExcluir, deleteEndereco]);
+
+  // Função para editar endereço
+  const handleEditEndereco = useCallback((endereco: EnderecoFormValues) => {
     setEditingEndereco(endereco);
-    Object.keys(enderecoForm.getValues()).forEach((key) => {
-      enderecoForm.setValue(key as any, endereco[key as keyof EnderecoFormValues]);
-    });
-
-    setCamposEnderecoValidados({
-      tipo: true,
-      cep: true,
-      logradouro: true,
-      numero: true,
-      bairro: true,
-      cidade: true,
-      estado: true
-    });
-
+    enderecoForm.reset(endereco);
     setShowAddEndereco(true);
-  };
+  }, [enderecoForm]);
 
-  const handleDeleteEndereco = (endereco: EnderecoFormValues) => {
-    setEnderecoParaExcluir(endereco);
-  };
+  // Função para cancelar edição
+  const handleCancelEdit = useCallback(() => {
+    setEditingEndereco(null);
+    setShowAddEndereco(false);
+    enderecoForm.reset();
+  }, [enderecoForm]);
 
-  const confirmarExclusaoEndereco = async () => {
-    if (enderecoParaExcluir && enderecoParaExcluir.id) {
-      await deleteEnderecoMutation(enderecoParaExcluir.id);
+  // Função para definir endereço como principal
+  const handleSetPrincipal = useCallback(async (endereco: EnderecoFormValues) => {
+    try {
+      const response = await fetch(`/api/enderecos/${endereco.id}/principal`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erro ao definir endereço principal: ${response.status}`);
+      }
+
+      // O WebSocket irá atualizar automaticamente os dados
+    } catch (error) {
+      console.error('Erro ao definir endereço principal:', error);
     }
-  };
-
-  const handleSetPrincipal = async (endereco: any) => {
-    if (endereco.id) {
-      await setPrincipalMutation(endereco.id);
-    }
-  };
+  }, []);
 
   // Filtrar endereços por pesquisa
   const filteredEnderecos = enderecos.filter(endereco => {
@@ -497,15 +251,6 @@ export default function EnderecosTab() {
               principal: false,
               tipo: "comercial"
             });
-            setCamposEnderecoValidados({
-              tipo: true,
-              cep: true,
-              logradouro: true,
-              numero: true,
-              bairro: true,
-              cidade: true,
-              estado: true
-            });
             setShowAddEndereco(true);
           }}
           className="bg-purple-600 hover:bg-purple-700"
@@ -540,7 +285,7 @@ export default function EnderecosTab() {
           </CardHeader>
           <CardContent>
             <Form {...enderecoForm}>
-              <form onSubmit={enderecoForm.handleSubmit(handleSaveEndereco)} className="space-y-4">
+              <form onSubmit={enderecoForm.handleSubmit(onSubmit)} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={enderecoForm.control}
@@ -714,9 +459,9 @@ export default function EnderecosTab() {
                   <Button 
                     type="submit" 
                     className="bg-purple-600 hover:bg-purple-700"
-                    disabled={isAddingEndereco || isUpdatingEndereco}
+                    disabled={isSubmitting}
                   >
-                    {(isAddingEndereco || isUpdatingEndereco) ? (
+                    {isSubmitting ? (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     ) : (
                       <Save className="h-4 w-4 mr-2" />
@@ -726,11 +471,7 @@ export default function EnderecosTab() {
                   <Button 
                     type="button" 
                     variant="outline" 
-                    onClick={() => {
-                      setShowAddEndereco(false);
-                      setEditingEndereco(null);
-                      enderecoForm.reset();
-                    }}
+                    onClick={handleCancelEdit}
                   >
                     <X className="h-4 w-4 mr-2" />
                     Cancelar
@@ -795,15 +536,10 @@ export default function EnderecosTab() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => handleDeleteEndereco(endereco)}
+                      onClick={() => setEnderecoParaExcluir(endereco)}
                       className="text-red-600 border-red-600 hover:bg-red-50"
-                      disabled={isDeletingEndereco}
                     >
-                      {isDeletingEndereco ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-4 w-4" />
-                      )}
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
