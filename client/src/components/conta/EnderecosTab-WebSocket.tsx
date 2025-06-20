@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth } from "@/hooks/use-auth";
 import { useWebSocketData } from "@/hooks/useWebSocketData";
-import { MapPin, PlusCircle, Edit3, Trash2, Save, X, Building, Home, Briefcase, CheckCircle, Loader2, Search } from "lucide-react";
+import { MapPin, PlusCircle, Edit3, Trash2, Save, X, Building, Home, Briefcase, CheckCircle, Loader2, Search, AlertTriangle } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import InputMask from "react-input-mask";
 import { Pagination } from "@/components/Pagination";
@@ -161,6 +162,27 @@ export default function EnderecosTab() {
     } else {
       return cepLimpo.slice(0, 5) + '-' + cepLimpo.slice(5, 8);
     }
+  };
+
+  // Função para lidar com o evento onBlur dos campos de endereço
+  const handleEnderecoInputBlur = () => {
+    const tipo = enderecoForm.getValues().tipo;
+    const cep = enderecoForm.getValues().cep;
+    const logradouro = enderecoForm.getValues().logradouro;
+    const numero = enderecoForm.getValues().numero;
+    const bairro = enderecoForm.getValues().bairro;
+    const cidade = enderecoForm.getValues().cidade;
+    const estado = enderecoForm.getValues().estado;
+
+    setCamposEnderecoValidados({
+      tipo: tipo.trim() !== '',
+      cep: cep.trim() !== '',
+      logradouro: logradouro.trim() !== '',
+      numero: numero.trim() !== '',
+      bairro: bairro.trim() !== '',
+      cidade: cidade.trim() !== '',
+      estado: estado.trim() !== ''
+    });
   };
 
   // Função para submeter o formulário
@@ -424,7 +446,7 @@ export default function EnderecosTab() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className={!camposEnderecoValidados.tipo ? 'text-red-500' : ''}>
-                          Tipo de Endereço *
+                          Tipo de Endereço: <span className="text-red-500">*</span>
                         </FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
@@ -438,90 +460,154 @@ export default function EnderecosTab() {
                             <SelectItem value="outro">Outro</SelectItem>
                           </SelectContent>
                         </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={enderecoForm.control}
-                    name="cep"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className={!camposEnderecoValidados.cep ? 'text-red-500' : ''}>
-                          CEP *
-                        </FormLabel>
-                        <FormControl>
-                          <InputMask
-                            mask="99999-999"
-                            value={field.value}
-                            onChange={(e) => {
-                              const formattedValue = formatarCep(e.target.value);
-                              field.onChange(formattedValue);
-                            }}
-                            onBlur={() => {
-                              if (field.value && field.value.length >= 8) {
-                                consultarCep(field.value);
-                              }
-                            }}
-                          >
-                            {(inputProps: any) => (
-                              <div className="relative">
-                                <Input 
-                                  {...inputProps} 
-                                  placeholder="00000-000" 
-                                  className={!camposEnderecoValidados.cep ? 'border-red-500' : ''}
-                                />
-                                {isLoadingCep && (
-                                  <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin" />
-                                )}
-                              </div>
-                            )}
-                          </InputMask>
-                        </FormControl>
-                        {cepErro && <p className="text-sm text-red-500">{cepErro}</p>}
+                        {!camposEnderecoValidados.tipo && (
+                          <p className="mt-1 text-red-300 text-xs flex items-center">
+                            <AlertTriangle className="w-3 h-3 mr-1" /> Selecione um tipo de endereço
+                          </p>
+                        )}
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                 </div>
 
-                <FormField
-                  control={enderecoForm.control}
-                  name="logradouro"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className={!camposEnderecoValidados.logradouro ? 'text-red-500' : ''}>
-                        Logradouro *
-                      </FormLabel>
-                      <FormControl>
-                        <Input 
-                          {...field} 
-                          placeholder="Rua, Avenida, etc." 
-                          className={!camposEnderecoValidados.logradouro ? 'border-red-500' : ''}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <FormField
+                    control={enderecoForm.control}
+                    name="cep"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className={!camposEnderecoValidados.cep ? 'text-red-500' : ''}>
+                          CEP: <span className="text-red-500">*</span>
+                        </FormLabel>
+                        <div className="relative">
+                          <FormControl>
+                            <InputMask
+                              mask="99999-999"
+                              value={field.value}
+                              onChange={(e) => {
+                                const formattedValue = formatarCep(e.target.value);
+                                field.onChange(formattedValue);
+                                
+                                setCamposEnderecoValidados(prev => ({
+                                  ...prev,
+                                  cep: e.target.value.trim() !== ''
+                                }));
+
+                                const cepLimpo = e.target.value.replace(/\D/g, '');
+                                if (cepLimpo.length === 8) {
+                                  consultarCep(cepLimpo);
+                                }
+                              }}
+                              onBlur={() => {
+                                if (field.value && field.value.length >= 8) {
+                                  consultarCep(field.value);
+                                }
+                                handleEnderecoInputBlur();
+                              }}
+                            >
+                              {(inputProps: any) => (
+                                <Input 
+                                  {...inputProps} 
+                                  placeholder="00000-000" 
+                                  className={!camposEnderecoValidados.cep ? 'border-red-500 pr-10' : 'pr-10'}
+                                />
+                              )}
+                            </InputMask>
+                          </FormControl>
+                          {field.value && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => consultarCep(field.value)}
+                              className="absolute right-0 top-0 h-full px-3"
+                              disabled={isLoadingCep}
+                            >
+                              {isLoadingCep ? (
+                                <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
+                              ) : (
+                                <Search className="h-4 w-4 text-purple-600" />
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                        {!camposEnderecoValidados.cep && (
+                          <p className="mt-1 text-red-300 text-xs flex items-center">
+                            <AlertTriangle className="w-3 h-3 mr-1" /> O CEP não pode estar vazio
+                          </p>
+                        )}
+                        {cepErro && <p className="text-sm text-red-500">{cepErro}</p>}
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="md:col-span-2">
+                    <FormField
+                      control={enderecoForm.control}
+                      name="logradouro"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className={!camposEnderecoValidados.logradouro ? 'text-red-500' : ''}>
+                            Logradouro: <span className="text-red-500">*</span>
+                          </FormLabel>
+                          <FormControl>
+                            <Input 
+                              {...field} 
+                              placeholder="Rua, Avenida, etc." 
+                              className={!camposEnderecoValidados.logradouro ? 'border-red-500' : ''}
+                              onBlur={handleEnderecoInputBlur}
+                              onChange={(e) => {
+                                field.onChange(e);
+                                setCamposEnderecoValidados(prev => ({
+                                  ...prev,
+                                  logradouro: e.target.value.trim() !== ''
+                                }));
+                              }}
+                            />
+                          </FormControl>
+                          {!camposEnderecoValidados.logradouro && (
+                            <p className="mt-1 text-red-300 text-xs flex items-center">
+                              <AlertTriangle className="w-3 h-3 mr-1" /> O logradouro não pode estar vazio
+                            </p>
+                          )}
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={enderecoForm.control}
                     name="numero"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className={!camposEnderecoValidados.numero ? 'text-red-500' : ''}>
-                          Número *
+                          Número: <span className="text-red-500">*</span>
                         </FormLabel>
                         <FormControl>
                           <Input 
                             {...field} 
                             placeholder="123" 
                             className={!camposEnderecoValidados.numero ? 'border-red-500' : ''}
+                            onBlur={handleEnderecoInputBlur}
+                            onChange={(e) => {
+                              field.onChange(e);
+                              setCamposEnderecoValidados(prev => ({
+                                ...prev,
+                                numero: e.target.value.trim() !== ''
+                              }));
+                            }}
                           />
                         </FormControl>
+                        {!camposEnderecoValidados.numero && (
+                          <p className="mt-1 text-red-300 text-xs flex items-center">
+                            <AlertTriangle className="w-3 h-3 mr-1" /> O número não pode estar vazio
+                          </p>
+                        )}
                         <FormMessage />
                       </FormItem>
                     )}
@@ -540,44 +626,70 @@ export default function EnderecosTab() {
                       </FormItem>
                     )}
                   />
+                </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <FormField
                     control={enderecoForm.control}
                     name="bairro"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className={!camposEnderecoValidados.bairro ? 'text-red-500' : ''}>
-                          Bairro *
+                          Bairro: <span className="text-red-500">*</span>
                         </FormLabel>
                         <FormControl>
                           <Input 
                             {...field} 
                             placeholder="Nome do bairro" 
                             className={!camposEnderecoValidados.bairro ? 'border-red-500' : ''}
+                            onBlur={handleEnderecoInputBlur}
+                            onChange={(e) => {
+                              field.onChange(e);
+                              setCamposEnderecoValidados(prev => ({
+                                ...prev,
+                                bairro: e.target.value.trim() !== ''
+                              }));
+                            }}
                           />
                         </FormControl>
+                        {!camposEnderecoValidados.bairro && (
+                          <p className="mt-1 text-red-300 text-xs flex items-center">
+                            <AlertTriangle className="w-3 h-3 mr-1" /> O bairro não pode estar vazio
+                          </p>
+                        )}
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={enderecoForm.control}
                     name="cidade"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className={!camposEnderecoValidados.cidade ? 'text-red-500' : ''}>
-                          Cidade *
+                          Cidade: <span className="text-red-500">*</span>
                         </FormLabel>
                         <FormControl>
                           <Input 
                             {...field} 
                             placeholder="Nome da cidade" 
                             className={!camposEnderecoValidados.cidade ? 'border-red-500' : ''}
+                            onBlur={handleEnderecoInputBlur}
+                            onChange={(e) => {
+                              field.onChange(e);
+                              setCamposEnderecoValidados(prev => ({
+                                ...prev,
+                                cidade: e.target.value.trim() !== ''
+                              }));
+                            }}
                           />
                         </FormControl>
+                        {!camposEnderecoValidados.cidade && (
+                          <p className="mt-1 text-red-300 text-xs flex items-center">
+                            <AlertTriangle className="w-3 h-3 mr-1" /> A cidade não pode estar vazia
+                          </p>
+                        )}
                         <FormMessage />
                       </FormItem>
                     )}
@@ -589,16 +701,56 @@ export default function EnderecosTab() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className={!camposEnderecoValidados.estado ? 'text-red-500' : ''}>
-                          Estado *
+                          Estado: <span className="text-red-500">*</span>
                         </FormLabel>
-                        <FormControl>
-                          <Input 
-                            {...field} 
-                            placeholder="SP" 
-                            maxLength={2} 
-                            className={!camposEnderecoValidados.estado ? 'border-red-500' : ''}
-                          />
-                        </FormControl>
+                        <Select 
+                          value={field.value} 
+                          onValueChange={(value) => {
+                            field.onChange(value);
+                            setCamposEnderecoValidados(prev => ({
+                              ...prev,
+                              estado: value.trim() !== ''
+                            }));
+                          }}
+                        >
+                          <SelectTrigger className={!camposEnderecoValidados.estado ? 'border-red-500' : ''}>
+                            <SelectValue placeholder="UF" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="AC">AC</SelectItem>
+                            <SelectItem value="AL">AL</SelectItem>
+                            <SelectItem value="AP">AP</SelectItem>
+                            <SelectItem value="AM">AM</SelectItem>
+                            <SelectItem value="BA">BA</SelectItem>
+                            <SelectItem value="CE">CE</SelectItem>
+                            <SelectItem value="DF">DF</SelectItem>
+                            <SelectItem value="ES">ES</SelectItem>
+                            <SelectItem value="GO">GO</SelectItem>
+                            <SelectItem value="MA">MA</SelectItem>
+                            <SelectItem value="MT">MT</SelectItem>
+                            <SelectItem value="MS">MS</SelectItem>
+                            <SelectItem value="MG">MG</SelectItem>
+                            <SelectItem value="PA">PA</SelectItem>
+                            <SelectItem value="PB">PB</SelectItem>
+                            <SelectItem value="PR">PR</SelectItem>
+                            <SelectItem value="PE">PE</SelectItem>
+                            <SelectItem value="PI">PI</SelectItem>
+                            <SelectItem value="RJ">RJ</SelectItem>
+                            <SelectItem value="RN">RN</SelectItem>
+                            <SelectItem value="RS">RS</SelectItem>
+                            <SelectItem value="RO">RO</SelectItem>
+                            <SelectItem value="RR">RR</SelectItem>
+                            <SelectItem value="SC">SC</SelectItem>
+                            <SelectItem value="SP">SP</SelectItem>
+                            <SelectItem value="SE">SE</SelectItem>
+                            <SelectItem value="TO">TO</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {!camposEnderecoValidados.estado && (
+                          <p className="mt-1 text-red-300 text-xs flex items-center">
+                            <AlertTriangle className="w-3 h-3 mr-1" /> Selecione um estado
+                          </p>
+                        )}
                         <FormMessage />
                       </FormItem>
                     )}
@@ -662,64 +814,70 @@ export default function EnderecosTab() {
           <>
             {/* Lista de endereços */}
             {paginatedEnderecos.length > 0 ? (
-              <div className="grid gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {paginatedEnderecos.map((endereco) => (
-                  <Card key={endereco.id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-6">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            {renderEnderecoIcon(endereco.tipo || '')}
-                            <span className="font-medium text-sm text-gray-700 capitalize">{endereco.tipo}</span>
-                            {endereco.principal && (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                <CheckCircle className="h-3 w-3 mr-1" />
-                                Principal
-                              </span>
-                            )}
-                          </div>
-                          <div className="space-y-1">
-                            <p className="font-medium">{endereco.logradouro}, {endereco.numero}</p>
-                            {endereco.complemento && (
-                              <p className="text-sm text-gray-600">{endereco.complemento}</p>
-                            )}
-                            <p className="text-sm text-gray-600">
-                              {endereco.bairro}, {endereco.cidade} - {endereco.estado}
-                            </p>
-                            <p className="text-sm text-gray-600">CEP: {endereco.cep}</p>
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          {!endereco.principal && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleSetPrincipal(endereco)}
-                              className="text-purple-600 border-purple-600 hover:bg-purple-50"
-                            >
-                              <CheckCircle className="h-4 w-4 mr-1" />
-                              Principal
-                            </Button>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleEditEndereco(endereco)}
-                          >
-                            <Edit3 className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setEnderecoParaExcluir(endereco)}
-                            className="text-red-600 border-red-600 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                  <div 
+                    key={endereco.id} 
+                    className={`border rounded-lg p-4 relative ${endereco.principal ? 'border-purple-200 bg-purple-50' : 'border-gray-200'}`}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex items-center">
+                        {renderEnderecoIcon(endereco.tipo || '')}
+                        <h3 className="font-medium text-lg ml-2">Endereço {endereco.tipo} - {endereco.cidade}</h3>
                       </div>
-                    </CardContent>
-                  </Card>
+                      <div className="flex items-center gap-1">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleEditEndereco(endereco)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Edit3 className="h-4 w-4 text-gray-500" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => setEnderecoParaExcluir(endereco)}
+                          className="h-8 w-8 p-0"
+                          disabled={endereco.principal}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="text-sm text-gray-700 mb-3">
+                      <p>{endereco.logradouro}, {endereco.numero}{endereco.complemento ? `, ${endereco.complemento}` : ''}</p>
+                      <p>{endereco.bairro} - {endereco.cidade}, {endereco.estado}</p>
+                      <p>CEP: {endereco.cep}</p>
+                    </div>
+
+                    <div className="flex items-center">
+                      <span className={`text-xs px-2 py-1 rounded-full uppercase font-medium mr-2 ${
+                        endereco.tipo === 'comercial' ? 'bg-purple-100 text-purple-700' : 
+                        endereco.tipo === 'residencial' ? 'bg-blue-100 text-blue-700' : 
+                        'bg-gray-100 text-gray-700'
+                      }`}>
+                        {endereco.tipo}
+                      </span>
+
+                      {endereco.principal ? (
+                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full flex items-center">
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Principal
+                        </span>
+                      ) : (
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="text-xs text-purple-600 hover:text-purple-700 p-0 h-7"
+                          onClick={() => handleSetPrincipal(endereco)}
+                        >
+                          Definir como principal
+                        </Button>
+                      )}
+                    </div>
+                  </div>
                 ))}
               </div>
             ) : (
@@ -762,7 +920,9 @@ export default function EnderecosTab() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir este endereço? Esta ação não pode ser desfeita.
+              Tem certeza que deseja excluir o endereço <span className="font-semibold">{enderecoParaExcluir?.tipo} em {enderecoParaExcluir?.cidade}</span>?
+              <br />
+              Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
