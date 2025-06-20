@@ -836,5 +836,3 @@ export function UsuariosTab() {
     </Card>
   );
 }
-
-export { UsuariosTab };
