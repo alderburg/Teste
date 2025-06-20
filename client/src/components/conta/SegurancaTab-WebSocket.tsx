@@ -71,6 +71,7 @@ interface SessaoData {
   device?: string;
   deviceInfo?: string;
   browser?: string;
+  operatingSystem?: string;
   current?: boolean;
   isActive?: boolean;
   status?: string;
@@ -1466,7 +1467,7 @@ export default function SegurancaTabWebSocket() {
                               )}
                             </div>
                             <div className="text-sm text-gray-500 mt-1">
-                              <strong>Dispositivo:</strong> {sessao.device || 'Sistema desconhecido'} - {sessao.browser || 'Navegador desconhecido'}
+                              <strong>Dispositivo:</strong> {sessao.device || `${sessao.operatingSystem || 'Sistema desconhecido'} - ${sessao.browser || 'Navegador desconhecido'}`}
                             </div>
 
                             <div className="text-sm text-gray-500">
