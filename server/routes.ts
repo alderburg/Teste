@@ -606,7 +606,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           (global as any).notifySessionTerminated(targetUserId, sessionToken);
         }
         
-        // FORÇA BRUTA: Enviar notificação direta via WebSocket para todos os clientes
+        // NOTIFICAÇÃO ESPECÍFICA: Enviar apenas para a sessão que foi encerrada
         if (typeof (global as any).wsClients !== 'undefined') {
           const sessionTerminatedMessage = JSON.stringify({
             type: 'session_terminated',
@@ -614,21 +614,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
             sessionToken: sessionToken,
             userId: targetUserId,
             timestamp: new Date().toISOString(),
-            forceModal: true // Flag para forçar o modal
+            forceModal: true,
+            targetSessionOnly: true // Flag para indicar que é apenas para a sessão específica
           });
           
           let notificationsSent = 0;
           (global as any).wsClients.forEach((ws: any) => {
-            if (ws.readyState === 1) { // WebSocket.OPEN
+            // Verificar se este cliente WebSocket corresponde à sessão encerrada
+            if (ws.readyState === 1 && ws.sessionToken === sessionToken) {
               try {
                 ws.send(sessionTerminatedMessage);
                 notificationsSent++;
+                console.log(`🎯 Notificação enviada ESPECIFICAMENTE para a sessão ${sessionToken.substring(0, 8)}...`);
               } catch (error) {
                 console.error('Erro ao enviar notificação de sessão encerrada:', error);
               }
             }
           });
-          console.log(`📤 ${notificationsSent} notificações de sessão encerrada enviadas via WebSocket`);
+          
+          if (notificationsSent === 0) {
+            console.log(`⚠️ Nenhuma conexão WebSocket encontrada para a sessão ${sessionToken.substring(0, 8)}... (cliente pode já ter desconectado)`);
+          } else {
+            console.log(`📤 ${notificationsSent} notificação específica enviada para a sessão encerrada`);
+          }
         }
         
         // Notificar usuários relacionados sobre a atualização na lista de sessões

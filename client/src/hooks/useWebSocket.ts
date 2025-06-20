@@ -11,6 +11,7 @@ interface WebSocketMessage {
   sessionToken?: string;
   timestamp?: string;
   forceModal?: boolean;
+  targetSessionOnly?: boolean;
 }
 
 export function useWebSocket() {
@@ -47,20 +48,16 @@ export function useWebSocket() {
       // Tratar evento de sessão encerrada
       console.log('🔒 Sessão encerrada pelo servidor:', data);
 
-      // NOVA ABORDAGEM: Forçar o modal sem verificar tokens específicos
-      // Se recebemos uma notificação de sessão encerrada, sempre mostrar o modal
-      console.log('🔒 NOVA LÓGICA: Sempre mostrar modal quando receber session_terminated');
-      console.log('🔒 Dados da sessão encerrada:', {
+      // VERIFICAÇÃO CORRETA: Verificar se é para esta sessão específica
+      console.log('🔒 Recebida notificação de sessão encerrada:', {
         type: data.type,
         message: data.message,
-        userId: data.userId,
-        sessionToken: data.sessionToken?.substring(0, 8) + '...',
-        forceModal: data.forceModal,
+        targetSessionOnly: data.targetSessionOnly,
         currentPage: window.location.pathname
       });
 
-      // SEMPRE mostrar o modal se recebemos session_terminated
-      if (data.type === 'session_terminated') {
+      // Apenas mostrar o modal se foi direcionado especificamente para esta sessão
+      if (data.targetSessionOnly && data.type === 'session_terminated') {
         console.log('🔒 Esta é a sessão atual - disparando evento de encerramento');
 
         // Invalidar imediatamente o queryClient para evitar requisições
