@@ -392,6 +392,21 @@ export default function EnderecosTabWebSocket() {
         </div>
       </CardHeader>
       <CardContent>
+        {/* Campo de pesquisa */}
+        {!showAddEndereco && (
+          <div className="mb-6 mt-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Pesquisar endereços..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
+        )}
+
         {/* Preloader de carregamento */}
         {isLoadingEnderecos || initialLoading ? (
           <div className="flex flex-col items-center justify-center p-8 text-center">
@@ -400,21 +415,6 @@ export default function EnderecosTabWebSocket() {
           </div>
         ) : (
           <>
-            {/* Campo de pesquisa */}
-            {!showAddEndereco && (
-              <div className="mb-6 mt-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    placeholder="Pesquisar endereços..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-            )}
-
             {showAddEndereco ? (
               <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-6">
                 <div className="flex justify-between items-center mb-4">
