@@ -347,25 +347,41 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
       const sessionToken = getSessionTokenFromCookie();
 
       if (sessionToken) {
-        console.log(`🔐 Enviando autenticação WebSocket para usuário ${user.id}`);
-        console.log(`🔑 Session Token: ${sessionToken.substring(0, 8)}...`);
-        console.log(`📝 Todos os cookies:`, document.cookie);
+        console.log(`🔐 =============== ENVIANDO AUTENTICAÇÃO WEBSOCKET ===============`);
+        console.log(`🔐 Usuário ID: ${user.id}`);
+        console.log(`🔑 Session Token COMPLETO: "${sessionToken}"`);
+        console.log(`🔑 Session Token LENGTH: ${sessionToken.length}`);
+        console.log(`🔑 Session Token primeiro 20 chars: "${sessionToken.substring(0, 20)}"`);
+        console.log(`🔑 Token é assinado (s:): ${sessionToken.startsWith('s:')}`);
+        if (sessionToken.startsWith('s:')) {
+          const sessionId = sessionToken.substring(2).split('.')[0];
+          console.log(`🔑 SessionId extraído: "${sessionId}"`);
+        }
+        console.log(`📝 Todos os cookies completos:`, document.cookie);
+        console.log(`🕐 Timestamp: ${new Date().toISOString()}`);
 
-        sendMessage({
+        const authMessage = {
           type: 'auth',
           userId: user.id,
           sessionToken: sessionToken
-        });
+        };
+
+        console.log(`📤 Mensagem de autenticação:`, JSON.stringify(authMessage, null, 2));
+
+        sendMessage(authMessage);
       } else {
-        console.warn('⚠️ Session token não encontrado nos cookies');
-        console.log('📝 Cookies disponíveis:', document.cookie);
+        console.warn('⚠️ =============== SESSION TOKEN NÃO ENCONTRADO ===============');
+        console.log('📝 Cookies disponíveis completos:', document.cookie);
         
         // Tentar buscar outros tokens possíveis
         const allCookies = document.cookie.split(';');
-        console.log('🔍 Analisando todos os cookies:');
-        allCookies.forEach(cookie => {
+        console.log('🔍 Analisando TODOS os cookies em detalhes:');
+        allCookies.forEach((cookie, index) => {
           const [name, value] = cookie.trim().split('=');
-          console.log(`   - ${name}: ${value ? value.substring(0, 20) + '...' : 'vazio'}`);
+          console.log(`   ${index + 1}. "${name}": "${value || 'vazio'}"`);
+          if (name.includes('sid') || name.includes('session') || name.includes('connect')) {
+            console.log(`      ⭐ Cookie de sessão potencial: "${name}" = "${value}"`);
+          }
         });
       }
     }

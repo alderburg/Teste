@@ -741,15 +741,19 @@ if (process.env.EXTERNAL_API_URL) {
               const client = global.clientsInfo?.get(ws);
 
               if (message.type === 'auth' && message.userId && message.sessionToken) {
-                console.log(`🔐 Tentativa de autenticação WebSocket:`);
+                console.log(`🔐 =============== AUTENTICAÇÃO WEBSOCKET DEBUG ===============`);
                 console.log(`   - Cliente ID: ${clientId}`);
                 console.log(`   - Usuário ID: ${message.userId}`);
-                console.log(`   - Session Token: ${message.sessionToken.substring(0, 8)}...`);
+                console.log(`   - Session Token COMPLETO: "${message.sessionToken}"`);
+                console.log(`   - Session Token LENGTH: ${message.sessionToken.length}`);
+                console.log(`   - Session Token primeiro 20 chars: "${message.sessionToken.substring(0, 20)}"`);
                 console.log(`   - IP: ${client?.ip || 'desconhecido'}`);
+                console.log(`   - Timestamp: ${new Date().toISOString()}`);
                 
                 // Verificar sessão usando múltiplas abordagens
                 try {
-                  console.log(`🔍 Verificando autenticação com token: ${message.sessionToken.substring(0, 8)}...`);
+                  console.log(`🔍 =============== INICIANDO VERIFICAÇÃO ===============`);
+                  console.log(`🔍 Token original completo: "${message.sessionToken}"`);
                   
                   let authenticationSuccess = false;
                   let authMethod = '';
@@ -760,14 +764,20 @@ if (process.env.EXTERNAL_API_URL) {
                   // Função para normalizar token (extrair sessionId se estiver assinado)
                   const normalizeSessionToken = (token: string): string[] => {
                     const candidates = [token]; // Sempre incluir o token original
+                    console.log(`🔑 Token original para normalização: "${token}"`);
                     
                     // Se token está assinado (s:sessionId.signature), extrair o sessionId
                     if (token.startsWith('s:')) {
                       const sessionId = token.substring(2).split('.')[0];
                       candidates.push(sessionId);
-                      console.log(`🔑 Token assinado detectado, sessionId extraído: ${sessionId.substring(0, 8)}...`);
+                      console.log(`🔑 Token assinado detectado!`);
+                      console.log(`🔑 - Token completo: "${token}"`);
+                      console.log(`🔑 - SessionId extraído: "${sessionId}"`);
+                    } else {
+                      console.log(`🔑 Token não é assinado (não começa com 's:')`);
                     }
                     
+                    console.log(`🔑 Candidatos finais: [${candidates.map(c => `"${c}"`).join(', ')}]`);
                     return candidates;
                   };
                   
@@ -778,8 +788,11 @@ if (process.env.EXTERNAL_API_URL) {
                   let usedToken = null;
                   
                   // Testar cada variação do token
-                  for (const candidate of tokenCandidates) {
-                    console.log(`🔍 Testando token: ${candidate.substring(0, 8)}...`);
+                  for (let i = 0; i < tokenCandidates.length; i++) {
+                    const candidate = tokenCandidates[i];
+                    console.log(`🔍 ===== TESTE ${i + 1}/${tokenCandidates.length} =====`);
+                    console.log(`🔍 Testando token: "${candidate}"`);
+                    console.log(`🔍 Token length: ${candidate.length}`);
                     
                     const sessionQuery = `
                       SELECT s.sess, s.sid, s.expire
@@ -787,36 +800,65 @@ if (process.env.EXTERNAL_API_URL) {
                       WHERE s.sid = $1 AND s.expire > NOW()
                     `;
                     
+                    console.log(`🔍 Executando query: ${sessionQuery}`);
+                    console.log(`🔍 Com parâmetro: "${candidate}"`);
+                    
                     const result = await connectionManager.executeQuery(sessionQuery, [candidate]);
+                    
+                    console.log(`🔍 Resultado da query: ${result.rows.length} linhas encontradas`);
                     
                     if (result.rows.length > 0) {
                       sessionResult = result;
                       usedToken = candidate;
-                      console.log(`✅ Token encontrado na tabela session: ${candidate.substring(0, 8)}...`);
+                      console.log(`✅ TOKEN ENCONTRADO NA TABELA SESSION!`);
+                      console.log(`✅ - Token usado: "${candidate}"`);
+                      console.log(`✅ - Rows encontradas: ${result.rows.length}`);
                       break;
+                    } else {
+                      console.log(`❌ Token "${candidate}" não encontrado na tabela session`);
                     }
                   }
                   
-                  console.log(`📊 Resultado session: ${sessionResult?.rows?.length || 0} sessão(ões) encontrada(s)`);
+                  console.log(`📊 =============== RESULTADO FINAL MÉTODO 1 ===============`);
+                  console.log(`📊 Sessões encontradas: ${sessionResult?.rows?.length || 0}`);
+                  console.log(`📊 Token utilizado: ${usedToken ? `"${usedToken}"` : 'NENHUM'}`);
 
                   if (sessionResult && sessionResult.rows.length > 0) {
                     const sessionData = sessionResult.rows[0];
                     const sessData = sessionData.sess;
                     
-                    console.log(`🔍 Dados da sessão encontrada:`, {
-                      sid: sessionData.sid?.substring(0, 8) + '...',
-                      hasPassport: !!(sessData && sessData.passport),
-                      hasUser: !!(sessData && sessData.passport && sessData.passport.user)
-                    });
+                    console.log(`🔍 =============== DADOS DA SESSÃO ===============`);
+                    console.log(`🔍 SID da sessão: "${sessionData.sid}"`);
+                    console.log(`🔍 Expire: ${sessionData.expire}`);
+                    console.log(`🔍 Sessão tem dados: ${!!sessData}`);
+                    console.log(`🔍 Sessão tem passport: ${!!(sessData && sessData.passport)}`);
+                    console.log(`🔍 Sessão tem passport.user: ${!!(sessData && sessData.passport && sessData.passport.user)}`);
+                    
+                    if (sessData) {
+                      console.log(`🔍 Keys da sessão: [${Object.keys(sessData).join(', ')}]`);
+                      if (sessData.passport) {
+                        console.log(`🔍 Keys do passport: [${Object.keys(sessData.passport).join(', ')}]`);
+                        console.log(`🔍 Passport.user: ${JSON.stringify(sessData.passport.user)}`);
+                      }
+                    }
                     
                     if (sessData && sessData.passport && sessData.passport.user) {
                       const sessionUserId = sessData.passport.user;
-                      console.log(`🔍 Usuário na sessão Passport: ${sessionUserId}, esperado: ${message.userId}`);
+                      console.log(`🔍 =============== VERIFICAÇÃO DE USUÁRIO ===============`);
+                      console.log(`🔍 Usuário na sessão Passport: ${sessionUserId} (tipo: ${typeof sessionUserId})`);
+                      console.log(`🔍 Usuário esperado: ${message.userId} (tipo: ${typeof message.userId})`);
+                      console.log(`🔍 Conversão para comparação:`);
+                      console.log(`🔍 - sessionUserId: ${parseInt(sessionUserId)} (parsed int)`);
+                      console.log(`🔍 - message.userId: ${parseInt(message.userId)} (parsed int)`);
 
-                      if (sessionUserId === message.userId) {
+                      // Comparar tanto string quanto número
+                      const userMatch = sessionUserId == message.userId || parseInt(sessionUserId) === parseInt(message.userId);
+                      console.log(`🔍 Match result: ${userMatch}`);
+
+                      if (userMatch) {
                         authenticationSuccess = true;
                         authMethod = `session (Passport.js) - token: ${usedToken.substring(0, 8)}...`;
-                        console.log(`✅ AUTENTICADO via sessão Passport.js`);
+                        console.log(`✅ =============== AUTENTICADO VIA PASSPORT.JS ===============`);
                       } else {
                         console.log(`❌ UserID não confere: sessão=${sessionUserId}, esperado=${message.userId}`);
                       }
