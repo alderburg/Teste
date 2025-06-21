@@ -597,46 +597,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`✅ Sessão ${sessionId} excluída com sucesso da tabela ${sessionTableName}`);
         console.log(`🔐 Usuário com token ${sessionToken.substring(0, 8)}... será deslogado automaticamente`);
         
-        // NOTIFICAÇÃO INSTANTÂNEA: Enviar evento de encerramento de sessão via WebSocket
+        // Notificar via WebSocket sobre o encerramento da sessão
         const targetUserId = sessionCheck.rows[0].user_id;
-        console.log(`🔔 FORÇANDO NOTIFICAÇÃO DE SESSÃO ENCERRADA para usuário ${targetUserId}, token: ${sessionToken.substring(0, 8)}...`);
-        
-        // Usar múltiplos métodos de notificação para garantir que o modal apareça
         if (typeof (global as any).notifySessionTerminated === 'function') {
           (global as any).notifySessionTerminated(targetUserId, sessionToken);
-        }
-        
-        // NOTIFICAÇÃO ESPECÍFICA: Enviar apenas para a sessão que foi encerrada
-        if (typeof (global as any).wsClients !== 'undefined') {
-          const sessionTerminatedMessage = JSON.stringify({
-            type: 'session_terminated',
-            message: 'Sua sessão foi encerrada por outro usuário',
-            sessionToken: sessionToken,
-            userId: targetUserId,
-            timestamp: new Date().toISOString(),
-            forceModal: true,
-            targetSessionOnly: true // Flag para indicar que é apenas para a sessão específica
-          });
-          
-          let notificationsSent = 0;
-          (global as any).wsClients.forEach((ws: any) => {
-            // Verificar se este cliente WebSocket corresponde à sessão encerrada
-            if (ws.readyState === 1 && ws.sessionToken === sessionToken) {
-              try {
-                ws.send(sessionTerminatedMessage);
-                notificationsSent++;
-                console.log(`🎯 Notificação enviada ESPECIFICAMENTE para a sessão ${sessionToken.substring(0, 8)}...`);
-              } catch (error) {
-                console.error('Erro ao enviar notificação de sessão encerrada:', error);
-              }
-            }
-          });
-          
-          if (notificationsSent === 0) {
-            console.log(`⚠️ Nenhuma conexão WebSocket encontrada para a sessão ${sessionToken.substring(0, 8)}... (cliente pode já ter desconectado)`);
-          } else {
-            console.log(`📤 ${notificationsSent} notificação específica enviada para a sessão encerrada`);
-          }
+        } else {
+          console.log(`⚠️ Sistema WebSocket não disponível para notificação de sessão`);
         }
         
         // Notificar usuários relacionados sobre a atualização na lista de sessões
@@ -8449,41 +8415,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         WHERE token = $1 AND user_id = $2
       `, [sessionId, userId]);
 
-      // Notificar APENAS a sessão específica que foi encerrada via WebSocket
-      const clients = (global as any).clientsInfo || new Map();
-      let sessionTerminatedNotified = false;
-      
-      for (const [ws, clientInfo] of clients.entries()) {
-        if (clientInfo.authenticated && 
-            clientInfo.sessionToken === sessionId && 
-            ws.readyState === WebSocket.OPEN) {
-          
-          // Enviar notificação de sessão encerrada APENAS para esta conexão específica
-          ws.send(JSON.stringify({
-            type: 'session_terminated',
-            message: 'Sua sessão foi encerrada por outro dispositivo',
-            sessionToken: sessionId,
-            forceModal: true,
-            targetSessionOnly: true
-          }));
-          
-          sessionTerminatedNotified = true;
-          console.log(`🎯 Notificação de sessão encerrada enviada para sessão específica: ${sessionId.substring(0, 8)}...`);
-          break;
-        }
+      // Notificar via WebSocket sobre o encerramento da sessão
+      if (typeof (global as any).notifySessionTerminated === 'function') {
+        (global as any).notifySessionTerminated(userId, sessionId);
+      } else {
+        console.log(`⚠️ Sistema WebSocket não disponível para notificação de sessão`);
       }
       
-      if (!sessionTerminatedNotified) {
-        console.log(`⚠️ Sessão ${sessionId.substring(0, 8)}... não encontrada nas conexões ativas para notificação`);
-      }
-      
-      // Notificar outros clientes do mesmo usuário sobre atualização da lista de sessões
+      // Notificar clientes conectados via WebSocket sobre a atualização da lista de sessões
       for (const [ws, clientInfo] of clients.entries()) {
-        if (clientInfo.authenticated && 
-            clientInfo.userId === userId && 
-            clientInfo.sessionToken !== sessionId && 
-            ws.readyState === WebSocket.OPEN) {
-          
+        if (clientInfo.userId === userId && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
             type: 'data_update',
             resource: 'sessoes',

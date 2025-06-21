@@ -558,7 +558,7 @@ if (process.env.EXTERNAL_API_URL) {
     global.wsClients = new Set();
   }
 
-  // Função global para notificar encerramento de sessão via WebSocket existente
+  // Função global para notificar sobre sessão encerrada via sistema WebSocket existente
   (global as any).notifySessionTerminated = (userId: number, sessionToken: string) => {
     console.log(`🔔 Notificando encerramento da sessão ${sessionToken.substring(0, 8)}... para usuário ${userId}`);
 
@@ -569,57 +569,44 @@ if (process.env.EXTERNAL_API_URL) {
         message: 'Sua sessão foi encerrada por outro usuário',
         sessionToken: sessionToken,
         userId: userId,
-        timestamp: new Date().toISOString(),
-        targetSessionOnly: true,
-        forceModal: true
+        timestamp: new Date().toISOString()
       };
 
       let notificationsSent = 0;
-      let totalClientsChecked = 0;
-
-      console.log(`🔍 Procurando cliente com sessionToken: ${sessionToken.substring(0, 8)}... entre ${global.wsClients.size} clientes conectados`);
 
       // Procurar especificamente o cliente com a sessão encerrada
       global.wsClients.forEach((ws: any) => {
-        totalClientsChecked++;
-
         if (ws.readyState === 1) { // WebSocket.OPEN = 1
           const client = global.clientsInfo?.get(ws);
-          const wsSessionToken = ws.sessionToken;
 
-          console.log(`🔍 Cliente ${totalClientsChecked}: sessionToken=${wsSessionToken?.substring(0, 8)}..., buscando=${sessionToken.substring(0, 8)}...`);
-
-          // Verificar tanto no client quanto no ws diretamente
-          const clientSessionToken = client?.sessionToken;
-          const matchesClient = clientSessionToken === sessionToken;
-          const matchesWs = wsSessionToken === sessionToken;
-
-          if (matchesClient || matchesWs) {
+          // Notificar o cliente específico da sessão encerrada
+          if (client && client.sessionToken === sessionToken) {
             try {
               ws.send(JSON.stringify(message));
               notificationsSent++;
-              console.log(`📤 ✅ NOTIFICAÇÃO ENVIADA para cliente específico: ${client?.id || 'unknown'} (usuário ${client?.userId || userId})`);
-              console.log(`🎯 Sessão encontrada via ${matchesClient ? 'client' : 'ws'}.sessionToken`);
+              console.log(`📤 Notificação enviada para cliente específico: ${client.id} (usuário ${client.userId})`);
             } catch (error) {
               console.error('❌ Erro ao enviar notificação de sessão:', error);
             }
-          } else {
-            console.log(`⏭️ Cliente ${totalClientsChecked}: sessionToken não corresponde`);
           }
-        } else {
-          console.log(`⏭️ Cliente ${totalClientsChecked}: WebSocket não está aberto (readyState: ${ws.readyState})`);
         }
       });
 
       if (notificationsSent === 0) {
-        console.log(`❌ NENHUM cliente WebSocket encontrado para a sessão ${sessionToken.substring(0, 8)}...`);
-        console.log(`📊 Total de clientes verificados: ${totalClientsChecked}`);
-        console.log(`📊 Clientes com readyState=1: ${Array.from(global.wsClients).filter((ws: any) => ws.readyState === 1).length}`);
+        console.log(`⚠️ Cliente com sessão ${sessionToken.substring(0, 8)}... não encontrado entre os ${global.wsClients.size} cliente(s) conectado(s)`);
+
+        // Debug: mostrar sessões dos clientes conectados
+        global.wsClients.forEach((ws: any) => {
+          const client = global.clientsInfo?.get(ws);
+          if (client && client.authenticated) {
+            console.log(`   - Cliente ${client.id}: sessão ${client.sessionToken?.substring(0, 8)}... (usuário ${client.userId})`);
+          }
+        });
       } else {
-        console.log(`✅ ${notificationsSent} notificação(ões) enviada(s) para a sessão encerrada`);
+        console.log(`✅ ${notificationsSent} notificação(ões) de sessão encerrada enviada(s)`);
       }
     } else {
-      console.log('⚠️ Nenhum cliente WebSocket conectado');
+      console.log(`⚠️ Nenhum cliente WebSocket conectado`);
     }
   };
 
@@ -714,116 +701,22 @@ if (process.env.EXTERNAL_API_URL) {
         // Map para armazenar informações detalhadas dos clientes
         global.clientsInfo = new Map();
 
-        wss.on('connection', async (ws, req) => {
+        wss.on('connection', (ws, req) => {
           const clientId = Date.now() + Math.random();
           const connectionTime = new Date();
           const userAgent = req.headers['user-agent'] || 'Desconhecido';
-          const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'IP desconhecido';          const cookies = req.headers.cookie ? req.headers.cookie.split(';').map(c => c.trim()) : [];
-
-          // Importar executeQuery dinamicamente para evitar dependência circular
-          const { connectionManager } = await import('./connection-manager');
-          const executeQuery = connectionManager.executeQuery;
-
-          // Autenticação WebSocket melhorada - Extrair session ID de forma mais robusta
-          let sessionId: string | undefined;
-          let sessionToken: string | undefined;
-
-          // 1. Tentar extrair do cookie connect.sid
-          const connectSidCookie = cookies?.find(c => c.trim().startsWith('connect.sid='));
-          if (connectSidCookie) {
-            const cookieValue = connectSidCookie.split('=')[1];
-            if (cookieValue) {
-              // Decodificar o cookie do connect.sid
-              const decodedValue = decodeURIComponent(cookieValue);
-              // Extrair o session ID (formato: s:sessionId.signature)
-              const match = decodedValue.match(/^s:([^.]+)\./);
-              if (match) {
-                sessionId = match[1];
-              }
-            }
-          }
-
-          // 2. Tentar extrair sessionToken direto dos cookies
-          const sessionTokenCookie = cookies?.find(c => c.trim().startsWith('sessionToken='));
-          if (sessionTokenCookie) {
-            sessionToken = sessionTokenCookie.split('=')[1];
-          }
-
-          let userId: number | undefined;
-          let validSession = false;
-          let hasUser = false;
-
-          // Verificar autenticação usando session ID primeiro
-          if (sessionId) {
-            try {
-              const sessionQuery = `
-                SELECT sess->'user' as user_data, sess->'authenticated' as authenticated
-                FROM user_sessions_store 
-                WHERE sid = $1
-              `;
-              const sessionResult = await executeQuery(sessionQuery, [sessionId]);
-
-              if (sessionResult.rows.length > 0) {
-                const sessionData = sessionResult.rows[0];
-                const userData = sessionData.user_data;
-                const isAuthenticated = sessionData.authenticated;
-
-                if (userData && isAuthenticated) {
-                  userId = typeof userData === 'object' ? userData.id : userData;
-                  validSession = true;
-                  hasUser = true;
-                }
-              }
-            } catch (error) {
-              console.log('🔍 Erro ao verificar sessão por session ID:', error);
-            }
-          }
-
-          // Se não encontrou por session ID, tentar por session token
-          if (!validSession && sessionToken) {
-            try {
-              const tokenQuery = `
-                SELECT s.user_id, u.id as user_id, u.username, u.email 
-                FROM user_sessions s 
-                JOIN users u ON s.user_id = u.id 
-                WHERE s.token = $1 AND s.active = true
-              `;
-              const tokenResult = await executeQuery(tokenQuery, [sessionToken]);
-
-              if (tokenResult.rows.length > 0) {
-                userId = tokenResult.rows[0].user_id;
-                validSession = true;
-                hasUser = true;
-              }
-            } catch (error) {
-              console.log('🔍 Erro ao verificar sessão por token:', error);
-            }
-          }
-
-          console.log('🔍 Debug autenticação WebSocket:', {
-            authenticated: validSession,
-            validSession,
-            finalAuthStatus: validSession && userId,
-            hasUser,
-            userId,
-            sessionId: sessionId?.substring(0, 8) + '...' || 'não encontrado',
-            sessionToken: sessionToken?.substring(0, 8) + '...' || 'não encontrado',
-            cookies: cookies ? 'presentes' : 'ausentes',
-            cookieCount: cookies?.length || 0
-          });
+          const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'IP desconhecido';
 
           // Informações iniciais do cliente
           const clientInfo = {
             id: clientId,
             connectionTime,
             lastPing: connectionTime,
+            authenticated: false,
+            userId: null,
             userAgent,
             ip,
-            isAuthenticated: validSession && !!userId,
-            userId: userId || null,
-            username: null,
-            sessionToken: sessionToken || null,
-            sessionId: sessionId || null
+            isAlive: true
           };
 
           global.clientsInfo.set(ws, clientInfo);
@@ -841,50 +734,49 @@ if (process.env.EXTERNAL_API_URL) {
             }
           });
 
-          // Tratar mensagens recebidas dos clientes
-          ws.on('message', async (message) => {
+          // Processar mensagens do cliente
+          ws.on('message', async (data) => {
             try {
-              const data = JSON.parse(message.toString());
-              console.log(`📨 Mensagem recebida do cliente ${clientId}:`, data.type);
+              const message = JSON.parse(data.toString());
+              const client = global.clientsInfo?.get(ws);
 
-              // Responder a pings do cliente
-              if (data.type === 'ping') {
-                ws.send(JSON.stringify({
-                  type: 'pong',
-                  timestamp: new Date().toISOString()
-                }));
-                return;
-              }
+              if (message.type === 'auth' && message.userId && message.sessionToken) {
+                // Verificar se a sessão é válida no banco
+                try {
+                  const sessionQuery = `
+                    SELECT s.sess, s.sid 
+                    FROM session s 
+                    WHERE s.sid = $1 AND s.expire > NOW()
+                  `;
 
-              // Processar autenticação
-              if (data.type === 'auth' && data.userId && data.sessionToken) {
-                const client = global.clientsInfo.get(ws);
-                if (client) {
-                  client.userId = data.userId;
-                  client.sessionToken = data.sessionToken;
-                  client.authenticated = true;
+                  // Usar connectionManager para executar a query
+                  const sessionResult = await connectionManager.executeQuery(sessionQuery, [message.sessionToken]);
 
-                  // Armazenar referência do WebSocket pelo sessionToken para facilitar busca
-                  ws.sessionToken = data.sessionToken;
+                  if (sessionResult.rows.length > 0) {
+                    const sessionData = sessionResult.rows[0].sess;
 
-                  console.log(`🔐 Cliente ${clientId} autenticado como usuário ${data.userId} com sessão ${data.sessionToken.substring(0, 8)}...`);
-                  console.log(`🔑 SessionToken armazenado no WebSocket: ${data.sessionToken.substring(0, 8)}...`);
+                    if (sessionData.passport?.user === message.userId) {
+                      // Autenticação válida
+                      client.authenticated = true;
+                      client.userId = message.userId;
+                      client.sessionToken = message.sessionToken;
+                      console.log(`✅ Cliente ${clientId} autenticado como usuário ${message.userId} (sessão válida)`);
+                    } else {
+                      console.log(`❌ Cliente ${clientId}: Usuário na sessão não confere (esperado: ${message.userId}, encontrado: ${sessionData.passport?.user})`);
+                    }
+                  } else {
+                    console.log(`❌ Cliente ${clientId}: Sessão ${message.sessionToken.substring(0, 8)}... não encontrada ou expirada`);
+                  }
+                } catch (authError) {
+                  console.error(`❌ Erro ao verificar autenticação para cliente ${clientId}:`, authError);
                 }
-                return;
+              } else if (message.type === 'pong') {
+                // Resposta ao ping
+                client.lastPing = new Date();
+                client.isAlive = true;
               }
-
-              // Processar informações do cliente
-              if (data.type === 'client_info') {
-                const client = global.clientsInfo.get(ws);
-                if (client) {
-                  client.url = data.client_info?.url || '/';
-                  console.log(`📍 Cliente ${clientId} reportou URL: ${client.url}`);
-                }
-                return;
-              }
-
             } catch (error) {
-              console.error(`❌ Erro ao processar mensagem do cliente ${clientId}:`, error);
+              console.error('Erro ao processar mensagem WebSocket:', error);
             }
           });
 

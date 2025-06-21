@@ -1,3 +1,4 @@
+
 import { ReactNode, createContext, useContext, useEffect, useState } from 'react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useToast } from '@/hooks/use-toast';
@@ -29,7 +30,7 @@ interface WebSocketProviderProps {
 
 export default function WebSocketProvider({ children }: WebSocketProviderProps) {
   const { connected, sendMessage } = useWebSocket();
-  const { user, isLoading } = useAuth();
+  const { user } = useAuth();
   const [lastUpdated, setLastUpdated] = useState<Date | undefined>(undefined);
   const [sessionTerminated, setSessionTerminated] = useState(false);
   const [terminationMessage, setTerminationMessage] = useState<string>("");
@@ -57,17 +58,17 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
   // Função para ativar proteção total
   const activateSessionProtection = (message: string) => {
     console.log('🔒 ATIVANDO PROTEÇÃO TOTAL DA SESSÃO');
-
+    
     // PRIMEIRO: Limpar todos os dados imediatamente
     queryClient.invalidateQueries();
     queryClient.clear();
-
+    
     // SEGUNDO: Ativar estado de sessão encerrada IMEDIATAMENTE
     setSessionTerminated(true);
-
+    
     // TERCEIRO: Definir mensagem
     setTerminationMessage(message);
-
+    
     console.log('🔒 PROTEÇÃO ATIVADA - Interface bloqueada');
   };
 
@@ -102,7 +103,7 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
   useEffect(() => {
     if (!connected && user) {
       console.log('🔒 WebSocket desconectado - verificando status da sessão');
-
+      
       // Aguardar um pouco para reconexão, se não reconectar, verificar sessão
       setTimeout(async () => {
         if (!connected) {
@@ -128,16 +129,16 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
   // Interceptar todas as respostas HTTP para detectar 401
   useEffect(() => {
     const originalFetch = window.fetch;
-
+    
     window.fetch = async (...args) => {
       try {
         const response = await originalFetch(...args);
-
+        
         if (response.status === 401 && user) {
           console.log('🔒 Status 401 detectado - sessão encerrada');
           activateSessionProtection('Sessão expirada ou inválida');
         }
-
+        
         return response;
       } catch (error) {
         throw error;
@@ -172,7 +173,7 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
       // Handler para atualizações de dados (incluindo sessões)
       if (event.detail && event.detail.type === 'data_update') {
         const { resource, action, data } = event.detail;
-
+        
         console.log('🔔 Atualização de dados via WebSocket:', {
           resource,
           action,
@@ -194,7 +195,7 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
         currentPage: window.location.pathname,
         eventSource: 'session-terminated'
       });
-
+      
       if (checkIfCurrentSession(event.detail.sessionToken)) {
         console.log('🔒 SESSÃO ATUAL ENCERRADA VIA EVENTO DIRETO');
         activateSessionProtection(event.detail.message || "Sua sessão foi encerrada por outro usuário");
@@ -215,7 +216,7 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
             currentPage: window.location.pathname,
             eventSource: 'direct-websocket'
           });
-
+          
           if (checkIfCurrentSession(data.sessionToken)) {
             console.log('🔒 SESSÃO ATUAL ENCERRADA VIA WEBSOCKET DIRETO');
             activateSessionProtection(data.message || "Sua sessão foi encerrada por outro usuário");
@@ -235,66 +236,34 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
   // Enviar informações de autenticação quando o usuário estiver logado
   useEffect(() => {
     if (connected && user) {
-      // Extrair sessionToken de múltiplas fontes
-      const getSessionToken = () => {
-        // Tentar localStorage primeiro
-        let token = localStorage.getItem('sessionToken') || localStorage.getItem('token');
-
-        if (!token) {
-          // Tentar cookies se não encontrou no localStorage
-          const cookies = document.cookie.split(';');
-          for (let cookie of cookies) {
-            const [name, value] = cookie.trim().split('=');
-            if (name === 'connect.sid' || name === 'sessionToken') {
-              token = decodeURIComponent(value);
-              break;
-            }
+      // Extrair sessionToken dos cookies
+      const getSessionTokenFromCookie = () => {
+        const cookies = document.cookie.split(';');
+        for (let cookie of cookies) {
+          const [name, value] = cookie.trim().split('=');
+          if (name === 'connect.sid') {
+            return decodeURIComponent(value);
           }
         }
-
-        return token;
+        return null;
       };
 
-      const sessionToken = getSessionToken();
+      const sessionToken = getSessionTokenFromCookie();
 
       if (sessionToken) {
         console.log(`🔐 Enviando autenticação WebSocket para usuário ${user.id}`);
-        console.log(`🔑 Session Token: ${sessionToken.substring(0, 8)}...`);
+        console.log(`🔑 Session ID: ${sessionToken.substring(0, 8)}...`);
 
-        const authMessage = {
+        sendMessage({
           type: 'auth',
           userId: user.id,
           sessionToken: sessionToken
-        };
-
-        console.log('📤 Enviando mensagem de autenticação:', authMessage);
-
-        const sent = sendMessage(authMessage);
-
-        if (sent) {
-          console.log('✅ Autenticação WebSocket enviada com sucesso');
-        } else {
-          console.warn('⚠️ Falha ao enviar autenticação WebSocket');
-        }
+        });
       } else {
-        console.warn('⚠️ Session token não encontrado em nenhuma fonte');
+        console.warn('⚠️ Session token não encontrado nos cookies');
       }
     }
   }, [connected, user, sendMessage]);
-
-  // Conectar WebSocket apenas quando necessário
-  useEffect(() => {
-    const currentPath = window.location.pathname;
-    const authPages = ['/acessar', '/login', '/cadastre-se', '/recuperar', '/verificar-2fa'];
-    const isAuthPage = authPages.includes(currentPath);
-    const isLandingPage = currentPath === '/' || currentPath === '';
-
-    if (user && !isLoading && !isAuthPage && !isLandingPage) {
-      console.log('🔗 Usuário autenticado, iniciando conexão WebSocket');
-    } else {
-      console.log('🔌 WebSocket não necessário para esta página');
-    }
-  }, [user, isLoading]);
 
   return (
     <WebSocketContext.Provider value={{ connected, sendMessage, lastUpdated }}>

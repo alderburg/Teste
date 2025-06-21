@@ -10,8 +10,6 @@ interface WebSocketMessage {
   message?: string;
   sessionToken?: string;
   timestamp?: string;
-  forceModal?: boolean;
-  targetSessionOnly?: boolean;
 }
 
 export function useWebSocket() {
@@ -48,16 +46,20 @@ export function useWebSocket() {
       // Tratar evento de sessão encerrada
       console.log('🔒 Sessão encerrada pelo servidor:', data);
 
-      // VERIFICAÇÃO CORRETA: Verificar se é para esta sessão específica
-      console.log('🔒 Recebida notificação de sessão encerrada:', {
-        type: data.type,
-        message: data.message,
-        targetSessionOnly: data.targetSessionOnly,
+      // Verificar se é a sessão atual que foi encerrada
+      const currentSessionToken = localStorage.getItem('sessionToken') || 
+                                 localStorage.getItem('token') || 
+                                 document.cookie.split(';').find(c => c.trim().startsWith('sessionToken='))?.split('=')[1] || 
+                                 '';
+
+      console.log('🔒 Verificando tokens:', {
+        current: currentSessionToken?.substring(0, 8) + '...',
+        terminated: data.sessionToken?.substring(0, 8) + '...',
+        match: currentSessionToken === data.sessionToken,
         currentPage: window.location.pathname
       });
 
-      // Apenas mostrar o modal se foi direcionado especificamente para esta sessão
-      if (data.targetSessionOnly && data.type === 'session_terminated') {
+      if (currentSessionToken === data.sessionToken) {
         console.log('🔒 Esta é a sessão atual - disparando evento de encerramento');
 
         // Invalidar imediatamente o queryClient para evitar requisições
@@ -68,20 +70,17 @@ export function useWebSocket() {
           console.error('Erro ao limpar queryClient:', error);
         }
 
-        // AÇÃO IMEDIATA: Forçar o popup globalmente de forma mais robusta
+        // AÇÃO IMEDIATA: Forçar o popup globalmente
         const forceSessionTerminationPopup = () => {
-          console.log('🔒 FORÇANDO POPUP DE SESSÃO ENCERRADA - VERSÃO MELHORADA');
+          console.log('🔒 FORÇANDO POPUP DE SESSÃO ENCERRADA');
 
           // Verificar se já existe um popup
           if (document.querySelector('[data-session-terminated-modal]')) {
-            console.log('🔒 Modal já existe, removendo para recriar');
-            const existingModal = document.querySelector('[data-session-terminated-modal]');
-            if (existingModal) {
-              existingModal.remove();
-            }
+            console.log('🔒 Modal já existe, não duplicar');
+            return;
           }
 
-          // Criar modal diretamente no DOM com design melhorado
+          // Criar modal diretamente no DOM
           const modal = document.createElement('div');
           modal.setAttribute('data-session-terminated-modal', 'true');
           modal.style.cssText = `
@@ -90,13 +89,12 @@ export function useWebSocket() {
             left: 0 !important;
             width: 100vw !important;
             height: 100vh !important;
-            background: rgba(0, 0, 0, 0.9) !important;
+            background: rgba(0, 0, 0, 0.8) !important;
             z-index: 999999 !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
-            backdrop-filter: blur(5px) !important;
-            font-family: system-ui, -apple-system, sans-serif !important;r: blur(4px) !important;
+            backdrop-filter: blur(4px) !important;
           `;
 
           const modalContent = document.createElement('div');
@@ -132,13 +130,10 @@ export function useWebSocket() {
               font-weight: 600;
               cursor: pointer;
               font-size: 16px;
-              transition: background-color 0.2s;
-            " onmouseover="this.style.background='#b91c1c'" onmouseout="this.style.background='#dc2626'">
+            ">
               Sair Agora
             </button>
           `;
-
-          console.log('🔒 Modal HTML criado com sucesso');
 
           modal.appendChild(modalContent);
           document.body.appendChild(modal);
@@ -183,35 +178,8 @@ export function useWebSocket() {
           }
         };
 
-        // ESTRATÉGIA MÚLTIPLA: Executar em diferentes momentos para garantir que apareça
-
-        // 1. Executar imediatamente
+        // Executar imediatamente
         forceSessionTerminationPopup();
-
-        // 2. Executar novamente após um pequeno delay para casos onde o DOM ainda está carregando
-        setTimeout(() => {
-          if (!document.querySelector('[data-session-terminated-modal]')) {
-            console.log('🔒 Modal não encontrado, tentando novamente...');
-            forceSessionTerminationPopup();
-          }
-        }, 100);
-
-        // 3. Executar periodicamente até que o modal apareça (máximo 10 tentativas)
-        let attempts = 0;
-        const maxAttempts = 10;
-        const forceModalInterval = setInterval(() => {
-          attempts++;
-          if (document.querySelector('[data-session-terminated-modal]') || attempts >= maxAttempts) {
-            clearInterval(forceModalInterval);
-            if (attempts >= maxAttempts) {
-              console.log('🔒 Máximo de tentativas atingido para mostrar modal');
-            }
-            return;
-          }
-
-          console.log(`🔒 Tentativa ${attempts} de forçar modal...`);
-          forceSessionTerminationPopup();
-        }, 200);
 
         // Disparar eventos para compatibilidade
         const sessionTerminatedEvent = new CustomEvent('session-terminated', { 
@@ -337,36 +305,6 @@ export function useWebSocket() {
         console.log('WebSocket conectado');
         setConnected(true);
         setReconnectAttempts(0); // Resetar contador de tentativas ao conectar com sucesso
-
-        // Enviar autenticação imediatamente após conectar
-        const sessionToken = localStorage.getItem('sessionToken') || 
-                             localStorage.getItem('token') || 
-                             document.cookie.split(';').find(c => c.trim().startsWith('sessionToken='))?.split('=')[1] || 
-                             document.cookie.split(';').find(c => c.trim().startsWith('connect.sid='))?.split('=')[1] || 
-                             '';
-
-        if (sessionToken) {
-          const userDataStr = localStorage.getItem('user');
-          if (userDataStr) {
-            try {
-              const userData = JSON.parse(userDataStr);
-              if (userData.id) {
-                const authMessage = {
-                  type: 'auth',
-                  userId: userData.id,
-                  sessionToken: sessionToken
-                };
-
-                console.log(`🔐 Enviando autenticação WebSocket: usuário ${userData.id}, sessão ${sessionToken.substring(0, 8)}...`);
-                socket.send(JSON.stringify(authMessage));
-              }
-            } catch (error) {
-              console.error('Erro ao parsear dados do usuário para autenticação WebSocket:', error);
-            }
-          }
-        } else {
-          console.warn('⚠️ Nenhum sessionToken encontrado para autenticação WebSocket');
-        }
       });
 
       socket.addEventListener('message', (event) => {
@@ -380,27 +318,6 @@ export function useWebSocket() {
         } catch (error) {
           console.error('Erro ao processar mensagem do WebSocket:', error);
         }
-      });
-
-        socket.addEventListener('close', () => {
-          console.log('WebSocket desconectado');
-          setConnected(false);
-
-          // Verificar se estamos em uma página de autenticação
-          const currentPath = window.location.pathname;
-          const authPages = ['/acessar', '/login', '/cadastre-se', '/recuperar', '/verificar-2fa'];
-          const isAuthPage = authPages.includes(currentPath);
-
-          if (isAuthPage) {
-            console.log('🚫 Não reconectando WebSocket em página de autenticação');
-            return;
-          }
-          tryReconnect();
-        });
-
-      socket.addEventListener('error', (error) => {
-        console.error('Erro no WebSocket:', error);
-        setConnected(false);
       });
 
       // Função para tentar reconectar
@@ -461,16 +378,6 @@ export function useWebSocket() {
         socket.addEventListener('close', () => {
           console.log('WebSocket desconectado');
           setConnected(false);
-
-           // Verificar se estamos em uma página de autenticação
-          const currentPath = window.location.pathname;
-          const authPages = ['/acessar', '/login', '/cadastre-se', '/recuperar', '/verificar-2fa'];
-          const isAuthPage = authPages.includes(currentPath);
-
-          if (isAuthPage) {
-            console.log('🚫 Não reconectando WebSocket em página de autenticação');
-            return;
-          }
           tryReconnect();
         });
 
