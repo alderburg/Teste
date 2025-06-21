@@ -747,109 +747,110 @@ if (process.env.EXTERNAL_API_URL) {
                 console.log(`   - Session Token: ${message.sessionToken.substring(0, 8)}...`);
                 console.log(`   - IP: ${client?.ip || 'desconhecido'}`);
                 
-                // Verificar se a sessão é válida na tabela user_sessions_additional
+                // Verificar sessão usando múltiplas abordagens
                 try {
-                  // Primeiro, tentar verificar na tabela user_sessions_additional usando o token
-                  const userSessionQuery = `
-                    SELECT id, user_id, token, expires_at, is_active
-                    FROM user_sessions_additional 
-                    WHERE token = $1 AND expires_at > NOW() AND is_active = true
-                  `;
-
-                  console.log(`🔍 Verificando sessão na tabela user_sessions_additional...`);
-                  console.log(`   - Token procurado: ${message.sessionToken.substring(0, 8)}...`);
+                  console.log(`🔍 Verificando autenticação com token: ${message.sessionToken.substring(0, 8)}...`);
                   
-                  const userSessionResult = await connectionManager.executeQuery(userSessionQuery, [message.sessionToken]);
+                  let authenticationSuccess = false;
+                  let authMethod = '';
 
-                  console.log(`📊 Resultado da consulta user_sessions_additional: ${userSessionResult.rows.length} sessão(ões) encontrada(s)`);
+                  // MÉTODO 1: Verificar na tabela session (onde ficam as sessões HTTP do Passport.js)
+                  console.log(`🔍 MÉTODO 1: Verificando tabela session (Passport.js)...`);
+                  const sessionQuery = `
+                    SELECT s.sess, s.sid, s.expire
+                    FROM session s 
+                    WHERE s.sid = $1 AND s.expire > NOW()
+                  `;
+                  
+                  const sessionResult = await connectionManager.executeQuery(sessionQuery, [message.sessionToken]);
+                  console.log(`📊 Resultado session: ${sessionResult.rows.length} sessão(ões) encontrada(s)`);
 
-                  if (userSessionResult.rows.length > 0) {
-                    const sessionRow = userSessionResult.rows[0];
-                    const expireTime = new Date(sessionRow.expires_at);
+                  if (sessionResult.rows.length > 0) {
+                    const sessionData = sessionResult.rows[0];
+                    const sessData = sessionData.sess;
                     
-                    console.log(`🔍 Dados da sessão encontrada na user_sessions_additional:`);
-                    console.log(`   - ID: ${sessionRow.id}`);
-                    console.log(`   - Token: ${sessionRow.token.substring(0, 8)}...`);
-                    console.log(`   - Expira em: ${expireTime.toISOString()}`);
-                    console.log(`   - Usuário na sessão: ${sessionRow.user_id}`);
-                    console.log(`   - Usuário esperado: ${message.userId}`);
-                    console.log(`   - Ativa: ${sessionRow.is_active}`);
+                    if (sessData && sessData.passport && sessData.passport.user) {
+                      const sessionUserId = sessData.passport.user;
+                      console.log(`🔍 Usuário na sessão Passport: ${sessionUserId}, esperado: ${message.userId}`);
 
-                    if (sessionRow.user_id === message.userId) {
-                      // Autenticação válida
-                      client.authenticated = true;
-                      client.userId = message.userId;
-                      client.sessionToken = message.sessionToken;
-                      console.log(`✅ Cliente ${clientId} AUTENTICADO com sucesso como usuário ${message.userId} via user_sessions_additional`);
-                      
-                      // Enviar confirmação de autenticação
-                      try {
-                        ws.send(JSON.stringify({
-                          type: 'auth_success',
-                          message: 'Autenticação WebSocket realizada com sucesso',
-                          userId: message.userId,
-                          timestamp: new Date().toISOString()
-                        }));
-                      } catch (sendError) {
-                        console.error('Erro ao enviar confirmação de autenticação:', sendError);
+                      if (sessionUserId === message.userId) {
+                        authenticationSuccess = true;
+                        authMethod = 'session (Passport.js)';
+                        console.log(`✅ AUTENTICADO via sessão Passport.js`);
                       }
-                    } else {
-                      console.log(`❌ Cliente ${clientId}: FALHA NA AUTENTICAÇÃO - Usuário na sessão não confere`);
-                      console.log(`   - Esperado: ${message.userId}`);
-                      console.log(`   - Encontrado: ${sessionRow.user_id}`);
                     }
-                  } else {
-                    // Se não encontrou na user_sessions_additional, tentar na tabela session (fallback)
-                    console.log(`🔍 Não encontrou na user_sessions_additional, tentando na tabela session...`);
-                    
-                    const sessionQuery = `
-                      SELECT s.sess, s.sid, s.expire
-                      FROM session s 
-                      WHERE s.sid = $1 AND s.expire > NOW()
+                  }
+
+                  // MÉTODO 2: Se não autenticou, tentar user_sessions_additional
+                  if (!authenticationSuccess) {
+                    console.log(`🔍 MÉTODO 2: Verificando tabela user_sessions_additional...`);
+                    const userSessionQuery = `
+                      SELECT user_id, token, expires_at, is_active, user_type
+                      FROM user_sessions_additional 
+                      WHERE token = $1 AND is_active = true AND expires_at > NOW()
                     `;
                     
-                    const sessionResult = await connectionManager.executeQuery(sessionQuery, [message.sessionToken]);
-                    
-                    console.log(`📊 Resultado da consulta session: ${sessionResult.rows.length} sessão(ões) encontrada(s)`);
+                    const userSessionResult = await connectionManager.executeQuery(userSessionQuery, [message.sessionToken]);
+                    console.log(`📊 Resultado user_sessions_additional: ${userSessionResult.rows.length} sessão(ões) encontrada(s)`);
 
-                    if (sessionResult.rows.length > 0) {
-                      const sessionRow = sessionResult.rows[0];
-                      const sessionData = sessionRow.sess;
-                      const expireTime = new Date(sessionRow.expire);
-                      
-                      console.log(`🔍 Dados da sessão encontrada na session:`);
-                      console.log(`   - SID: ${sessionRow.sid.substring(0, 8)}...`);
-                      console.log(`   - Expira em: ${expireTime.toISOString()}`);
-                      console.log(`   - Usuário na sessão: ${sessionData.passport?.user || 'nenhum'}`);
-                      console.log(`   - Usuário esperado: ${message.userId}`);
+                    if (userSessionResult.rows.length > 0) {
+                      const sessionRow = userSessionResult.rows[0];
+                      console.log(`🔍 Usuário na sessão adicional: ${sessionRow.user_id}, esperado: ${message.userId}`);
 
-                      if (sessionData.passport?.user === message.userId) {
-                        // Autenticação válida
-                        client.authenticated = true;
-                        client.userId = message.userId;
-                        client.sessionToken = message.sessionToken;
-                        console.log(`✅ Cliente ${clientId} AUTENTICADO com sucesso como usuário ${message.userId} via session (fallback)`);
-                        
-                        // Enviar confirmação de autenticação
-                        try {
-                          ws.send(JSON.stringify({
-                            type: 'auth_success',
-                            message: 'Autenticação WebSocket realizada com sucesso',
-                            userId: message.userId,
-                            timestamp: new Date().toISOString()
-                          }));
-                        } catch (sendError) {
-                          console.error('Erro ao enviar confirmação de autenticação:', sendError);
-                        }
-                      } else {
-                        console.log(`❌ Cliente ${clientId}: FALHA NA AUTENTICAÇÃO - Usuário na sessão não confere (session)`);
-                        console.log(`   - Esperado: ${message.userId}`);
-                        console.log(`   - Encontrado: ${sessionData.passport?.user || 'nenhum'}`);
+                      if (sessionRow.user_id === message.userId) {
+                        authenticationSuccess = true;
+                        authMethod = 'user_sessions_additional';
+                        console.log(`✅ AUTENTICADO via user_sessions_additional`);
                       }
-                    } else {
-                      console.log(`❌ Cliente ${clientId}: FALHA NA AUTENTICAÇÃO - Sessão não encontrada em nenhuma tabela`);
-                      console.log(`   - Session Token procurado: ${message.sessionToken.substring(0, 8)}...`);
                     }
+                  }
+
+                  // MÉTODO 3: Se ainda não autenticou, tentar extrair sessionId do token assinado
+                  if (!authenticationSuccess && message.sessionToken.startsWith('s:')) {
+                    console.log(`🔍 MÉTODO 3: Token assinado detectado, extraindo sessionId...`);
+                    const sessionId = message.sessionToken.substring(2).split('.')[0];
+                    console.log(`🔑 SessionId extraído: ${sessionId.substring(0, 8)}...`);
+                    
+                    const sessionResult2 = await connectionManager.executeQuery(sessionQuery, [sessionId]);
+                    console.log(`📊 Resultado com sessionId extraído: ${sessionResult2.rows.length} sessão(ões) encontrada(s)`);
+
+                    if (sessionResult2.rows.length > 0) {
+                      const sessionData = sessionResult2.rows[0];
+                      const sessData = sessionData.sess;
+                      
+                      if (sessData && sessData.passport && sessData.passport.user) {
+                        const sessionUserId = sessData.passport.user;
+                        console.log(`🔍 Usuário na sessão (ID extraído): ${sessionUserId}, esperado: ${message.userId}`);
+
+                        if (sessionUserId === message.userId) {
+                          authenticationSuccess = true;
+                          authMethod = 'session (ID extraído)';
+                          console.log(`✅ AUTENTICADO via sessionId extraído`);
+                        }
+                      }
+                    }
+                  }
+
+                  // Processar resultado da autenticação
+                  if (authenticationSuccess) {
+                    client.authenticated = true;
+                    client.userId = message.userId;
+                    client.sessionToken = message.sessionToken;
+                    console.log(`✅ Cliente ${clientId} AUTENTICADO com sucesso como usuário ${message.userId} via ${authMethod}`);
+                    
+                    // Enviar confirmação de autenticação
+                    try {
+                      ws.send(JSON.stringify({
+                        type: 'auth_success',
+                        message: `Autenticação WebSocket realizada com sucesso via ${authMethod}`,
+                        userId: message.userId,
+                        timestamp: new Date().toISOString()
+                      }));
+                    } catch (sendError) {
+                      console.error('Erro ao enviar confirmação de autenticação:', sendError);
+                    }
+                  } else {
+                    console.log(`❌ Cliente ${clientId}: FALHA NA AUTENTICAÇÃO - Token não encontrado ou inválido em nenhum método`);
                   }
                   
                   // Se chegou até aqui sem autenticar, enviar erro

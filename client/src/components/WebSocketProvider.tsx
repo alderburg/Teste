@@ -236,24 +236,50 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
   // Enviar informações de autenticação quando o usuário estiver logado
   useEffect(() => {
     if (connected && user) {
-      // Extrair sessionToken dos cookies
+      // Extrair sessionToken dos cookies - Verificar múltiplas fontes
       const getSessionTokenFromCookie = () => {
+        console.log('🔍 Procurando token de sessão...');
+        
+        // Método 1: Verificar localStorage primeiro (onde tokens customizados são armazenados)
+        const localStorageTokens = [
+          localStorage.getItem('sessionToken'),
+          localStorage.getItem('authToken'),
+          localStorage.getItem('userToken')
+        ].filter(Boolean);
+        
+        console.log('📱 Tokens no localStorage:', localStorageTokens.map(t => t?.substring(0, 8) + '...'));
+        
+        if (localStorageTokens.length > 0) {
+          console.log(`✅ Token encontrado no localStorage: ${localStorageTokens[0]?.substring(0, 8)}...`);
+          return localStorageTokens[0];
+        }
+
+        // Método 2: Verificar cookies
         const cookies = document.cookie.split(';');
+        console.log('🍪 Analisando cookies:', cookies.length);
+        
         for (let cookie of cookies) {
           const [name, value] = cookie.trim().split('=');
-          if (name === 'connect.sid') {
-            // O cookie connect.sid vem assinado no formato s:sessionId.signature
-            // Precisamos extrair apenas o sessionId
+          console.log(`   - Cookie: ${name} = ${value ? value.substring(0, 20) + '...' : 'vazio'}`);
+          
+          // Verificar diferentes tipos de cookies
+          if (name === 'sessionToken' || name === 'authToken' || name === 'userToken') {
+            console.log(`✅ Token personalizado encontrado no cookie ${name}: ${value?.substring(0, 8)}...`);
+            return decodeURIComponent(value);
+          }
+          
+          if (name === 'connect.sid' || name === 'mpc.sid') {
+            // O cookie pode vir assinado no formato s:sessionId.signature
             const decodedValue = decodeURIComponent(value);
-            if (decodedValue.startsWith('s:')) {
-              const sessionId = decodedValue.substring(2).split('.')[0];
-              console.log(`🔐 Cookie encontrado: ${decodedValue.substring(0, 20)}...`);
-              console.log(`🔑 Session ID extraído: ${sessionId.substring(0, 8)}...`);
-              return sessionId;
-            }
+            console.log(`🔐 Cookie de sessão encontrado (${name}): ${decodedValue.substring(0, 20)}...`);
+            
+            // Primeiro tenta usar o token completo (pode ser necessário para verificação de assinatura)
+            console.log(`🔑 Usando token completo para autenticação: ${decodedValue.substring(0, 8)}...`);
             return decodedValue;
           }
         }
+        
+        console.log('❌ Nenhum token encontrado');
         return null;
       };
 
