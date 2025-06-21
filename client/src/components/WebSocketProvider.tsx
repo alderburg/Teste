@@ -38,13 +38,15 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
   const [sessionTerminated, setSessionTerminated] = useState(false);
   const [terminationMessage, setTerminationMessage] = useState<string>("");
   
-  console.log('🎭 Estado atual do WebSocketProvider:', {
-    connected,
-    userExists: !!user,
-    userId: user?.id,
-    sendMessageExists: !!sendMessage,
-    sessionTerminated
-  });
+  // LOGS EXTREMAMENTE DETALHADOS
+  console.log('🎭 =============== ESTADOS DETALHADOS ===============');
+  console.log('🎭 connected:', connected, '(tipo:', typeof connected, ')');
+  console.log('🎭 user:', user, '(tipo:', typeof user, ')');
+  console.log('🎭 user?.id:', user?.id, '(tipo:', typeof user?.id, ')');
+  console.log('🎭 sendMessage:', sendMessage, '(tipo:', typeof sendMessage, ')');
+  console.log('🎭 sendMessage existe?', !!sendMessage);
+  console.log('🎭 sessionTerminated:', sessionTerminated);
+  console.log('🎭 =============== FIM ESTADOS DETALHADOS ===============');
 
   // Ativar proteção IMEDIATAMENTE quando sessão estiver encerrada
   useSessionGuard(sessionTerminated);
@@ -311,38 +313,67 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
   useEffect(() => {
     console.log('🔄 =============== USEEFFECT AUTH TRIGGER ===============');
     console.log('🔄 Timestamp:', new Date().toISOString());
-    console.log('🔄 connected:', connected);
-    console.log('🔄 user exists:', !!user);
-    console.log('🔄 user object:', user);
-    console.log('🔄 user id:', user?.id);
-    console.log('🔄 sendMessage function:', typeof sendMessage);
-    console.log('🔄 Dependencies - connected:', connected, 'user:', !!user, 'sendMessage:', !!sendMessage);
-    console.log('🔄 Stack trace do useEffect:', new Error().stack);
+    console.log('🔄 EXECUTANDO USEEFFECT DE AUTENTICAÇÃO!');
+    console.log('🔄 Este useEffect DISPAROU - isso é uma boa notícia!');
+    console.log('🔄 =============== VALORES DAS DEPENDÊNCIAS ===============');
+    console.log('🔄 connected:', connected, '| tipo:', typeof connected, '| truthy:', !!connected);
+    console.log('🔄 user exists:', !!user, '| tipo:', typeof user, '| valor:', user);
+    console.log('🔄 user?.id:', user?.id, '| tipo:', typeof user?.id);
+    console.log('🔄 sendMessage function:', typeof sendMessage, '| existe:', !!sendMessage);
+    console.log('🔄 sendMessage valor:', sendMessage);
+    console.log('🔄 =============== VERIFICAÇÕES DE CONDIÇÕES ===============');
+    console.log('🔄 Condição 1 - connected:', connected ? '✅ TRUE' : '❌ FALSE');
+    console.log('🔄 Condição 2 - user:', user ? '✅ TRUE' : '❌ FALSE');
+    console.log('🔄 Condição 3 - sendMessage:', sendMessage ? '✅ TRUE' : '❌ FALSE');
+    console.log('🔄 TODAS as condições:', (connected && user && sendMessage) ? '✅ VERDADEIRAS' : '❌ ALGUMA É FALSA');
     
-    // SEMPRE executar este log, mesmo se as condições não forem atendidas
+    // VERIFICAÇÕES COM LOGS DETALHADOS
+    console.log('🔄 =============== VERIFICANDO CONDIÇÕES UMA POR UMA ===============');
+    
     if (!connected) {
-      console.log('❌ WebSocket NÃO CONECTADO - aguardando conexão...');
-      console.log('❌ Valor de connected:', connected, 'tipo:', typeof connected);
+      console.log('❌ =============== FALHA: WEBSOCKET NÃO CONECTADO ===============');
+      console.log('❌ connected =', connected);
+      console.log('❌ typeof connected =', typeof connected);
+      console.log('❌ !!connected =', !!connected);
+      console.log('❌ RETORNANDO EARLY - não prosseguindo com autenticação');
+      console.log('❌ =============== FIM FALHA WEBSOCKET ===============');
       return;
     }
+    console.log('✅ Condição 1 PASSOU: WebSocket conectado');
     
     if (!user) {
-      console.log('❌ USUÁRIO NÃO ENCONTRADO - aguardando autenticação...');
-      console.log('❌ Valor de user:', user, 'tipo:', typeof user);
+      console.log('❌ =============== FALHA: USUÁRIO NÃO ENCONTRADO ===============');
+      console.log('❌ user =', user);
+      console.log('❌ typeof user =', typeof user);
+      console.log('❌ !!user =', !!user);
+      console.log('❌ RETORNANDO EARLY - não prosseguindo com autenticação');
+      console.log('❌ =============== FIM FALHA USUÁRIO ===============');
       return;
     }
+    console.log('✅ Condição 2 PASSOU: Usuário encontrado, ID:', user.id);
     
     if (!sendMessage) {
-      console.log('❌ SENDMESSAGE NÃO DISPONÍVEL - erro crítico!');
-      console.log('❌ Valor de sendMessage:', sendMessage, 'tipo:', typeof sendMessage);
+      console.log('❌ =============== FALHA: SENDMESSAGE NÃO DISPONÍVEL ===============');
+      console.log('❌ sendMessage =', sendMessage);
+      console.log('❌ typeof sendMessage =', typeof sendMessage);
+      console.log('❌ !!sendMessage =', !!sendMessage);
+      console.log('❌ ERRO CRÍTICO! SendMessage deveria estar disponível');
+      console.log('❌ RETORNANDO EARLY - não prosseguindo com autenticação');
+      console.log('❌ =============== FIM FALHA SENDMESSAGE ===============');
       return;
     }
+    console.log('✅ Condição 3 PASSOU: SendMessage disponível');
     
-    console.log('✅ TODAS AS CONDIÇÕES ATENDIDAS - prosseguindo com autenticação WebSocket');
+    console.log('✅ =============== TODAS AS CONDIÇÕES FORAM ATENDIDAS ===============');
+    console.log('✅ AGORA VAMOS PROSSEGUIR COM A AUTENTICAÇÃO WEBSOCKET');
+    console.log('✅ Se você está vendo esta mensagem, significa que o useEffect está funcionando!');
+    console.log('✅ =============== INICIANDO PROCESSO DE AUTENTICAÇÃO ===============');
     
     // Adicionar delay para garantir que tudo está pronto
     const executarAutenticacao = () => {
-      console.log('🚀 =============== EXECUTANDO AUTENTICAÇÃO AGORA ===============');
+      console.log('🚀 =============== EXECUTANDO AUTENTICAÇÃO WEBSOCKET ===============');
+      console.log('🚀 Esta função executarAutenticacao() foi chamada!');
+      console.log('🚀 Vamos procurar o token de sessão agora...');
     
     // Extrair sessionToken dos cookies - Priorizar cookies de sessão do Express
       const getSessionTokenFromCookie = () => {
