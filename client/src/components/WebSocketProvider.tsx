@@ -469,15 +469,10 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
         
         if (!enviouComSucesso) {
           console.error(`❌ FALHA AO ENVIAR MENSAGEM DE AUTENTICAÇÃO`);
-          
-          // Tentar novamente após um pequeno delay
-          setTimeout(() => {
-            console.log('🔄 Tentando reenviar mensagem de autenticação...');
-            const novoEnvio = sendMessage(authMessage);
-            console.log(`🔄 Resultado do reenvio: ${novoEnvio}`);
-          }, 1000);
+          return false;
         } else {
           console.log(`✅ Mensagem de autenticação enviada com sucesso`);
+          return true;
         }
       } else {
         console.warn('⚠️ =============== SESSION TOKEN NÃO ENCONTRADO ===============');
@@ -493,28 +488,59 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
             console.log(`      ⭐ Cookie de sessão potencial: "${name}" = "${value}"`);
           }
         });
+        return false;
       }
+      
+      return false;
     };
 
-    // Executar imediatamente
-    console.log('🎯 Chamando executarAutenticacao() imediatamente...');
-    executarAutenticacao();
+    // SISTEMA DE RETRY AGRESSIVO - FORÇAR ENTREGA DA AUTENTICAÇÃO
+    let tentativasAuth = 0;
+    const maxTentativas = 10;
+    let authConfirmado = false;
     
-    // Também executar com delay para garantir
-    setTimeout(() => {
-      console.log('🔄 Tentativa com delay de 1 segundo...');
-      if (connected && user && sendMessage) {
-        executarAutenticacao();
+    const executarComRetry = () => {
+      if (authConfirmado || tentativasAuth >= maxTentativas) {
+        if (tentativasAuth >= maxTentativas) {
+          console.error('🚨 MÁXIMO DE TENTATIVAS DE AUTH ATINGIDO - POSSÍVEL PROBLEMA DE REDE');
+        }
+        return;
       }
-    }, 1000);
+      
+      tentativasAuth++;
+      console.log(`🔄 TENTATIVA DE AUTH ${tentativasAuth}/${maxTentativas}`);
+      
+      const sucesso = executarAutenticacao();
+      
+      if (sucesso) {
+        // Aguardar confirmação do servidor por 3 segundos
+        const timeoutConfirmacao = setTimeout(() => {
+          if (!authConfirmado) {
+            console.log(`❌ Tentativa ${tentativasAuth} - SEM CONFIRMAÇÃO do servidor, tentando novamente...`);
+            setTimeout(executarComRetry, 1000 * tentativasAuth); // Backoff exponencial
+          }
+        }, 3000);
+        
+        // Listener para confirmação de auth
+        const handleAuthSuccess = (event: any) => {
+          if (event.detail && event.detail.type === 'auth_success') {
+            console.log('✅ AUTENTICAÇÃO CONFIRMADA PELO SERVIDOR!');
+            authConfirmado = true;
+            clearTimeout(timeoutConfirmacao);
+            window.removeEventListener('websocket-message-received', handleAuthSuccess);
+          }
+        };
+        
+        window.addEventListener('websocket-message-received', handleAuthSuccess);
+      } else {
+        console.log(`❌ Tentativa ${tentativasAuth} - FALHA no envio, tentando novamente...`);
+        setTimeout(executarComRetry, 1000 * tentativasAuth); // Backoff exponencial
+      }
+    };
     
-    // Última tentativa com delay maior
-    setTimeout(() => {
-      console.log('🔄 Última tentativa com delay de 3 segundos...');
-      if (connected && user && sendMessage) {
-        executarAutenticacao();
-      }
-    }, 3000);
+    // Executar sistema de retry
+    console.log('🎯 Iniciando sistema de retry para autenticação...');
+    executarComRetry();
   }, [connected, user, sendMessage]);
 
   // Efeito específico para detectar mudanças do usuário - FORÇAR autenticação
