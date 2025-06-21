@@ -731,7 +731,7 @@ if (process.env.EXTERNAL_API_URL) {
             if (global.clientsInfo.has(ws)) {
               global.clientsInfo.get(ws).lastPing = new Date();
               global.clientsInfo.get(ws).isAlive = true;
-            }
+                        }
           });
 
           // Processar mensagens do cliente
@@ -742,10 +742,10 @@ if (process.env.EXTERNAL_API_URL) {
               console.log(`📥 Cliente ID: ${clientId}`);
               console.log(`📥 Mensagem bruta: ${rawMessage}`);
               console.log(`📥 Tamanho da mensagem: ${rawMessage.length} bytes`);
-              
+
               const message = JSON.parse(rawMessage);
               console.log(`📥 Mensagem parseada:`, JSON.stringify(message, null, 2));
-              
+
               const client = global.clientsInfo?.get(ws);
 
               if (message.type === 'auth' && message.userId && message.sessionToken) {
@@ -757,23 +757,23 @@ if (process.env.EXTERNAL_API_URL) {
                 console.log(`   - Session Token primeiro 20 chars: "${message.sessionToken.substring(0, 20)}"`);
                 console.log(`   - IP: ${client?.ip || 'desconhecido'}`);
                 console.log(`   - Timestamp: ${new Date().toISOString()}`);
-                
+
                 // Verificar sessão usando múltiplas abordagens
                 try {
                   console.log(`🔍 =============== INICIANDO VERIFICAÇÃO ===============`);
                   console.log(`🔍 Token original completo: "${message.sessionToken}"`);
-                  
+
                   let authenticationSuccess = false;
                   let authMethod = '';
 
                   // MÉTODO 1: Verificar na tabela session (onde ficam as sessões HTTP do Passport.js)
                   console.log(`🔍 MÉTODO 1: Verificando tabela session (Passport.js)...`);
-                  
+
                   // Função para normalizar token (extrair sessionId se estiver assinado)
                   const normalizeSessionToken = (token: string): string[] => {
                     const candidates = [token]; // Sempre incluir o token original
                     console.log(`🔑 Token original para normalização: "${token}"`);
-                    
+
                     // Se token está assinado (s:sessionId.signature), extrair o sessionId
                     if (token.startsWith('s:')) {
                       const sessionId = token.substring(2).split('.')[0];
@@ -784,37 +784,37 @@ if (process.env.EXTERNAL_API_URL) {
                     } else {
                       console.log(`🔑 Token não é assinado (não começa com 's:')`);
                     }
-                    
+
                     console.log(`🔑 Candidatos finais: [${candidates.map(c => `"${c}"`).join(', ')}]`);
                     return candidates;
                   };
-                  
+
                   const tokenCandidates = normalizeSessionToken(message.sessionToken);
                   console.log(`🔍 Testando ${tokenCandidates.length} variações do token...`);
-                  
+
                   let sessionResult = null;
                   let usedToken = null;
-                  
+
                   // Testar cada variação do token
                   for (let i = 0; i < tokenCandidates.length; i++) {
                     const candidate = tokenCandidates[i];
                     console.log(`🔍 ===== TESTE ${i + 1}/${tokenCandidates.length} =====`);
                     console.log(`🔍 Testando token: "${candidate}"`);
                     console.log(`🔍 Token length: ${candidate.length}`);
-                    
+
                     const sessionQuery = `
                       SELECT s.sess, s.sid, s.expire
                       FROM session s 
                       WHERE s.sid = $1 AND s.expire > NOW()
                     `;
-                    
+
                     console.log(`🔍 Executando query: ${sessionQuery}`);
                     console.log(`🔍 Com parâmetro: "${candidate}"`);
-                    
+
                     const result = await connectionManager.executeQuery(sessionQuery, [candidate]);
-                    
+
                     console.log(`🔍 Resultado da query: ${result.rows.length} linhas encontradas`);
-                    
+
                     if (result.rows.length > 0) {
                       sessionResult = result;
                       usedToken = candidate;
@@ -826,7 +826,7 @@ if (process.env.EXTERNAL_API_URL) {
                       console.log(`❌ Token "${candidate}" não encontrado na tabela session`);
                     }
                   }
-                  
+
                   console.log(`📊 =============== RESULTADO FINAL MÉTODO 1 ===============`);
                   console.log(`📊 Sessões encontradas: ${sessionResult?.rows?.length || 0}`);
                   console.log(`📊 Token utilizado: ${usedToken ? `"${usedToken}"` : 'NENHUM'}`);
@@ -834,14 +834,14 @@ if (process.env.EXTERNAL_API_URL) {
                   if (sessionResult && sessionResult.rows.length > 0) {
                     const sessionData = sessionResult.rows[0];
                     const sessData = sessionData.sess;
-                    
+
                     console.log(`🔍 =============== DADOS DA SESSÃO ===============`);
                     console.log(`🔍 SID da sessão: "${sessionData.sid}"`);
                     console.log(`🔍 Expire: ${sessionData.expire}`);
                     console.log(`🔍 Sessão tem dados: ${!!sessData}`);
                     console.log(`🔍 Sessão tem passport: ${!!(sessData && sessData.passport)}`);
                     console.log(`🔍 Sessão tem passport.user: ${!!(sessData && sessData.passport && sessData.passport.user)}`);
-                    
+
                     if (sessData) {
                       console.log(`🔍 Keys da sessão: [${Object.keys(sessData).join(', ')}]`);
                       if (sessData.passport) {
@@ -849,7 +849,7 @@ if (process.env.EXTERNAL_API_URL) {
                         console.log(`🔍 Passport.user: ${JSON.stringify(sessData.passport.user)}`);
                       }
                     }
-                    
+
                     if (sessData && sessData.passport && sessData.passport.user) {
                       const sessionUserId = sessData.passport.user;
                       console.log(`🔍 =============== VERIFICAÇÃO DE USUÁRIO ===============`);
@@ -886,7 +886,7 @@ if (process.env.EXTERNAL_API_URL) {
                       FROM user_sessions_additional 
                       WHERE token = $1 AND is_active = true AND expires_at > NOW()
                     `;
-                    
+
                     const userSessionResult = await connectionManager.executeQuery(userSessionQuery, [message.sessionToken]);
                     console.log(`📊 Resultado user_sessions_additional: ${userSessionResult.rows.length} sessão(ões) encontrada(s)`);
 
@@ -905,19 +905,19 @@ if (process.env.EXTERNAL_API_URL) {
                   // MÉTODO 3: Verificar tabela user_sessions_additional (fallback)
                   if (!authenticationSuccess) {
                     console.log(`🔍 MÉTODO 3: Verificando tabela user_sessions_additional...`);
-                    
+
                     // Testar todas as variações do token na tabela adicional
                     for (const candidate of tokenCandidates) {
                       console.log(`🔍 Testando token na user_sessions_additional: ${candidate.substring(0, 8)}...`);
-                      
+
                       const userSessionQuery = `
                         SELECT user_id, token, expires_at, is_active, user_type
                         FROM user_sessions_additional 
                         WHERE token = $1 AND is_active = true AND expires_at > NOW()
                       `;
-                      
+
                       const userSessionResult = await connectionManager.executeQuery(userSessionQuery, [candidate]);
-                      
+
                       if (userSessionResult.rows.length > 0) {
                         const sessionRow = userSessionResult.rows[0];
                         console.log(`🔍 Usuário na sessão adicional: ${sessionRow.user_id}, esperado: ${message.userId}`);
@@ -938,7 +938,7 @@ if (process.env.EXTERNAL_API_URL) {
                     client.userId = message.userId;
                     client.sessionToken = message.sessionToken;
                     console.log(`✅ Cliente ${clientId} AUTENTICADO com sucesso como usuário ${message.userId} via ${authMethod}`);
-                    
+
                     // Enviar confirmação de autenticação
                     try {
                       ws.send(JSON.stringify({
@@ -953,7 +953,7 @@ if (process.env.EXTERNAL_API_URL) {
                   } else {
                     console.log(`❌ Cliente ${clientId}: FALHA NA AUTENTICAÇÃO - Token não encontrado ou inválido em nenhum método`);
                   }
-                  
+
                   // Se chegou até aqui sem autenticar, enviar erro
                   if (!client.authenticated) {
                     try {
@@ -966,7 +966,7 @@ if (process.env.EXTERNAL_API_URL) {
                       console.error('Erro ao enviar erro de autenticação:', sendError);
                     }
                   }
-                  
+
                 } catch (authError) {
                   console.error(`❌ ERRO CRÍTICO ao verificar autenticação para cliente ${clientId}:`, {
                     error: authError.message,
@@ -974,7 +974,7 @@ if (process.env.EXTERNAL_API_URL) {
                     userId: message.userId,
                     sessionToken: message.sessionToken.substring(0, 8) + '...'
                   });
-                  
+
                   // Enviar erro crítico
                   try {
                     ws.send(JSON.stringify({
@@ -1107,5 +1107,203 @@ if (process.env.EXTERNAL_API_URL) {
   }
 })();
 
+async function verifySessionToken(token: string, userId: number): Promise<boolean> {
+  const { connectionManager } = await import('./connection-manager');
+
+  // Verificar na tabela session (Passport.js)
+  const sessionQuery = `
+    SELECT s.sess
+    FROM session s 
+    WHERE s.sid = $1 AND s.sess @> $2
+  `;
+
+  const sessionData = { passport: { user: userId } };
+
+  try {
+    const sessionResult = await connectionManager.executeQuery(sessionQuery, [token, JSON.stringify(sessionData)]);
+    if (sessionResult.rows.length > 0) {
+      console.log(`✅ Sessão encontrada na tabela session (Passport.js)`);
+      return true;
+    }
+  } catch (sessionError) {
+    console.error('Erro ao verificar na tabela session:', sessionError);
+  }
+
+  // Se não encontrou, tentar user_sessions_additional
+  const userSessionQuery = `
+    SELECT user_id
+    FROM user_sessions_additional 
+    WHERE token = $1 AND user_id = $2 AND is_active = true AND expires_at > NOW()
+  `;
+
+  try {
+    const userSessionResult = await connectionManager.executeQuery(userSessionQuery, [token, userId]);
+    if (userSessionResult.rows.length > 0) {
+      console.log(`✅ Sessão encontrada na tabela user_sessions_additional`);
+      return true;
+    }
+  } catch (userSessionError) {
+    console.error('Erro ao verificar na tabela user_sessions_additional:', userSessionError);
+  }
+
+  console.log(`❌ Token não encontrado em nenhuma tabela`);
+  return false;
+}
+
+// Função para atualizar a atividade da sessão
+async function updateSessionActivity(sessionToken: string): Promise<void> {
+  const { connectionManager } = await import('./connection-manager');
+
+  // Tentar atualizar na tabela session (Passport.js)
+  const sessionUpdateQuery = `
+    UPDATE session
+    SET expire = NOW() + interval '1 hour'
+    WHERE sid = $1
+  `;
+
+  try {
+    await connectionManager.executeQuery(sessionUpdateQuery, [sessionToken]);
+    console.log(`✅ Atividade da sessão atualizada na tabela session (Passport.js)`);
+  } catch (sessionUpdateError) {
+    console.error('Erro ao atualizar atividade na tabela session:', sessionUpdateError);
+  }
+
+  // Tentar atualizar na tabela user_sessions_additional
+  const userSessionUpdateQuery = `
+    UPDATE user_sessions_additional
+    SET expires_at = NOW() + interval '1 hour'
+    WHERE token = $1
+  `;
+
+  try {
+    await connectionManager.executeQuery(userSessionUpdateQuery, [sessionToken]);
+    console.log(`✅ Atividade da sessão atualizada na tabela user_sessions_additional`);
+  } catch (userSessionUpdateError) {
+    console.error('Erro ao atualizar atividade na tabela user_sessions_additional:', userSessionUpdateError);
+  }
+}
+
 // The code has been updated to include WebSocket client management and session handling.
 import { WebSocket } from 'ws';
+
+// Função para notificar usuários relacionados via WebSocket
+  (global as any).notifyRelatedUsers = async (resource: string, action: string, data: any, userId: number) => {
+    try {
+      console.log(`🔔 notifyRelatedUsers chamada: ${resource}, ${action}, userId: ${userId}`);
+
+      if (!global.wsClients || global.wsClients.size === 0) {
+        console.log('📭 Nenhum cliente WebSocket conectado para notificação');
+        return;
+      }
+
+      // Buscar usuários relacionados (principal + filhos)
+      const { connectionManager } = await import('./connection-manager');
+
+      // Se é usuário adicional, buscar o usuário pai
+      let usuariosPrincipais = [userId];
+
+      // Verificar se é usuário adicional
+      const isAdditionalUser = await connectionManager.executeQuery(
+        `SELECT user_id FROM usuarios_adicionais WHERE id = $1`,
+        [userId]
+      );
+
+      if (isAdditionalUser.rows.length > 0) {
+        const parentUserId = isAdditionalUser.rows[0].user_id;
+        usuariosPrincipais = [parentUserId];
+        console.log(`👤 Usuário ${userId} é adicional, notificando usuário pai: ${parentUserId}`);
+      }
+
+      // Buscar todos os usuários filhos dos usuários principais
+      let usuariosRelacionados = [...usuariosPrincipais];
+
+      for (const principalId of usuariosPrincipais) {
+        const usuariosFilhos = await connectionManager.executeQuery(
+          `SELECT id FROM usuarios_adicionais WHERE user_id = $1`,
+          [principalId]
+        );
+
+        usuariosRelacionados.push(...usuariosFilhos.rows.map(u => u.id));
+      }
+
+      console.log(`👥 Usuários relacionados para notificação: ${usuariosRelacionados.join(', ')}`);
+
+      // CORREÇÃO: Filtrar apenas conexões ATIVAS e mais RECENTES
+      const agora = new Date();
+      const clientesRelacionados = Array.from(global.wsClients.values())
+        .filter(client => {
+          const clientInfo = global.clientsInfo?.get(client);
+          const isAuthenticated = clientInfo && clientInfo.authenticated && clientInfo.userId;
+          const isRelated = isAuthenticated && usuariosRelacionados.includes(clientInfo.userId);
+          const isActive = client.readyState === 1; // WebSocket.OPEN
+          const isRecent = clientInfo && clientInfo.authTimestamp && (agora.getTime() - clientInfo.authTimestamp.getTime()) < 300000; // 5 minutos
+
+          if (isRelated && isActive) {
+            console.log(`✅ Cliente ATIVO encontrado: ${clientInfo.id} (userId: ${clientInfo.userId}, autenticado: ${clientInfo.authTimestamp?.toISOString()})`);
+            return true;
+          } else if (isRelated && !isActive) {
+            console.log(`⚠️ Cliente relacionado INATIVO: ${clientInfo.id} (readyState: ${client.readyState})`);
+            // Remover clientes inativos do mapa
+             global.wsClients.delete(client);
+          }
+
+          return false;
+        })
+        // Ordenar por timestamp de autenticação (mais recente primeiro) para evitar duplicatas
+        .sort((a, b) => {
+          const aInfo = global.clientsInfo?.get(a);
+          const bInfo = global.clientsInfo?.get(b);
+          if (!aInfo?.authTimestamp || !bInfo?.authTimestamp) return 0;
+          return bInfo.authTimestamp.getTime() - aInfo.authTimestamp.getTime();
+        })
+        // Remover duplicatas por userId (manter apenas a conexão mais recente)
+        .filter((client, index, array) => {
+          const clientInfo = global.clientsInfo?.get(client);
+          return array.findIndex(c => global.clientsInfo?.get(c)?.userId === clientInfo?.userId) === index;
+        });
+
+      if (clientesRelacionados.length === 0) {
+        console.log('📭 Nenhum cliente relacionado ATIVO para notificação');
+        return;
+      }
+
+      const message = JSON.stringify({
+        type: 'data_update',
+        resource,
+        action,
+        data,
+        userId,
+        timestamp: new Date().toISOString()
+      });
+
+      let sucessos = 0;
+      let falhas = 0;
+
+      // Enviar para todos os clientes relacionados ATIVOS
+      clientesRelacionados.forEach(client => {
+        const clientInfo = global.clientsInfo?.get(client);
+        try {
+          if (client && client.readyState === 1) { // WebSocket.OPEN
+            client.send(message);
+            sucessos++;
+            console.log(`📤 Notificação enviada para cliente ATIVO ${clientInfo.id} (userId: ${clientInfo.userId})`);
+          } else {
+            falhas++;
+            console.log(`❌ Cliente ${clientInfo.id} não está mais em estado OPEN após filtro`);
+            // Remover cliente inativo
+            global.wsClients.delete(client);
+          }
+        } catch (error) {
+          falhas++;
+          console.error(`❌ Erro ao enviar para cliente ${clientInfo.id}:`, error.message);
+          // Remover cliente com erro
+          global.wsClients.delete(client);
+        }
+      });
+
+      console.log(`📊 Notificação ${resource}:${action} - Sucessos: ${sucessos}, Falhas: ${falhas}, Total clientes ativos: ${global.wsClients.size}`);
+
+    } catch (error) {
+      console.error('❌ Erro em notifyRelatedUsers:', error);
+    }
+  };

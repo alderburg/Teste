@@ -494,52 +494,70 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
       return false;
     };
 
-    // SISTEMA DE RETRY AGRESSIVO - FORÇAR ENTREGA DA AUTENTICAÇÃO
+    // SISTEMA DE RETRY MELHORADO - AGUARDAR CONFIRMAÇÃO CORRETAMENTE
     let tentativasAuth = 0;
-    const maxTentativas = 10;
+    const maxTentativas = 5; // Reduzido para evitar spam
     let authConfirmado = false;
+    let authTimeoutId: NodeJS.Timeout | null = null;
     
     const executarComRetry = () => {
       if (authConfirmado || tentativasAuth >= maxTentativas) {
         if (tentativasAuth >= maxTentativas) {
-          console.error('🚨 MÁXIMO DE TENTATIVAS DE AUTH ATINGIDO - POSSÍVEL PROBLEMA DE REDE');
+          console.error('🚨 MÁXIMO DE TENTATIVAS DE AUTH ATINGIDO - POSSÍVEL PROBLEMA DE REDE/SERVIDOR');
         }
         return;
       }
       
       tentativasAuth++;
-      console.log(`🔄 TENTATIVA DE AUTH ${tentativasAuth}/${maxTentativas}`);
+      console.log(`🔄 TENTATIVA DE AUTH ${tentativasAuth}/${maxTentativas} - Timestamp: ${new Date().toISOString()}`);
       
       const sucesso = executarAutenticacao();
       
       if (sucesso) {
-        // Aguardar confirmação do servidor por 3 segundos
-        const timeoutConfirmacao = setTimeout(() => {
-          if (!authConfirmado) {
-            console.log(`❌ Tentativa ${tentativasAuth} - SEM CONFIRMAÇÃO do servidor, tentando novamente...`);
-            setTimeout(executarComRetry, 1000 * tentativasAuth); // Backoff exponencial
-          }
-        }, 3000);
-        
-        // Listener para confirmação de auth
+        // Listener para confirmação de auth ÚNICO (evitar duplicatas)
         const handleAuthSuccess = (event: any) => {
           if (event.detail && event.detail.type === 'auth_success') {
-            console.log('✅ AUTENTICAÇÃO CONFIRMADA PELO SERVIDOR!');
+            console.log(`✅ AUTENTICAÇÃO CONFIRMADA PELO SERVIDOR! Tentativa ${tentativasAuth} bem-sucedida`);
+            console.log(`✅ ClientId recebido: ${event.detail.clientId}`);
+            console.log(`✅ UserId confirmado: ${event.detail.userId}`);
+            
             authConfirmado = true;
-            clearTimeout(timeoutConfirmacao);
+            
+            // Limpar timeout se existe
+            if (authTimeoutId) {
+              clearTimeout(authTimeoutId);
+              authTimeoutId = null;
+            }
+            
+            // Remover listener para evitar conflitos
             window.removeEventListener('websocket-message-received', handleAuthSuccess);
           }
         };
         
+        // Adicionar listener ANTES do timeout
         window.addEventListener('websocket-message-received', handleAuthSuccess);
+        
+        // Aguardar confirmação do servidor por 5 segundos
+        authTimeoutId = setTimeout(() => {
+          if (!authConfirmado) {
+            console.log(`❌ Tentativa ${tentativasAuth} - TIMEOUT de confirmação (5s), tentando novamente em ${2 * tentativasAuth}s...`);
+            
+            // Remover listener antigo
+            window.removeEventListener('websocket-message-received', handleAuthSuccess);
+            
+            // Tentar novamente com delay progressivo
+            setTimeout(executarComRetry, 2000 * tentativasAuth);
+          }
+        }, 5000);
+        
       } else {
-        console.log(`❌ Tentativa ${tentativasAuth} - FALHA no envio, tentando novamente...`);
-        setTimeout(executarComRetry, 1000 * tentativasAuth); // Backoff exponencial
+        console.log(`❌ Tentativa ${tentativasAuth} - FALHA no envio da mensagem, tentando novamente em ${2 * tentativasAuth}s...`);
+        setTimeout(executarComRetry, 2000 * tentativasAuth);
       }
     };
     
     // Executar sistema de retry
-    console.log('🎯 Iniciando sistema de retry para autenticação...');
+    console.log('🎯 Iniciando sistema de retry MELHORADO para autenticação...');
     executarComRetry();
   }, [connected, user, sendMessage]);
 
