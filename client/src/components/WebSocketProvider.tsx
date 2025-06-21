@@ -242,7 +242,16 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
         for (let cookie of cookies) {
           const [name, value] = cookie.trim().split('=');
           if (name === 'connect.sid') {
-            return decodeURIComponent(value);
+            // O cookie connect.sid vem assinado no formato s:sessionId.signature
+            // Precisamos extrair apenas o sessionId
+            const decodedValue = decodeURIComponent(value);
+            if (decodedValue.startsWith('s:')) {
+              const sessionId = decodedValue.substring(2).split('.')[0];
+              console.log(`🔐 Cookie encontrado: ${decodedValue.substring(0, 20)}...`);
+              console.log(`🔑 Session ID extraído: ${sessionId.substring(0, 8)}...`);
+              return sessionId;
+            }
+            return decodedValue;
           }
         }
         return null;

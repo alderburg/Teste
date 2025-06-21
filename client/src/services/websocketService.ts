@@ -255,6 +255,15 @@ function handleMessage(event: MessageEvent) {
       console.log("Pong recebido do servidor:", message.timestamp);
     }
     
+    // Processar respostas de autenticação
+    if (message.type === 'auth_success') {
+      console.log("✅ Autenticação WebSocket bem-sucedida:", message);
+    }
+    
+    if (message.type === 'auth_error') {
+      console.error("❌ Erro de autenticação WebSocket:", message);
+    }
+    
     // Processar atualizações de dados
     if (message.type === 'data_update') {
       processDataUpdate(message as DataUpdateMessage);

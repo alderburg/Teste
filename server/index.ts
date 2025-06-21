@@ -741,34 +741,105 @@ if (process.env.EXTERNAL_API_URL) {
               const client = global.clientsInfo?.get(ws);
 
               if (message.type === 'auth' && message.userId && message.sessionToken) {
+                console.log(`🔐 Tentativa de autenticação WebSocket:`);
+                console.log(`   - Cliente ID: ${clientId}`);
+                console.log(`   - Usuário ID: ${message.userId}`);
+                console.log(`   - Session Token: ${message.sessionToken.substring(0, 8)}...`);
+                console.log(`   - IP: ${client?.ip || 'desconhecido'}`);
+                
                 // Verificar se a sessão é válida no banco
                 try {
                   const sessionQuery = `
-                    SELECT s.sess, s.sid 
+                    SELECT s.sess, s.sid, s.expire
                     FROM session s 
                     WHERE s.sid = $1 AND s.expire > NOW()
                   `;
 
+                  console.log(`🔍 Verificando sessão no banco de dados...`);
+                  
                   // Usar connectionManager para executar a query
                   const sessionResult = await connectionManager.executeQuery(sessionQuery, [message.sessionToken]);
 
+                  console.log(`📊 Resultado da consulta: ${sessionResult.rows.length} sessão(ões) encontrada(s)`);
+
                   if (sessionResult.rows.length > 0) {
-                    const sessionData = sessionResult.rows[0].sess;
+                    const sessionRow = sessionResult.rows[0];
+                    const sessionData = sessionRow.sess;
+                    const expireTime = new Date(sessionRow.expire);
+                    
+                    console.log(`🔍 Dados da sessão encontrada:`);
+                    console.log(`   - SID: ${sessionRow.sid.substring(0, 8)}...`);
+                    console.log(`   - Expira em: ${expireTime.toISOString()}`);
+                    console.log(`   - Usuário na sessão: ${sessionData.passport?.user || 'nenhum'}`);
+                    console.log(`   - Usuário esperado: ${message.userId}`);
 
                     if (sessionData.passport?.user === message.userId) {
                       // Autenticação válida
                       client.authenticated = true;
                       client.userId = message.userId;
                       client.sessionToken = message.sessionToken;
-                      console.log(`✅ Cliente ${clientId} autenticado como usuário ${message.userId} (sessão válida)`);
+                      console.log(`✅ Cliente ${clientId} AUTENTICADO com sucesso como usuário ${message.userId}`);
+                      
+                      // Enviar confirmação de autenticação
+                      try {
+                        ws.send(JSON.stringify({
+                          type: 'auth_success',
+                          message: 'Autenticação WebSocket realizada com sucesso',
+                          userId: message.userId,
+                          timestamp: new Date().toISOString()
+                        }));
+                      } catch (sendError) {
+                        console.error('Erro ao enviar confirmação de autenticação:', sendError);
+                      }
                     } else {
-                      console.log(`❌ Cliente ${clientId}: Usuário na sessão não confere (esperado: ${message.userId}, encontrado: ${sessionData.passport?.user})`);
+                      console.log(`❌ Cliente ${clientId}: FALHA NA AUTENTICAÇÃO - Usuário na sessão não confere`);
+                      console.log(`   - Esperado: ${message.userId}`);
+                      console.log(`   - Encontrado: ${sessionData.passport?.user || 'nenhum'}`);
+                      
+                      // Enviar erro de autenticação
+                      try {
+                        ws.send(JSON.stringify({
+                          type: 'auth_error',
+                          message: 'Falha na autenticação - usuário não confere',
+                          timestamp: new Date().toISOString()
+                        }));
+                      } catch (sendError) {
+                        console.error('Erro ao enviar erro de autenticação:', sendError);
+                      }
                     }
                   } else {
-                    console.log(`❌ Cliente ${clientId}: Sessão ${message.sessionToken.substring(0, 8)}... não encontrada ou expirada`);
+                    console.log(`❌ Cliente ${clientId}: FALHA NA AUTENTICAÇÃO - Sessão não encontrada ou expirada`);
+                    console.log(`   - Session Token procurado: ${message.sessionToken.substring(0, 8)}...`);
+                    
+                    // Enviar erro de sessão
+                    try {
+                      ws.send(JSON.stringify({
+                        type: 'auth_error',
+                        message: 'Sessão não encontrada ou expirada',
+                        timestamp: new Date().toISOString()
+                      }));
+                    } catch (sendError) {
+                      console.error('Erro ao enviar erro de sessão:', sendError);
+                    }
                   }
                 } catch (authError) {
-                  console.error(`❌ Erro ao verificar autenticação para cliente ${clientId}:`, authError);
+                  console.error(`❌ ERRO CRÍTICO ao verificar autenticação para cliente ${clientId}:`, {
+                    error: authError.message,
+                    stack: authError.stack,
+                    userId: message.userId,
+                    sessionToken: message.sessionToken.substring(0, 8) + '...'
+                  });
+                  
+                  // Enviar erro crítico
+                  try {
+                    ws.send(JSON.stringify({
+                      type: 'auth_error',
+                      message: 'Erro interno durante autenticação',
+                      timestamp: new Date().toISOString()
+                    }));
+                  } catch (sendError) {
+                    console.error('Erro ao enviar erro crítico:', sendError);
+                  }
                 }
               } else if (message.type === 'pong') {
                 // Resposta ao ping
