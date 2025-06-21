@@ -302,9 +302,17 @@ export function useWebSocket() {
 
       // Configurar listeners
       socket.addEventListener('open', () => {
-        console.log('WebSocket conectado');
+        console.log('🔗 =============== WEBSOCKET CONECTADO ===============');
+        console.log('🔗 Socket readyState:', socket.readyState);
+        console.log('🔗 Timestamp:', new Date().toISOString());
+        console.log('🔗 URL:', wsUrl);
         setConnected(true);
         setReconnectAttempts(0); // Resetar contador de tentativas ao conectar com sucesso
+        
+        // Aguardar um momento para garantir que a conexão está completamente estabelecida
+        setTimeout(() => {
+          console.log('🔗 Conexão WebSocket estabilizada, pronto para receber mensagens de auth');
+        }, 100);
       });
 
       socket.addEventListener('message', (event) => {
@@ -424,8 +432,13 @@ export function useWebSocket() {
       try {
         const messageString = JSON.stringify(message);
         console.log(`🔗 Enviando string JSON: ${messageString}`);
+        console.log(`🔗 Tamanho da string: ${messageString.length} bytes`);
+        console.log(`🔗 Socket ainda aberto: ${socketRef.current.readyState === WebSocket.OPEN}`);
+        
         socketRef.current.send(messageString);
+        
         console.log(`✅ Mensagem enviada com sucesso via WebSocket`);
+        console.log(`✅ Verificação pós-envio - Socket readyState: ${socketRef.current.readyState}`);
         return true;
       } catch (error) {
         console.error('❌ Erro ao enviar mensagem:', error);

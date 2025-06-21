@@ -282,6 +282,12 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
 
   // Enviar informações de autenticação quando o usuário estiver logado
   useEffect(() => {
+    console.log('🔄 =============== USEEFFECT AUTH TRIGGER ===============');
+    console.log('🔄 connected:', connected);
+    console.log('🔄 user exists:', !!user);
+    console.log('🔄 user id:', user?.id);
+    console.log('🔄 sendMessage function:', typeof sendMessage);
+    
     if (connected && user) {
       // Extrair sessionToken dos cookies - Priorizar cookies de sessão do Express
       const getSessionTokenFromCookie = () => {
@@ -377,6 +383,13 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
         
         if (!enviouComSucesso) {
           console.error(`❌ FALHA AO ENVIAR MENSAGEM DE AUTENTICAÇÃO`);
+          
+          // Tentar novamente após um pequeno delay
+          setTimeout(() => {
+            console.log('🔄 Tentando reenviar mensagem de autenticação...');
+            const novoEnvio = sendMessage(authMessage);
+            console.log(`🔄 Resultado do reenvio: ${novoEnvio}`);
+          }, 1000);
         } else {
           console.log(`✅ Mensagem de autenticação enviada com sucesso`);
         }
