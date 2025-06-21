@@ -40,19 +40,66 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
 
   // Função para verificar se a sessão atual foi encerrada
   const checkIfCurrentSession = (terminatedToken: string): boolean => {
-    const possibleTokens = [
-      localStorage.getItem('sessionToken'),
-      localStorage.getItem('token'),
-      document.cookie.split(';').find(c => c.trim().startsWith('sessionToken='))?.split('=')[1],
-      document.cookie.split(';').find(c => c.trim().startsWith('token='))?.split('=')[1]
-    ].filter(Boolean);
+    // Buscar token da sessão atual de forma mais robusta
+    const getCurrentSessionToken = () => {
+      // 1. Primeiro, tentar obter do cookie de sessão padrão do Express
+      const cookies = document.cookie.split(';');
+      let sessionToken = null;
 
-    console.log('🔍 Verificando tokens:', {
-      terminatedToken: terminatedToken?.substring(0, 8) + '...',
-      possibleTokens: possibleTokens.map(t => t?.substring(0, 8) + '...')
+      for (let cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        
+        // Verificar cookies de sessão do Express/Passport
+        if (name === 'mpc.sid' || name === 'connect.sid') {
+          sessionToken = decodeURIComponent(value);
+          console.log(`🔍 Token encontrado no cookie ${name}: ${sessionToken.substring(0, 8)}...`);
+          break;
+        }
+      }
+
+      // 2. Se não encontrou nos cookies principais, tentar outras fontes
+      if (!sessionToken) {
+        const alternatives = [
+          localStorage.getItem('sessionToken'),
+          localStorage.getItem('token'),
+          document.cookie.split(';').find(c => c.trim().startsWith('sessionToken='))?.split('=')[1],
+          document.cookie.split(';').find(c => c.trim().startsWith('token='))?.split('=')[1]
+        ].filter(Boolean);
+
+        if (alternatives.length > 0) {
+          sessionToken = alternatives[0];
+          console.log(`🔍 Token encontrado em fonte alternativa: ${sessionToken.substring(0, 8)}...`);
+        }
+      }
+
+      return sessionToken;
+    };
+
+    const currentToken = getCurrentSessionToken();
+    
+    if (!currentToken || !terminatedToken) {
+      return false;
+    }
+
+    // Comparar tokens considerando diferentes formatos
+    const normalizeToken = (token: string) => {
+      // Se o token está assinado (formato s:sessionId.signature), extrair apenas o sessionId
+      if (token.startsWith('s:')) {
+        return token.substring(2).split('.')[0];
+      }
+      return token;
+    };
+
+    const normalizedCurrent = normalizeToken(currentToken);
+    const normalizedTerminated = normalizeToken(terminatedToken);
+
+    console.log('🔍 Comparando tokens normalizados:', {
+      current: normalizedCurrent.substring(0, 8) + '...',
+      terminated: normalizedTerminated.substring(0, 8) + '...',
+      match: normalizedCurrent === normalizedTerminated
     });
 
-    return possibleTokens.includes(terminatedToken);
+    return normalizedCurrent === normalizedTerminated || currentToken === terminatedToken;
   };
 
   // Função para ativar proteção total
@@ -236,51 +283,65 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
   // Enviar informações de autenticação quando o usuário estiver logado
   useEffect(() => {
     if (connected && user) {
-      // Extrair sessionToken dos cookies - Verificar múltiplas fontes
+      // Extrair sessionToken dos cookies - Priorizar cookies de sessão do Express
       const getSessionTokenFromCookie = () => {
-        console.log('🔍 Procurando token de sessão...');
+        console.log('🔍 Procurando token de sessão para autenticação WebSocket...');
         
-        // Método 1: Verificar localStorage primeiro (onde tokens customizados são armazenados)
-        const localStorageTokens = [
-          localStorage.getItem('sessionToken'),
-          localStorage.getItem('authToken'),
-          localStorage.getItem('userToken')
-        ].filter(Boolean);
-        
-        console.log('📱 Tokens no localStorage:', localStorageTokens.map(t => t?.substring(0, 8) + '...'));
-        
-        if (localStorageTokens.length > 0) {
-          console.log(`✅ Token encontrado no localStorage: ${localStorageTokens[0]?.substring(0, 8)}...`);
-          return localStorageTokens[0];
-        }
-
-        // Método 2: Verificar cookies
+        // MÉTODO PRIORITÁRIO: Buscar cookies de sessão do Express/Passport (onde o sistema HTTP está autenticado)
         const cookies = document.cookie.split(';');
-        console.log('🍪 Analisando cookies:', cookies.length);
+        console.log('🍪 Analisando cookies do navegador...');
         
+        let sessionToken = null;
+        
+        // 1. PRIORIDADE MÁXIMA: Cookies de sessão do Express
         for (let cookie of cookies) {
           const [name, value] = cookie.trim().split('=');
-          console.log(`   - Cookie: ${name} = ${value ? value.substring(0, 20) + '...' : 'vazio'}`);
           
-          // Verificar diferentes tipos de cookies
-          if (name === 'sessionToken' || name === 'authToken' || name === 'userToken') {
-            console.log(`✅ Token personalizado encontrado no cookie ${name}: ${value?.substring(0, 8)}...`);
-            return decodeURIComponent(value);
-          }
-          
-          if (name === 'connect.sid' || name === 'mpc.sid') {
-            // O cookie pode vir assinado no formato s:sessionId.signature
+          if (name === 'mpc.sid' || name === 'connect.sid') {
             const decodedValue = decodeURIComponent(value);
-            console.log(`🔐 Cookie de sessão encontrado (${name}): ${decodedValue.substring(0, 20)}...`);
+            console.log(`🔐 Cookie de sessão Express encontrado (${name}): ${decodedValue.substring(0, 20)}...`);
             
-            // Primeiro tenta usar o token completo (pode ser necessário para verificação de assinatura)
-            console.log(`🔑 Usando token completo para autenticação: ${decodedValue.substring(0, 8)}...`);
-            return decodedValue;
+            // Este é o token que o Passport.js está usando - usar EXATAMENTE como está
+            sessionToken = decodedValue;
+            console.log(`✅ Usando token de sessão do Express: ${sessionToken.substring(0, 8)}...`);
+            break;
           }
         }
         
-        console.log('❌ Nenhum token encontrado');
-        return null;
+        // 2. FALLBACK: Outros tokens personalizados apenas se não encontrou o principal
+        if (!sessionToken) {
+          console.log('⚠️ Cookie de sessão do Express não encontrado, tentando fontes alternativas...');
+          
+          // Verificar localStorage
+          const localStorageTokens = [
+            localStorage.getItem('sessionToken'),
+            localStorage.getItem('authToken'),
+            localStorage.getItem('userToken')
+          ].filter(Boolean);
+          
+          if (localStorageTokens.length > 0) {
+            sessionToken = localStorageTokens[0];
+            console.log(`📱 Token encontrado no localStorage: ${sessionToken?.substring(0, 8)}...`);
+          } else {
+            // Verificar outros cookies personalizados
+            for (let cookie of cookies) {
+              const [name, value] = cookie.trim().split('=');
+              
+              if (name === 'sessionToken' || name === 'authToken' || name === 'userToken') {
+                sessionToken = decodeURIComponent(value);
+                console.log(`🔑 Token personalizado encontrado no cookie ${name}: ${sessionToken?.substring(0, 8)}...`);
+                break;
+              }
+            }
+          }
+        }
+        
+        if (!sessionToken) {
+          console.log('❌ Nenhum token de sessão encontrado em nenhuma fonte');
+          console.log('📝 Cookies disponíveis:', document.cookie);
+        }
+        
+        return sessionToken;
       };
 
       const sessionToken = getSessionTokenFromCookie();

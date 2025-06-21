@@ -776,7 +776,7 @@ export function setupAuth(app: Express): void {
 
           const sessionData = {
             userId: sessionUserId, // Usar o ID específico do usuário (adicional se for adicional)
-            token: req.sessionID,
+            token: req.sessionID, // Este é o MESMO token que o Passport.js usa na tabela session
             deviceInfo: userAgent || 'Dispositivo desconhecido',
             browser: browser,
             ip: userIP,
@@ -785,6 +785,10 @@ export function setupAuth(app: Express): void {
             expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
             isActive: true
           };
+
+          console.log(`🔑 Criando sessão com token: ${req.sessionID.substring(0, 8)}... (mesmo token do Passport.js)`);
+          console.log(`👤 Para usuário: ${sessionUserId} ${user.isAdditionalUser ? '(adicional)' : '(principal)'}`);
+          console.log(`🍪 Cookie de sessão: ${req.headers.cookie?.split(';').find(c => c.includes('sid'))?.substring(0, 30)}...`);
 
           const sessionResult = await storage.createUserSession(sessionData);
 

@@ -756,18 +756,58 @@ if (process.env.EXTERNAL_API_URL) {
 
                   // MÉTODO 1: Verificar na tabela session (onde ficam as sessões HTTP do Passport.js)
                   console.log(`🔍 MÉTODO 1: Verificando tabela session (Passport.js)...`);
-                  const sessionQuery = `
-                    SELECT s.sess, s.sid, s.expire
-                    FROM session s 
-                    WHERE s.sid = $1 AND s.expire > NOW()
-                  `;
                   
-                  const sessionResult = await connectionManager.executeQuery(sessionQuery, [message.sessionToken]);
-                  console.log(`📊 Resultado session: ${sessionResult.rows.length} sessão(ões) encontrada(s)`);
+                  // Função para normalizar token (extrair sessionId se estiver assinado)
+                  const normalizeSessionToken = (token: string): string[] => {
+                    const candidates = [token]; // Sempre incluir o token original
+                    
+                    // Se token está assinado (s:sessionId.signature), extrair o sessionId
+                    if (token.startsWith('s:')) {
+                      const sessionId = token.substring(2).split('.')[0];
+                      candidates.push(sessionId);
+                      console.log(`🔑 Token assinado detectado, sessionId extraído: ${sessionId.substring(0, 8)}...`);
+                    }
+                    
+                    return candidates;
+                  };
+                  
+                  const tokenCandidates = normalizeSessionToken(message.sessionToken);
+                  console.log(`🔍 Testando ${tokenCandidates.length} variações do token...`);
+                  
+                  let sessionResult = null;
+                  let usedToken = null;
+                  
+                  // Testar cada variação do token
+                  for (const candidate of tokenCandidates) {
+                    console.log(`🔍 Testando token: ${candidate.substring(0, 8)}...`);
+                    
+                    const sessionQuery = `
+                      SELECT s.sess, s.sid, s.expire
+                      FROM session s 
+                      WHERE s.sid = $1 AND s.expire > NOW()
+                    `;
+                    
+                    const result = await connectionManager.executeQuery(sessionQuery, [candidate]);
+                    
+                    if (result.rows.length > 0) {
+                      sessionResult = result;
+                      usedToken = candidate;
+                      console.log(`✅ Token encontrado na tabela session: ${candidate.substring(0, 8)}...`);
+                      break;
+                    }
+                  }
+                  
+                  console.log(`📊 Resultado session: ${sessionResult?.rows?.length || 0} sessão(ões) encontrada(s)`);
 
-                  if (sessionResult.rows.length > 0) {
+                  if (sessionResult && sessionResult.rows.length > 0) {
                     const sessionData = sessionResult.rows[0];
                     const sessData = sessionData.sess;
+                    
+                    console.log(`🔍 Dados da sessão encontrada:`, {
+                      sid: sessionData.sid?.substring(0, 8) + '...',
+                      hasPassport: !!(sessData && sessData.passport),
+                      hasUser: !!(sessData && sessData.passport && sessData.passport.user)
+                    });
                     
                     if (sessData && sessData.passport && sessData.passport.user) {
                       const sessionUserId = sessData.passport.user;
@@ -775,9 +815,16 @@ if (process.env.EXTERNAL_API_URL) {
 
                       if (sessionUserId === message.userId) {
                         authenticationSuccess = true;
-                        authMethod = 'session (Passport.js)';
+                        authMethod = `session (Passport.js) - token: ${usedToken.substring(0, 8)}...`;
                         console.log(`✅ AUTENTICADO via sessão Passport.js`);
+                      } else {
+                        console.log(`❌ UserID não confere: sessão=${sessionUserId}, esperado=${message.userId}`);
                       }
+                    } else {
+                      console.log(`❌ Sessão encontrada mas sem dados do Passport:`, {
+                        hasSess: !!sessData,
+                        passportKeys: sessData ? Object.keys(sessData) : []
+                      });
                     }
                   }
 
@@ -805,27 +852,31 @@ if (process.env.EXTERNAL_API_URL) {
                     }
                   }
 
-                  // MÉTODO 3: Se ainda não autenticou, tentar extrair sessionId do token assinado
-                  if (!authenticationSuccess && message.sessionToken.startsWith('s:')) {
-                    console.log(`🔍 MÉTODO 3: Token assinado detectado, extraindo sessionId...`);
-                    const sessionId = message.sessionToken.substring(2).split('.')[0];
-                    console.log(`🔑 SessionId extraído: ${sessionId.substring(0, 8)}...`);
+                  // MÉTODO 3: Verificar tabela user_sessions_additional (fallback)
+                  if (!authenticationSuccess) {
+                    console.log(`🔍 MÉTODO 3: Verificando tabela user_sessions_additional...`);
                     
-                    const sessionResult2 = await connectionManager.executeQuery(sessionQuery, [sessionId]);
-                    console.log(`📊 Resultado com sessionId extraído: ${sessionResult2.rows.length} sessão(ões) encontrada(s)`);
-
-                    if (sessionResult2.rows.length > 0) {
-                      const sessionData = sessionResult2.rows[0];
-                      const sessData = sessionData.sess;
+                    // Testar todas as variações do token na tabela adicional
+                    for (const candidate of tokenCandidates) {
+                      console.log(`🔍 Testando token na user_sessions_additional: ${candidate.substring(0, 8)}...`);
                       
-                      if (sessData && sessData.passport && sessData.passport.user) {
-                        const sessionUserId = sessData.passport.user;
-                        console.log(`🔍 Usuário na sessão (ID extraído): ${sessionUserId}, esperado: ${message.userId}`);
+                      const userSessionQuery = `
+                        SELECT user_id, token, expires_at, is_active, user_type
+                        FROM user_sessions_additional 
+                        WHERE token = $1 AND is_active = true AND expires_at > NOW()
+                      `;
+                      
+                      const userSessionResult = await connectionManager.executeQuery(userSessionQuery, [candidate]);
+                      
+                      if (userSessionResult.rows.length > 0) {
+                        const sessionRow = userSessionResult.rows[0];
+                        console.log(`🔍 Usuário na sessão adicional: ${sessionRow.user_id}, esperado: ${message.userId}`);
 
-                        if (sessionUserId === message.userId) {
+                        if (sessionRow.user_id === message.userId) {
                           authenticationSuccess = true;
-                          authMethod = 'session (ID extraído)';
-                          console.log(`✅ AUTENTICADO via sessionId extraído`);
+                          authMethod = `user_sessions_additional - token: ${candidate.substring(0, 8)}...`;
+                          console.log(`✅ AUTENTICADO via user_sessions_additional`);
+                          break;
                         }
                       }
                     }
