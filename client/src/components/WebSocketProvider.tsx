@@ -29,14 +29,41 @@ interface WebSocketProviderProps {
 }
 
 export default function WebSocketProvider({ children }: WebSocketProviderProps) {
+  console.log('🎭 =============== WEBSOCKET PROVIDER RENDER ===============');
+  console.log('🎭 Timestamp:', new Date().toISOString());
+  
   const { connected, sendMessage } = useWebSocket();
   const { user } = useAuth();
   const [lastUpdated, setLastUpdated] = useState<Date | undefined>(undefined);
   const [sessionTerminated, setSessionTerminated] = useState(false);
   const [terminationMessage, setTerminationMessage] = useState<string>("");
+  
+  console.log('🎭 Estado atual do WebSocketProvider:', {
+    connected,
+    userExists: !!user,
+    userId: user?.id,
+    sendMessageExists: !!sendMessage,
+    sessionTerminated
+  });
 
   // Ativar proteção IMEDIATAMENTE quando sessão estiver encerrada
   useSessionGuard(sessionTerminated);
+  
+  // Monitor de mudanças das dependências
+  useEffect(() => {
+    console.log('🔍 =============== MUDANÇA DE DEPENDÊNCIA ===============');
+    console.log('🔍 connected mudou para:', connected);
+  }, [connected]);
+  
+  useEffect(() => {
+    console.log('🔍 =============== MUDANÇA DE USUÁRIO ===============');
+    console.log('🔍 user mudou para:', user ? `ID: ${user.id}` : 'null');
+  }, [user]);
+  
+  useEffect(() => {
+    console.log('🔍 =============== MUDANÇA DE SENDMESSAGE ===============');
+    console.log('🔍 sendMessage mudou para:', typeof sendMessage);
+  }, [sendMessage]);
 
   // Função para verificar se a sessão atual foi encerrada
   const checkIfCurrentSession = (terminatedToken: string): boolean => {
@@ -283,10 +310,31 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
   // Enviar informações de autenticação quando o usuário estiver logado
   useEffect(() => {
     console.log('🔄 =============== USEEFFECT AUTH TRIGGER ===============');
+    console.log('🔄 Timestamp:', new Date().toISOString());
     console.log('🔄 connected:', connected);
     console.log('🔄 user exists:', !!user);
+    console.log('🔄 user object:', user);
     console.log('🔄 user id:', user?.id);
     console.log('🔄 sendMessage function:', typeof sendMessage);
+    console.log('🔄 Dependencies - connected:', connected, 'user:', !!user, 'sendMessage:', !!sendMessage);
+    
+    // SEMPRE executar este log, mesmo se as condições não forem atendidas
+    if (!connected) {
+      console.log('❌ WebSocket NÃO CONECTADO - aguardando conexão...');
+      return;
+    }
+    
+    if (!user) {
+      console.log('❌ USUÁRIO NÃO ENCONTRADO - aguardando autenticação...');
+      return;
+    }
+    
+    if (!sendMessage) {
+      console.log('❌ SENDMESSAGE NÃO DISPONÍVEL - erro crítico!');
+      return;
+    }
+    
+    console.log('✅ TODAS AS CONDIÇÕES ATENDIDAS - prosseguindo com autenticação WebSocket');
     
     if (connected && user) {
       // Extrair sessionToken dos cookies - Priorizar cookies de sessão do Express
@@ -408,6 +456,12 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
           }
         });
       }
+    } else {
+      console.log('❌ Condições não atendidas para autenticação WebSocket:', {
+        connected,
+        userExists: !!user,
+        sendMessageExists: !!sendMessage
+      });
     }
   }, [connected, user, sendMessage]);
 

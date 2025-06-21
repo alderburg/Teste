@@ -306,12 +306,14 @@ export function useWebSocket() {
         console.log('🔗 Socket readyState:', socket.readyState);
         console.log('🔗 Timestamp:', new Date().toISOString());
         console.log('🔗 URL:', wsUrl);
+        console.log('🔗 Definindo connected = true...');
         setConnected(true);
         setReconnectAttempts(0); // Resetar contador de tentativas ao conectar com sucesso
         
         // Aguardar um momento para garantir que a conexão está completamente estabelecida
         setTimeout(() => {
           console.log('🔗 Conexão WebSocket estabilizada, pronto para receber mensagens de auth');
+          console.log('🔗 Estado atualizado - connected deve estar true agora');
         }, 100);
       });
 
