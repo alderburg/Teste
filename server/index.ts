@@ -737,7 +737,15 @@ if (process.env.EXTERNAL_API_URL) {
           // Processar mensagens do cliente
           ws.on('message', async (data) => {
             try {
-              const message = JSON.parse(data.toString());
+              const rawMessage = data.toString();
+              console.log(`📥 =============== MENSAGEM WEBSOCKET RECEBIDA ===============`);
+              console.log(`📥 Cliente ID: ${clientId}`);
+              console.log(`📥 Mensagem bruta: ${rawMessage}`);
+              console.log(`📥 Tamanho da mensagem: ${rawMessage.length} bytes`);
+              
+              const message = JSON.parse(rawMessage);
+              console.log(`📥 Mensagem parseada:`, JSON.stringify(message, null, 2));
+              
               const client = global.clientsInfo?.get(ws);
 
               if (message.type === 'auth' && message.userId && message.sessionToken) {

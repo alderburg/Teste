@@ -366,9 +366,20 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
           sessionToken: sessionToken
         };
 
+        console.log(`📤 =============== ENVIANDO AUTENTICAÇÃO ===============`);
         console.log(`📤 Mensagem de autenticação:`, JSON.stringify(authMessage, null, 2));
+        console.log(`📤 Tamanho da mensagem: ${JSON.stringify(authMessage).length} bytes`);
+        console.log(`📤 WebSocket conectado: ${connected}`);
+        console.log(`📤 Função sendMessage disponível: ${typeof sendMessage}`);
 
-        sendMessage(authMessage);
+        const enviouComSucesso = sendMessage(authMessage);
+        console.log(`📤 Resultado do envio: ${enviouComSucesso}`);
+        
+        if (!enviouComSucesso) {
+          console.error(`❌ FALHA AO ENVIAR MENSAGEM DE AUTENTICAÇÃO`);
+        } else {
+          console.log(`✅ Mensagem de autenticação enviada com sucesso`);
+        }
       } else {
         console.warn('⚠️ =============== SESSION TOKEN NÃO ENCONTRADO ===============');
         console.log('📝 Cookies disponíveis completos:', document.cookie);

@@ -415,11 +415,32 @@ export function useWebSocket() {
 
   // Função para enviar mensagens
   const sendMessage = useCallback((message: WebSocketMessage) => {
+    console.log(`🔗 =============== ENVIANDO MENSAGEM WEBSOCKET ===============`);
+    console.log(`🔗 WebSocket ref exists: ${!!socketRef.current}`);
+    console.log(`🔗 WebSocket readyState: ${socketRef.current?.readyState} (OPEN = 1)`);
+    console.log(`🔗 Mensagem a enviar:`, JSON.stringify(message, null, 2));
+
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify(message));
-      return true;
+      try {
+        const messageString = JSON.stringify(message);
+        console.log(`🔗 Enviando string JSON: ${messageString}`);
+        socketRef.current.send(messageString);
+        console.log(`✅ Mensagem enviada com sucesso via WebSocket`);
+        return true;
+      } catch (error) {
+        console.error('❌ Erro ao enviar mensagem:', error);
+        return false;
+      }
+    } else {
+      console.error(`❌ WebSocket não está pronto para envio:`, {
+        wsExists: !!socketRef.current,
+        readyState: socketRef.current?.readyState,
+        CONNECTING: WebSocket.CONNECTING,
+        OPEN: WebSocket.OPEN,
+        CLOSING: WebSocket.CLOSING,
+        CLOSED: WebSocket.CLOSED
+      });
     }
-    console.log('WebSocket não está pronto para enviar mensagem.');
     return false;
   }, []);
 
