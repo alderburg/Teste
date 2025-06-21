@@ -747,38 +747,40 @@ if (process.env.EXTERNAL_API_URL) {
                 console.log(`   - Session Token: ${message.sessionToken.substring(0, 8)}...`);
                 console.log(`   - IP: ${client?.ip || 'desconhecido'}`);
                 
-                // Verificar se a sessão é válida no banco
+                // Verificar se a sessão é válida na tabela user_sessions_additional
                 try {
-                  const sessionQuery = `
-                    SELECT s.sess, s.sid, s.expire
-                    FROM session s 
-                    WHERE s.sid = $1 AND s.expire > NOW()
+                  // Primeiro, tentar verificar na tabela user_sessions_additional usando o token
+                  const userSessionQuery = `
+                    SELECT id, user_id, token, expires_at, is_active
+                    FROM user_sessions_additional 
+                    WHERE token = $1 AND expires_at > NOW() AND is_active = true
                   `;
 
-                  console.log(`🔍 Verificando sessão no banco de dados...`);
+                  console.log(`🔍 Verificando sessão na tabela user_sessions_additional...`);
+                  console.log(`   - Token procurado: ${message.sessionToken.substring(0, 8)}...`);
                   
-                  // Usar connectionManager para executar a query
-                  const sessionResult = await connectionManager.executeQuery(sessionQuery, [message.sessionToken]);
+                  const userSessionResult = await connectionManager.executeQuery(userSessionQuery, [message.sessionToken]);
 
-                  console.log(`📊 Resultado da consulta: ${sessionResult.rows.length} sessão(ões) encontrada(s)`);
+                  console.log(`📊 Resultado da consulta user_sessions_additional: ${userSessionResult.rows.length} sessão(ões) encontrada(s)`);
 
-                  if (sessionResult.rows.length > 0) {
-                    const sessionRow = sessionResult.rows[0];
-                    const sessionData = sessionRow.sess;
-                    const expireTime = new Date(sessionRow.expire);
+                  if (userSessionResult.rows.length > 0) {
+                    const sessionRow = userSessionResult.rows[0];
+                    const expireTime = new Date(sessionRow.expires_at);
                     
-                    console.log(`🔍 Dados da sessão encontrada:`);
-                    console.log(`   - SID: ${sessionRow.sid.substring(0, 8)}...`);
+                    console.log(`🔍 Dados da sessão encontrada na user_sessions_additional:`);
+                    console.log(`   - ID: ${sessionRow.id}`);
+                    console.log(`   - Token: ${sessionRow.token.substring(0, 8)}...`);
                     console.log(`   - Expira em: ${expireTime.toISOString()}`);
-                    console.log(`   - Usuário na sessão: ${sessionData.passport?.user || 'nenhum'}`);
+                    console.log(`   - Usuário na sessão: ${sessionRow.user_id}`);
                     console.log(`   - Usuário esperado: ${message.userId}`);
+                    console.log(`   - Ativa: ${sessionRow.is_active}`);
 
-                    if (sessionData.passport?.user === message.userId) {
+                    if (sessionRow.user_id === message.userId) {
                       // Autenticação válida
                       client.authenticated = true;
                       client.userId = message.userId;
                       client.sessionToken = message.sessionToken;
-                      console.log(`✅ Cliente ${clientId} AUTENTICADO com sucesso como usuário ${message.userId}`);
+                      console.log(`✅ Cliente ${clientId} AUTENTICADO com sucesso como usuário ${message.userId} via user_sessions_additional`);
                       
                       // Enviar confirmação de autenticação
                       try {
@@ -794,34 +796,75 @@ if (process.env.EXTERNAL_API_URL) {
                     } else {
                       console.log(`❌ Cliente ${clientId}: FALHA NA AUTENTICAÇÃO - Usuário na sessão não confere`);
                       console.log(`   - Esperado: ${message.userId}`);
-                      console.log(`   - Encontrado: ${sessionData.passport?.user || 'nenhum'}`);
-                      
-                      // Enviar erro de autenticação
-                      try {
-                        ws.send(JSON.stringify({
-                          type: 'auth_error',
-                          message: 'Falha na autenticação - usuário não confere',
-                          timestamp: new Date().toISOString()
-                        }));
-                      } catch (sendError) {
-                        console.error('Erro ao enviar erro de autenticação:', sendError);
-                      }
+                      console.log(`   - Encontrado: ${sessionRow.user_id}`);
                     }
                   } else {
-                    console.log(`❌ Cliente ${clientId}: FALHA NA AUTENTICAÇÃO - Sessão não encontrada ou expirada`);
-                    console.log(`   - Session Token procurado: ${message.sessionToken.substring(0, 8)}...`);
+                    // Se não encontrou na user_sessions_additional, tentar na tabela session (fallback)
+                    console.log(`🔍 Não encontrou na user_sessions_additional, tentando na tabela session...`);
                     
-                    // Enviar erro de sessão
+                    const sessionQuery = `
+                      SELECT s.sess, s.sid, s.expire
+                      FROM session s 
+                      WHERE s.sid = $1 AND s.expire > NOW()
+                    `;
+                    
+                    const sessionResult = await connectionManager.executeQuery(sessionQuery, [message.sessionToken]);
+                    
+                    console.log(`📊 Resultado da consulta session: ${sessionResult.rows.length} sessão(ões) encontrada(s)`);
+
+                    if (sessionResult.rows.length > 0) {
+                      const sessionRow = sessionResult.rows[0];
+                      const sessionData = sessionRow.sess;
+                      const expireTime = new Date(sessionRow.expire);
+                      
+                      console.log(`🔍 Dados da sessão encontrada na session:`);
+                      console.log(`   - SID: ${sessionRow.sid.substring(0, 8)}...`);
+                      console.log(`   - Expira em: ${expireTime.toISOString()}`);
+                      console.log(`   - Usuário na sessão: ${sessionData.passport?.user || 'nenhum'}`);
+                      console.log(`   - Usuário esperado: ${message.userId}`);
+
+                      if (sessionData.passport?.user === message.userId) {
+                        // Autenticação válida
+                        client.authenticated = true;
+                        client.userId = message.userId;
+                        client.sessionToken = message.sessionToken;
+                        console.log(`✅ Cliente ${clientId} AUTENTICADO com sucesso como usuário ${message.userId} via session (fallback)`);
+                        
+                        // Enviar confirmação de autenticação
+                        try {
+                          ws.send(JSON.stringify({
+                            type: 'auth_success',
+                            message: 'Autenticação WebSocket realizada com sucesso',
+                            userId: message.userId,
+                            timestamp: new Date().toISOString()
+                          }));
+                        } catch (sendError) {
+                          console.error('Erro ao enviar confirmação de autenticação:', sendError);
+                        }
+                      } else {
+                        console.log(`❌ Cliente ${clientId}: FALHA NA AUTENTICAÇÃO - Usuário na sessão não confere (session)`);
+                        console.log(`   - Esperado: ${message.userId}`);
+                        console.log(`   - Encontrado: ${sessionData.passport?.user || 'nenhum'}`);
+                      }
+                    } else {
+                      console.log(`❌ Cliente ${clientId}: FALHA NA AUTENTICAÇÃO - Sessão não encontrada em nenhuma tabela`);
+                      console.log(`   - Session Token procurado: ${message.sessionToken.substring(0, 8)}...`);
+                    }
+                  }
+                  
+                  // Se chegou até aqui sem autenticar, enviar erro
+                  if (!client.authenticated) {
                     try {
                       ws.send(JSON.stringify({
                         type: 'auth_error',
-                        message: 'Sessão não encontrada ou expirada',
+                        message: 'Falha na autenticação - sessão inválida ou expirada',
                         timestamp: new Date().toISOString()
                       }));
                     } catch (sendError) {
-                      console.error('Erro ao enviar erro de sessão:', sendError);
+                      console.error('Erro ao enviar erro de autenticação:', sendError);
                     }
                   }
+                  
                 } catch (authError) {
                   console.error(`❌ ERRO CRÍTICO ao verificar autenticação para cliente ${clientId}:`, {
                     error: authError.message,

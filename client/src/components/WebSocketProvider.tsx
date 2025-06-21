@@ -261,7 +261,8 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
 
       if (sessionToken) {
         console.log(`🔐 Enviando autenticação WebSocket para usuário ${user.id}`);
-        console.log(`🔑 Session ID: ${sessionToken.substring(0, 8)}...`);
+        console.log(`🔑 Session Token: ${sessionToken.substring(0, 8)}...`);
+        console.log(`📝 Todos os cookies:`, document.cookie);
 
         sendMessage({
           type: 'auth',
@@ -270,6 +271,15 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
         });
       } else {
         console.warn('⚠️ Session token não encontrado nos cookies');
+        console.log('📝 Cookies disponíveis:', document.cookie);
+        
+        // Tentar buscar outros tokens possíveis
+        const allCookies = document.cookie.split(';');
+        console.log('🔍 Analisando todos os cookies:');
+        allCookies.forEach(cookie => {
+          const [name, value] = cookie.trim().split('=');
+          console.log(`   - ${name}: ${value ? value.substring(0, 20) + '...' : 'vazio'}`);
+        });
       }
     }
   }, [connected, user, sendMessage]);
