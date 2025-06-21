@@ -312,8 +312,12 @@ export function useWebSocket() {
         
         // Aguardar um momento para garantir que a conexão está completamente estabelecida
         setTimeout(() => {
+          console.log('🔗 =============== WEBSOCKET TOTALMENTE PRONTO ===============');
           console.log('🔗 Conexão WebSocket estabilizada, pronto para receber mensagens de auth');
           console.log('🔗 Estado atualizado - connected deve estar true agora');
+          console.log('🔗 ReadyState final:', socket.readyState);
+          console.log('🔗 ⚡ A PARTIR DE AGORA, MENSAGENS DE AUTH PODEM SER ENVIADAS');
+          console.log('🔗 =============== FIM WEBSOCKET READY ===============');
         }, 100);
       });
 
@@ -426,35 +430,85 @@ export function useWebSocket() {
   // Função para enviar mensagens
   const sendMessage = useCallback((message: WebSocketMessage) => {
     console.log(`🔗 =============== ENVIANDO MENSAGEM WEBSOCKET ===============`);
+    console.log(`🔗 Timestamp: ${new Date().toISOString()}`);
     console.log(`🔗 WebSocket ref exists: ${!!socketRef.current}`);
     console.log(`🔗 WebSocket readyState: ${socketRef.current?.readyState} (OPEN = 1)`);
-    console.log(`🔗 Mensagem a enviar:`, JSON.stringify(message, null, 2));
+    console.log(`🔗 Mensagem COMPLETA a enviar:`, JSON.stringify(message, null, 2));
+    console.log(`🔗 Tipo da mensagem: ${message.type}`);
+    
+    // SE FOR MENSAGEM DE AUTH, LOGS EXTREMOS
+    if (message.type === 'auth') {
+      console.log(`🔐 =============== MENSAGEM DE AUTENTICAÇÃO DETECTADA ===============`);
+      console.log(`🔐 userId: ${message.userId}`);
+      console.log(`🔐 sessionToken COMPLETO: "${message.sessionToken}"`);
+      console.log(`🔐 sessionToken length: ${message.sessionToken ? message.sessionToken.length : 'null'}`);
+      console.log(`🔐 sessionToken first 20 chars: "${message.sessionToken ? message.sessionToken.substring(0, 20) : 'null'}"`);
+      console.log(`🔐 Todos os campos da mensagem:`, Object.keys(message));
+      console.log(`🔐 WebSocket estado antes do envio: ${socketRef.current?.readyState}`);
+      console.log(`🔐 =============== TENTANDO ENVIAR AUTH AGORA ===============`);
+    }
 
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
       try {
         const messageString = JSON.stringify(message);
-        console.log(`🔗 Enviando string JSON: ${messageString}`);
+        console.log(`🔗 String JSON gerada: ${messageString}`);
         console.log(`🔗 Tamanho da string: ${messageString.length} bytes`);
-        console.log(`🔗 Socket ainda aberto: ${socketRef.current.readyState === WebSocket.OPEN}`);
+        console.log(`🔗 Socket ainda aberto antes do send: ${socketRef.current.readyState === WebSocket.OPEN}`);
         
+        console.log(`🔗 =============== EXECUTANDO socketRef.current.send() ===============`);
         socketRef.current.send(messageString);
+        console.log(`🔗 =============== send() EXECUTADO SEM ERROS ===============`);
         
+        // Verificações pós-envio
         console.log(`✅ Mensagem enviada com sucesso via WebSocket`);
         console.log(`✅ Verificação pós-envio - Socket readyState: ${socketRef.current.readyState}`);
+        console.log(`✅ Timestamp pós-envio: ${new Date().toISOString()}`);
+        
+        // SE FOR AUTH, LOGS ADICIONAIS
+        if (message.type === 'auth') {
+          console.log(`🔐 =============== AUTENTICAÇÃO ENVIADA COM SUCESSO ===============`);
+          console.log(`🔐 Se esta mensagem apareceu, a auth foi enviada pelo cliente`);
+          console.log(`🔐 Aguarde confirmação do servidor nos próximos segundos`);
+          console.log(`🔐 Se não chegou no servidor, há um problema de rede/proxy`);
+          console.log(`🔐 =============== FIM DEBUG AUTH ENVIO ===============`);
+        }
+        
         return true;
       } catch (error) {
-        console.error('❌ Erro ao enviar mensagem:', error);
+        console.error('❌ =============== ERRO AO ENVIAR MENSAGEM ===============');
+        console.error('❌ Erro details:', error);
+        console.error('❌ Error message:', error.message);
+        console.error('❌ Error stack:', error.stack);
+        console.error('❌ WebSocket state during error:', socketRef.current?.readyState);
+        
+        if (message.type === 'auth') {
+          console.error('🔐 ❌ ERRO CRÍTICO: FALHA AO ENVIAR AUTENTICAÇÃO');
+          console.error('🔐 ❌ Detalhes do erro:', {
+            errorMessage: error.message,
+            errorType: error.constructor.name,
+            messageLength: JSON.stringify(message).length,
+            socketState: socketRef.current?.readyState
+          });
+        }
+        
         return false;
       }
     } else {
-      console.error(`❌ WebSocket não está pronto para envio:`, {
-        wsExists: !!socketRef.current,
-        readyState: socketRef.current?.readyState,
+      console.error(`❌ =============== WEBSOCKET NÃO PRONTO PARA ENVIO ===============`);
+      console.error(`❌ WebSocket exists: ${!!socketRef.current}`);
+      console.error(`❌ ReadyState: ${socketRef.current?.readyState}`);
+      console.error(`❌ Estados possíveis:`, {
         CONNECTING: WebSocket.CONNECTING,
         OPEN: WebSocket.OPEN,
         CLOSING: WebSocket.CLOSING,
         CLOSED: WebSocket.CLOSED
       });
+      
+      if (message.type === 'auth') {
+        console.error('🔐 ❌ FALHA CRÍTICA: Tentativa de enviar AUTH com WebSocket não pronto');
+        console.error('🔐 ❌ Estado atual:', socketRef.current?.readyState);
+        console.error('🔐 ❌ Esperado: WebSocket.OPEN (1)');
+      }
     }
     return false;
   }, []);
