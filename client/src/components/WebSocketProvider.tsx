@@ -29,7 +29,7 @@ interface WebSocketProviderProps {
 }
 
 export default function WebSocketProvider({ children }: WebSocketProviderProps) {
-  console.log('🎭 =============== WEBSOCKET PROVIDER RENDER ===============');
+  console.log('🎭 🎭 🎭 =============== WEBSOCKET PROVIDER RENDER =============== 🎭 🎭 🎭');
   console.log('🎭 Timestamp:', new Date().toISOString());
   
   const { connected, sendMessage } = useWebSocket();
@@ -39,14 +39,15 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
   const [terminationMessage, setTerminationMessage] = useState<string>("");
   
   // LOGS EXTREMAMENTE DETALHADOS
-  console.log('🎭 =============== ESTADOS DETALHADOS ===============');
+  console.log('🎭 🎭 🎭 =============== ESTADOS DETALHADOS =============== 🎭 🎭 🎭');
   console.log('🎭 connected:', connected, '(tipo:', typeof connected, ')');
   console.log('🎭 user:', user, '(tipo:', typeof user, ')');
   console.log('🎭 user?.id:', user?.id, '(tipo:', typeof user?.id, ')');
   console.log('🎭 sendMessage:', sendMessage, '(tipo:', typeof sendMessage, ')');
+  console.log('🎭 sendMessage função completa:', sendMessage);
   console.log('🎭 sendMessage existe?', !!sendMessage);
   console.log('🎭 sessionTerminated:', sessionTerminated);
-  console.log('🎭 =============== FIM ESTADOS DETALHADOS ===============');
+  console.log('🎭 🎭 🎭 =============== FIM ESTADOS DETALHADOS =============== 🎭 🎭 🎭');
 
   // Ativar proteção IMEDIATAMENTE quando sessão estiver encerrada
   useSessionGuard(sessionTerminated);
@@ -311,7 +312,7 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
 
   // Enviar informações de autenticação quando o usuário estiver logado
   useEffect(() => {
-    console.log('🔄 =============== USEEFFECT AUTH TRIGGER ===============');
+    console.log('🔄 🔄 🔄 =============== USEEFFECT AUTH TRIGGER =============== 🔄 🔄 🔄');
     console.log('🔄 Timestamp:', new Date().toISOString());
     console.log('🔄 EXECUTANDO USEEFFECT DE AUTENTICAÇÃO!');
     console.log('🔄 Este useEffect DISPAROU - isso é uma boa notícia!');
@@ -320,18 +321,19 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
     console.log('🔄 user exists:', !!user, '| tipo:', typeof user, '| valor:', user);
     console.log('🔄 user?.id:', user?.id, '| tipo:', typeof user?.id);
     console.log('🔄 sendMessage function:', typeof sendMessage, '| existe:', !!sendMessage);
-    console.log('🔄 sendMessage valor:', sendMessage);
+    console.log('🔄 sendMessage valor completo:', sendMessage);
     console.log('🔄 =============== VERIFICAÇÕES DE CONDIÇÕES ===============');
     console.log('🔄 Condição 1 - connected:', connected ? '✅ TRUE' : '❌ FALSE');
     console.log('🔄 Condição 2 - user:', user ? '✅ TRUE' : '❌ FALSE');
-    console.log('🔄 Condição 3 - sendMessage:', sendMessage ? '✅ TRUE' : '❌ FALSE');
+    console.log('🔄 Condição 3 - sendMessage:', !!sendMessage ? '✅ TRUE' : '❌ FALSE');
     console.log('🔄 TODAS as condições:', (connected && user && sendMessage) ? '✅ VERDADEIRAS' : '❌ ALGUMA É FALSA');
+    console.log('🔄 🔄 🔄 =============== INÍCIO VERIFICAÇÕES CONDICIONAIS =============== 🔄 🔄 🔄');
     
     // VERIFICAÇÕES COM LOGS DETALHADOS
     console.log('🔄 =============== VERIFICANDO CONDIÇÕES UMA POR UMA ===============');
     
     if (!connected) {
-      console.log('❌ =============== FALHA: WEBSOCKET NÃO CONECTADO ===============');
+      console.log('❌ ❌ ❌ =============== FALHA: WEBSOCKET NÃO CONECTADO =============== ❌ ❌ ❌');
       console.log('❌ connected =', connected);
       console.log('❌ typeof connected =', typeof connected);
       console.log('❌ !!connected =', !!connected);
@@ -339,10 +341,10 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
       console.log('❌ =============== FIM FALHA WEBSOCKET ===============');
       return;
     }
-    console.log('✅ Condição 1 PASSOU: WebSocket conectado');
+    console.log('✅ ✅ ✅ Condição 1 PASSOU: WebSocket conectado ✅ ✅ ✅');
     
     if (!user) {
-      console.log('❌ =============== FALHA: USUÁRIO NÃO ENCONTRADO ===============');
+      console.log('❌ ❌ ❌ =============== FALHA: USUÁRIO NÃO ENCONTRADO =============== ❌ ❌ ❌');
       console.log('❌ user =', user);
       console.log('❌ typeof user =', typeof user);
       console.log('❌ !!user =', !!user);
@@ -350,10 +352,10 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
       console.log('❌ =============== FIM FALHA USUÁRIO ===============');
       return;
     }
-    console.log('✅ Condição 2 PASSOU: Usuário encontrado, ID:', user.id);
+    console.log('✅ ✅ ✅ Condição 2 PASSOU: Usuário encontrado, ID:', user.id, '✅ ✅ ✅');
     
     if (!sendMessage) {
-      console.log('❌ =============== FALHA: SENDMESSAGE NÃO DISPONÍVEL ===============');
+      console.log('❌ ❌ ❌ =============== FALHA: SENDMESSAGE NÃO DISPONÍVEL =============== ❌ ❌ ❌');
       console.log('❌ sendMessage =', sendMessage);
       console.log('❌ typeof sendMessage =', typeof sendMessage);
       console.log('❌ !!sendMessage =', !!sendMessage);
@@ -362,7 +364,7 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
       console.log('❌ =============== FIM FALHA SENDMESSAGE ===============');
       return;
     }
-    console.log('✅ Condição 3 PASSOU: SendMessage disponível');
+    console.log('✅ ✅ ✅ Condição 3 PASSOU: SendMessage disponível ✅ ✅ ✅');
     
     console.log('✅ =============== TODAS AS CONDIÇÕES FORAM ATENDIDAS ===============');
     console.log('✅ AGORA VAMOS PROSSEGUIR COM A AUTENTICAÇÃO WEBSOCKET');
