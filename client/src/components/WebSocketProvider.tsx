@@ -317,27 +317,34 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
     console.log('🔄 user id:', user?.id);
     console.log('🔄 sendMessage function:', typeof sendMessage);
     console.log('🔄 Dependencies - connected:', connected, 'user:', !!user, 'sendMessage:', !!sendMessage);
+    console.log('🔄 Stack trace do useEffect:', new Error().stack);
     
     // SEMPRE executar este log, mesmo se as condições não forem atendidas
     if (!connected) {
       console.log('❌ WebSocket NÃO CONECTADO - aguardando conexão...');
+      console.log('❌ Valor de connected:', connected, 'tipo:', typeof connected);
       return;
     }
     
     if (!user) {
       console.log('❌ USUÁRIO NÃO ENCONTRADO - aguardando autenticação...');
+      console.log('❌ Valor de user:', user, 'tipo:', typeof user);
       return;
     }
     
     if (!sendMessage) {
       console.log('❌ SENDMESSAGE NÃO DISPONÍVEL - erro crítico!');
+      console.log('❌ Valor de sendMessage:', sendMessage, 'tipo:', typeof sendMessage);
       return;
     }
     
     console.log('✅ TODAS AS CONDIÇÕES ATENDIDAS - prosseguindo com autenticação WebSocket');
     
-    if (connected && user) {
-      // Extrair sessionToken dos cookies - Priorizar cookies de sessão do Express
+    // Adicionar delay para garantir que tudo está pronto
+    const executarAutenticacao = () => {
+      console.log('🚀 =============== EXECUTANDO AUTENTICAÇÃO AGORA ===============');
+    
+    // Extrair sessionToken dos cookies - Priorizar cookies de sessão do Express
       const getSessionTokenFromCookie = () => {
         console.log('🔍 Procurando token de sessão para autenticação WebSocket...');
         
@@ -456,14 +463,64 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
           }
         });
       }
-    } else {
-      console.log('❌ Condições não atendidas para autenticação WebSocket:', {
-        connected,
-        userExists: !!user,
-        sendMessageExists: !!sendMessage
-      });
-    }
+    };
+
+    // Executar imediatamente
+    console.log('🎯 Chamando executarAutenticacao() imediatamente...');
+    executarAutenticacao();
+    
+    // Também executar com delay para garantir
+    setTimeout(() => {
+      console.log('🔄 Tentativa com delay de 1 segundo...');
+      if (connected && user && sendMessage) {
+        executarAutenticacao();
+      }
+    }, 1000);
+    
+    // Última tentativa com delay maior
+    setTimeout(() => {
+      console.log('🔄 Última tentativa com delay de 3 segundos...');
+      if (connected && user && sendMessage) {
+        executarAutenticacao();
+      }
+    }, 3000);
   }, [connected, user, sendMessage]);
+
+  // Efeito específico para detectar mudanças do usuário - FORÇAR autenticação
+  useEffect(() => {
+    console.log('👤 =============== USUÁRIO MUDOU - FORÇAR AUTH ===============');
+    console.log('👤 Novo usuário:', user);
+    console.log('👤 Connected:', connected);
+    console.log('👤 SendMessage:', !!sendMessage);
+    
+    if (user && connected && sendMessage) {
+      // Delay pequeno para garantir que tudo está estabilizado
+      setTimeout(() => {
+        console.log('👤 FORÇANDO autenticação devido à mudança do usuário...');
+        // Repetir a lógica de autenticação aqui também
+        const sessionToken = document.cookie
+          .split(';')
+          .find(cookie => {
+            const [name] = cookie.trim().split('=');
+            return name === 'mpc.sid' || name === 'connect.sid';
+          })
+          ?.split('=')[1];
+          
+        if (sessionToken) {
+          const decodedToken = decodeURIComponent(sessionToken);
+          const authMessage = {
+            type: 'auth',
+            userId: user.id,
+            sessionToken: decodedToken
+          };
+          
+          console.log('👤 Enviando AUTH forçado:', JSON.stringify(authMessage, null, 2));
+          const resultado = sendMessage(authMessage);
+          console.log('👤 Resultado do AUTH forçado:', resultado);
+        }
+      }, 500);
+    }
+  }, [user]); // Dependência apenas do user
 
   return (
     <WebSocketContext.Provider value={{ connected, sendMessage, lastUpdated }}>
