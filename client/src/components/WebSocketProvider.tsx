@@ -106,51 +106,61 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
     return null;
   };
 
-  // Autenticação WebSocket SIMPLIFICADA
+  // Autenticação WebSocket - configurar listener para todas as conexões
   useEffect(() => {
-    if (!connected || !user || authAttempted) {
+    if (!user) {
       return;
     }
 
-    console.log('🔐 Iniciando autenticação WebSocket SIMPLIFICADA...');
+    console.log('🔐 Configurando autenticação WebSocket para usuário:', user.id);
 
-    const sessionToken = getSessionToken();
+    const handleWebSocketConnection = () => {
+      const sessionToken = getSessionToken();
 
-    if (!sessionToken) {
-      console.log('❌ Token de sessão não encontrado - não é possível autenticar');
-      return;
-    }
+      if (!sessionToken) {
+        console.log('❌ Token de sessão não encontrado - não é possível autenticar');
+        return;
+      }
 
-    const authMessage = {
-      type: 'auth',
-      userId: user.id,
-      sessionToken: sessionToken
+      const authMessage = {
+        type: 'auth',
+        userId: user.id,
+        sessionToken: sessionToken
+      };
+
+      console.log(`🔐 Enviando autenticação:`, {
+        type: authMessage.type,
+        userId: authMessage.userId,
+        tokenPreview: authMessage.sessionToken.substring(0, 10) + '...'
+      });
+
+      try {
+        const success = sendMessage(authMessage);
+
+        if (success) {
+          console.log('✅ Mensagem de autenticação enviada com sucesso');
+        } else {
+          console.log('❌ Falha ao enviar autenticação');
+        }
+      } catch (error) {
+        console.error('❌ Erro ao enviar mensagem de autenticação:', error);
+      }
     };
 
-    console.log(`🔐 Enviando autenticação:`, {
-      type: authMessage.type,
-      userId: authMessage.userId,
-      tokenPreview: authMessage.sessionToken.substring(0, 10) + '...'
+    // Tentar autenticar imediatamente se já conectado
+    if (connected) {
+      handleWebSocketConnection();
+    }
+
+    // Configurar listener para futuras conexões
+    const unsubscribe = subscribeToMessages((message) => {
+      if (message.type === 'websocket_connected') {
+        handleWebSocketConnection();
+      }
     });
 
-    try {
-      const success = sendMessage(authMessage);
-      setAuthAttempted(true);
-
-      if (success) {
-        console.log('✅ Mensagem de autenticação enviada com sucesso');
-      } else {
-        console.log('❌ Falha ao enviar autenticação');
-        // Tentar novamente após 2 segundos
-        setTimeout(() => {
-          setAuthAttempted(false);
-        }, 2000);
-      }
-    } catch (error) {
-      console.error('❌ Erro ao enviar mensagem de autenticação:', error);
-      setAuthAttempted(false);
-    }
-  }, [connected, user, authAttempted]);
+    return unsubscribe;
+  }, [connected, user]);
 
   // Reset authAttempted quando desconectar
   useEffect(() => {

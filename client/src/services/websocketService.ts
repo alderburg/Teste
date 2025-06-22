@@ -246,31 +246,10 @@ function handleOpen(event: Event) {
     client_info: clientInfo
   });
   
-  // Autenticação automática se houver token de sessão
-  const sessionToken = localStorage.getItem('sessionToken') || 
-                       localStorage.getItem('token') || 
-                       document.cookie.split(';').find(c => c.trim().startsWith('sessionToken='))?.split('=')[1] || 
-                       '';
-  
-  if (sessionToken) {
-    // Tentar obter userId do localStorage ou fazer uma requisição para obtê-lo
-    const userDataStr = localStorage.getItem('user');
-    if (userDataStr) {
-      try {
-        const userData = JSON.parse(userDataStr);
-        if (userData.id) {
-          sendMessage({
-            type: 'auth',
-            userId: userData.id,
-            sessionToken: sessionToken
-          });
-          console.log(`🔐 Autenticação WebSocket enviada para usuário ${userData.id}`);
-        }
-      } catch (error) {
-        console.error('Erro ao parsear dados do usuário:', error);
-      }
-    }
-  }
+  // Tentar autenticação automática imediatamente
+  setTimeout(() => {
+    tryAutoAuthentication();
+  }, 100); // Pequeno delay para garantir que a conexão está estável
   
   // Iniciar heartbeat
   startHeartbeat();
@@ -464,6 +443,84 @@ function startHeartbeat() {
       });
     }
   }, heartbeatInterval_ms);
+}
+
+function tryAutoAuthentication() {
+  console.log('Iniciando tentativa de autenticação automática...');
+  
+  try {
+    // Obter token de sessão dos cookies
+    let sessionToken = null;
+    const cookies = document.cookie.split(';');
+    
+    for (let cookie of cookies) {
+      const [name, value] = cookie.trim().split('=');
+      if (name === 'connect.sid' || name === 'mpc.sid') {
+        sessionToken = decodeURIComponent(value);
+        console.log(`Token encontrado no cookie: ${name}`);
+        break;
+      }
+    }
+
+    // Se não encontrou nos cookies, tentar API
+    if (!sessionToken) {
+      try {
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', '/api/conta/session-token', false);
+        xhr.withCredentials = true;
+        xhr.send();
+
+        if (xhr.status === 200) {
+          const response = JSON.parse(xhr.responseText);
+          if (response.token) {
+            sessionToken = response.token;
+            console.log('Token obtido via API');
+          }
+        }
+      } catch (apiError) {
+        console.warn('Erro ao obter token via API:', apiError);
+      }
+    }
+
+    // Obter dados do usuário do localStorage
+    let userId = null;
+    try {
+      const userDataStr = localStorage.getItem('user');
+      if (userDataStr) {
+        const userData = JSON.parse(userDataStr);
+        if (userData && userData.id) {
+          userId = userData.id;
+        }
+      }
+    } catch (storageError) {
+      console.warn('Erro ao obter dados do usuário:', storageError);
+    }
+
+    // Enviar autenticação se temos os dados necessários
+    if (sessionToken && userId) {
+      const authMessage = {
+        type: 'auth',
+        userId: userId,
+        sessionToken: sessionToken
+      };
+
+      console.log(`Enviando autenticação automática para usuário ${userId}`);
+      const success = sendMessage(authMessage);
+      
+      if (success) {
+        console.log('Autenticação automática enviada com sucesso');
+      } else {
+        console.log('Falha ao enviar autenticação automática');
+      }
+    } else {
+      console.log('Autenticação automática não executada - dados insuficientes:', {
+        hasToken: !!sessionToken,
+        hasUserId: !!userId
+      });
+    }
+  } catch (error) {
+    console.error('Erro na autenticação automática:', error);
+  }
 }
 
 // Exportar funções principais
