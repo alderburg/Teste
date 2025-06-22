@@ -756,32 +756,51 @@ if (process.env.EXTERNAL_API_URL) {
           let parentUserId = null;
 
           try {
-            // Verificar se é usuário adicional conectando com sessão específica
-            const additionalUserCheck = await connectionManager.executeQuery(
-              `SELECT u.id, u.nome, u.user_id FROM usuarios_adicionais u 
-               WHERE u.id = $1`,
-              [userId]
+            // PRIMEIRO: Verificar se o token pertence a um usuário adicional
+            const sessionAdditionalCheck = await connectionManager.executeQuery(
+              `SELECT uas.user_id, ua.nome, ua.user_id as parent_id 
+               FROM user_sessions_additional uas
+               INNER JOIN usuarios_adicionais ua ON uas.user_id = ua.id
+               WHERE uas.token = $1 AND uas.user_type = 'additional' AND uas.is_active = true`,
+              [sessionToken]
             );
 
-            if (additionalUserCheck.rows.length > 0) {
-              // É um usuário adicional - manter o ID do usuário adicional como principal
-              realUserId = additionalUserCheck.rows[0].id;
+            if (sessionAdditionalCheck.rows.length > 0) {
+              // É um usuário adicional - usar o ID do usuário adicional
+              const additionalUserData = sessionAdditionalCheck.rows[0];
+              realUserId = additionalUserData.user_id; // ID do usuário adicional
               userType = 'Adicional';
-              displayName = additionalUserCheck.rows[0].nome;
-              parentUserId = additionalUserCheck.rows[0].user_id;
-              console.log(`👤 Usuário adicional detectado: ID ${realUserId} (${displayName}), pai: ${parentUserId}`);
+              displayName = additionalUserData.nome;
+              parentUserId = additionalUserData.parent_id;
+              console.log(`👤 Usuário adicional detectado via sessão: ID ${realUserId} (${displayName}), pai: ${parentUserId}`);
             } else {
-              // É um usuário principal - buscar o nome do usuário principal
-              const principalUserCheck = await connectionManager.executeQuery(
-                `SELECT username FROM users WHERE id = $1`,
+              // Verificar se é usuário adicional pelo userId diretamente
+              const additionalUserCheck = await connectionManager.executeQuery(
+                `SELECT u.id, u.nome, u.user_id FROM usuarios_adicionais u 
+                 WHERE u.id = $1`,
                 [userId]
               );
 
-              if (principalUserCheck.rows.length > 0) {
-                displayName = principalUserCheck.rows[0].username;
-              }
+              if (additionalUserCheck.rows.length > 0) {
+                // É um usuário adicional - usar o ID do usuário adicional
+                realUserId = additionalUserCheck.rows[0].id;
+                userType = 'Adicional';
+                displayName = additionalUserCheck.rows[0].nome;
+                parentUserId = additionalUserCheck.rows[0].user_id;
+                console.log(`👤 Usuário adicional detectado: ID ${realUserId} (${displayName}), pai: ${parentUserId}`);
+              } else {
+                // É um usuário principal - buscar o nome do usuário principal
+                const principalUserCheck = await connectionManager.executeQuery(
+                  `SELECT username FROM users WHERE id = $1`,
+                  [userId]
+                );
 
-              console.log(`👤 Usuário principal detectado: ID ${userId} (${displayName})`);
+                if (principalUserCheck.rows.length > 0) {
+                  displayName = principalUserCheck.rows[0].username;
+                }
+
+                console.log(`👤 Usuário principal detectado: ID ${userId} (${displayName})`);
+              }
             }
           } catch (error) {
             console.error('Erro ao verificar tipo de usuário:', error);
@@ -847,7 +866,7 @@ if (process.env.EXTERNAL_API_URL) {
           ws.send(JSON.stringify({
             type: 'auth_success',
             message: 'Autenticação bem-sucedida',
-            userId: realUserId, // Retornar o ID real
+            userId: realUserId, // Retornar o ID real (adicional se for adicional)
             userType: userType,
             displayName: displayName,
             parentUserId: parentUserId,
