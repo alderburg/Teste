@@ -8,55 +8,61 @@
   <title>Meu Preço Certo</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   
-  <!-- Script para corrigir WebSocket HMR do Vite em ambiente Replit -->
+  <!-- Script para interceptar e corrigir WebSocket URLs inválidas do Vite HMR -->
   <script>
-    // Interceptar criação de WebSocket para corrigir URLs inválidas do Vite HMR
     (function() {
-      console.log('Inicializando interceptador de WebSocket...');
+      console.log('🔧 Ativando interceptador WebSocket...');
       
+      // Detectar ambiente Replit
+      const isReplit = window.location.hostname.includes('replit.dev') || 
+                      window.location.hostname.includes('replit.co') ||
+                      window.location.hostname.includes('repl.co');
+      
+      // Interceptar todas as criações de WebSocket
       const OriginalWebSocket = window.WebSocket;
       
       window.WebSocket = function(url, protocols) {
-        console.log('Tentativa de conexão WebSocket com URL:', url);
+        console.log('WebSocket tentativa:', url);
         
-        // Se a URL contém 'undefined' (problema do Vite HMR), corrigir
-        if (typeof url === 'string' && (url.includes('undefined') || url.includes(':undefined'))) {
-          console.log('🔧 Detectada URL inválida do Vite HMR, corrigindo:', url);
+        // Detectar e corrigir URLs problemáticas
+        if (typeof url === 'string' && 
+            (url.includes('undefined') || 
+             url.includes(':undefined') || 
+             url.match(/localhost:(?:$|\/|\?)/))) {
           
-          // Detectar se estamos no Replit
-          const isReplit = window.location.hostname.includes('replit.dev') || 
-                          window.location.hostname.includes('replit.co') ||
-                          window.location.hostname.includes('repl.co');
+          console.log('🔧 URL problemática detectada, corrigindo:', url);
           
           if (isReplit) {
-            // Para Replit, usar a URL base da página atual
+            // Para Replit, usar sempre o host atual
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;
             
-            // Corrigir diferentes padrões de URL inválida
-            let correctedUrl = url;
-            correctedUrl = correctedUrl.replace(/wss?:\/\/localhost:undefined/, `${protocol}//${window.location.host}`);
-            correctedUrl = correctedUrl.replace(/localhost:undefined/, window.location.host);
+            // Substituir padrões problemáticos
+            let fixedUrl = url;
+            fixedUrl = fixedUrl.replace(/wss?:\/\/localhost:undefined/, `${protocol}//${host}`);
+            fixedUrl = fixedUrl.replace(/localhost:undefined/, host);
+            fixedUrl = fixedUrl.replace(/wss?:\/\/localhost(?::\d+)?/, `${protocol}//${host}`);
+            fixedUrl = fixedUrl.replace(/localhost(?::\d+)?/, host);
             
-            console.log('✅ URL corrigida para Replit:', correctedUrl);
-            url = correctedUrl;
+            console.log('✅ URL corrigida para Replit:', fixedUrl);
+            url = fixedUrl;
           } else {
-            // Para desenvolvimento local, usar porta 3000
+            // Para desenvolvimento local
             url = url.replace(/localhost:undefined/, 'localhost:3000');
             url = url.replace(/:undefined/, ':3000');
-            console.log('✅ URL corrigida para desenvolvimento local:', url);
+            console.log('✅ URL corrigida para local:', url);
           }
         }
         
         try {
-          console.log('Criando WebSocket com URL final:', url);
           return new OriginalWebSocket(url, protocols);
         } catch (error) {
-          console.error('Erro ao criar WebSocket mesmo após correção:', error);
+          console.error('Erro WebSocket após correção:', error, 'URL:', url);
           throw error;
         }
       };
       
-      // Preservar propriedades do WebSocket original
+      // Preservar propriedades originais
       Object.setPrototypeOf(window.WebSocket, OriginalWebSocket);
       window.WebSocket.prototype = OriginalWebSocket.prototype;
       for (let key in OriginalWebSocket) {
@@ -65,7 +71,7 @@
         }
       }
       
-      console.log('✅ Interceptador de WebSocket ativado');
+      console.log('✅ Interceptador WebSocket ativo');
     })();
   </script>
   

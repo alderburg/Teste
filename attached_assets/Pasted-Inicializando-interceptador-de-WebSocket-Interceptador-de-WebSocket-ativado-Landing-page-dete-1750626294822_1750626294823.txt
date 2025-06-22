@@ -1,0 +1,35 @@
+Inicializando interceptador de WebSocket...
+✅ Interceptador de WebSocket ativado
+Landing page detectada - sempre mostrando o splash
+Verificando página e flags: 
+Object {isLandingPage: true, pathname: "/", urlLogout: false, urlFromDirectLogout: false, sessionIsLogoutRedirect: false, …}
+Detectada landing page - iniciando efeito de digitação no texto
+Não exibindo mensagens rotativas na landing page
+Configurando verificação de conteúdo a cada 50ms e timeout de 5000ms
+Status de logout: Não, Landing page: Sim
+Detectada landing page - exibindo splash por tempo fixo de 5s
+Landing page - não usando timeout de segurança
+Digitação completa, cursor removido
+[vite] connecting...
+Tentativa de conexão WebSocket com URL: wss://19e94f5d-1339-4d6b-bf18-4fc9be5c433f-00-76xv8lvg8dwz.riker.replit.dev:3000/?token=QWXVsk2-wz54
+Criando WebSocket com URL final: wss://19e94f5d-1339-4d6b-bf18-4fc9be5c433f-00-76xv8lvg8dwz.riker.replit.dev:3000/?token=QWXVsk2-wz54
+Timeout da landing page atingido, removendo splash
+Conteúdo principal da landing page ainda não detectado, aguardando...
+Tentativa de conexão WebSocket com URL: wss://localhost:undefined/?token=QWXVsk2-wz54
+🔧 Detectada URL inválida do Vite HMR, corrigindo: wss://localhost:undefined/?token=QWXVsk2-wz54
+✅ URL corrigida para Replit: wss://19e94f5d-1339-4d6b-bf18-4fc9be5c433f-00-76xv8lvg8dwz.riker.replit.dev:3000/?token=QWXVsk2-wz54
+Criando WebSocket com URL final: wss://19e94f5d-1339-4d6b-bf18-4fc9be5c433f-00-76xv8lvg8dwz.riker.replit.dev:3000/?token=QWXVsk2-wz54
+Conteúdo principal da landing page ainda não detectado, aguardando...
+[vite] failed to connect to websocket.
+your current setup:
+  (browser) 19e94f5d-1339-4d6b-bf18-4fc9be5c433f-00-76xv8lvg8dwz.riker.replit.dev:3000/ <--[HTTP]--> localhost:undefined/ (server)
+  (browser) 19e94f5d-1339-4d6b-bf18-4fc9be5c433f-00-76xv8lvg8dwz.riker.replit.dev:3000/ <--[WebSocket (failing)]--> localhost:undefined/ (server)
+Check out your Vite / network configuration and https://vite.dev/config/server-options.html#server-hmr .
+your current setup:
+(browser) 19e94f5d-1339-4d6b-bf18-4fc9be5c433f-00-76xv8lvg8dwz.riker.replit.dev:3000/ &lt;--[HTTP]--&gt; localhost:undefined/ (server)
+(browser) 19e94f5d-1339-4d6b-bf18-4fc9be5c433f-00-76xv8lvg8dwz.riker.replit.dev:3000/ &lt;--[WebSocket (failing)]--&gt; localhost:undefined/ (server)
+Check out your Vite / network configuration and https://vite.dev/config/server-options.html#server-hmr .
+at t.value (https://19e94f5d-1339-4d6b-bf18-4fc9be5c433f-00-76xv8lvg8dwz.riker.replit.dev:3000/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://19e94f5d-1339-4d6b-bf18-4fc9be5c433f-00-76xv8lvg8dwz.riker.replit.dev:3000/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://19e94f5d-1339-4d6b-bf18-4fc9be5c433f-00-76xv8lvg8dwz.riker.replit.dev:3000/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://19e94f5d-1339-4d6b-bf18-4fc9be5c433f-00-76xv8lvg8dwz.riker.replit.dev:3000/__replco/static/devtools/eruda/3.2.3/eruda.js:2:3440
