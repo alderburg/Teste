@@ -182,6 +182,15 @@ Preferred communication style: Simple, everyday language.
 - Differentiates between 'session_terminated' (with popup) and 'data_update' (silent sync)
 - Ensures optimal performance by targeting only relevant users for data updates
 
+## WebSocket DOMException Fix Complete (June 22, 2025)
+- Successfully resolved WebSocket DOMException errors caused by invalid URL construction in Replit environment
+- Fixed issue where `window.location.port` returned `undefined` causing URLs like `wss://localhost:undefined/ws`
+- Implemented robust URL construction that detects Replit environment and uses appropriate URL format
+- Added WebSocket interceptor in index.html to fix Vite HMR WebSocket URLs before connection attempts
+- Enhanced error handling with automatic fallback URLs for both Replit and local development environments
+- All WebSocket functionality now working properly: custom app WebSocket and Vite HMR WebSocket
+- System automatically adapts URL construction based on environment (Replit vs local development)
+
 ## WebSocket Server Cleanup Complete (June 22, 2025)
 - Successfully resolved duplicate WebSocket server conflicts causing port binding errors
 - Removed all fragmented and duplicate WebSocket implementations from server/index.ts

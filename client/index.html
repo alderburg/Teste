@@ -8,6 +8,49 @@
   <title>Meu Preço Certo</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   
+  <!-- Script para corrigir WebSocket HMR do Vite em ambiente Replit -->
+  <script>
+    // Interceptar criação de WebSocket para corrigir URLs inválidas do Vite HMR
+    (function() {
+      const OriginalWebSocket = window.WebSocket;
+      
+      window.WebSocket = function(url, protocols) {
+        // Se a URL contém 'undefined' (problema do Vite HMR), corrigir
+        if (typeof url === 'string' && url.includes('undefined')) {
+          console.log('Corrigindo URL inválida do Vite HMR:', url);
+          
+          // Detectar se estamos no Replit
+          const isReplit = window.location.hostname.includes('replit.dev') || 
+                          window.location.hostname.includes('replit.co') ||
+                          window.location.hostname.includes('repl.co');
+          
+          if (isReplit) {
+            // Para Replit, usar a URL base da página atual
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const correctedUrl = url.replace(/wss?:\/\/localhost:undefined/, `${protocol}//${window.location.host}`);
+            console.log('URL corrigida para Replit:', correctedUrl);
+            url = correctedUrl;
+          } else {
+            // Para desenvolvimento local, usar porta 3000
+            url = url.replace(/localhost:undefined/, 'localhost:3000');
+            console.log('URL corrigida para desenvolvimento local:', url);
+          }
+        }
+        
+        return new OriginalWebSocket(url, protocols);
+      };
+      
+      // Preservar propriedades do WebSocket original
+      Object.setPrototypeOf(window.WebSocket, OriginalWebSocket);
+      window.WebSocket.prototype = OriginalWebSocket.prototype;
+      for (let key in OriginalWebSocket) {
+        if (OriginalWebSocket.hasOwnProperty(key)) {
+          window.WebSocket[key] = OriginalWebSocket[key];
+        }
+      }
+    })();
+  </script>
+  
   <!-- Script para evitar piscadas na tela de cadastro mobile - carregado condicionalmente -->
   <script>
     // Carregar o script apenas na página de cadastro mobile

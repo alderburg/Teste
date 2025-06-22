@@ -511,7 +511,7 @@ function tryAlternativeConnection() {
                      window.location.hostname.includes('replit.co') ||
                      window.location.hostname.includes('repl.co');
     
-    const alternatives = [];
+    const alternatives: string[] = [];
     
     if (isReplit) {
       // Para Replit, usar apenas a URL base da página atual
