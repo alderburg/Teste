@@ -680,11 +680,31 @@ if (process.env.EXTERNAL_API_URL) {
         
         if (isValid) {
           clientInfo.authenticated = true;
-          clientInfo.userId = userId;
+          clientInfo.userId = userId; // Este será sempre o ID real do usuário solicitante
           clientInfo.sessionToken = sessionToken;
           clientInfo.authTimestamp = new Date();
           
-          console.log(`✅ Cliente ${clientInfo.id} autenticado como usuário ${userId}`);
+          // Buscar informações do usuário para exibir corretamente
+          const { connectionManager } = await import('./connection-manager');
+          let displayUserId = userId;
+          let userType = 'Principal';
+          
+          try {
+            // Verificar se é usuário adicional
+            const additionalUserCheck = await connectionManager.executeQuery(
+              `SELECT u.nome FROM usuarios_adicionais u WHERE u.id = $1`,
+              [userId]
+            );
+            
+            if (additionalUserCheck.rows.length > 0) {
+              displayUserId = userId; // Mostrar o ID do usuário adicional
+              userType = `Adicional (${additionalUserCheck.rows[0].nome})`;
+            }
+          } catch (error) {
+            console.error('Erro ao verificar tipo de usuário:', error);
+          }
+          
+          console.log(`✅ Cliente ${clientInfo.id} autenticado como usuário ${displayUserId} - Tipo: ${userType}`);
           
           ws.send(JSON.stringify({
             type: 'auth_success',
@@ -871,24 +891,65 @@ if (process.env.EXTERNAL_API_URL) {
         });
 
         // Sistema de Heartbeat - verificar clientes a cada 30 segundos
-        const heartbeatInterval = setInterval(() => {
+        const heartbeatInterval = setInterval(async () => {
           console.log('\n🔄 === HEARTBEAT WEBSOCKET ===');
+          
+          // Limpar clientes desconectados primeiro
+          const clientesToRemove = [];
+          global.wsClients.forEach(ws => {
+            if (ws.readyState !== 1) { // WebSocket.OPEN = 1
+              clientesToRemove.push(ws);
+            }
+          });
+          
+          clientesToRemove.forEach(ws => {
+            const clientInfo = global.clientsInfo?.get(ws);
+            console.log(`🧹 Removendo cliente desconectado: ${clientInfo?.id}`);
+            global.wsClients.delete(ws);
+            global.clientsInfo?.delete(ws);
+          });
+          
           console.log(`📊 Total de clientes conectados: ${global.wsClients.size}`);
 
           const now = new Date();
           const activeClients = [];
           const staleClients = [];
+          const { connectionManager } = await import('./connection-manager');
 
-          global.wsClients.forEach(ws => {
+          for (const ws of global.wsClients) {
             const client = global.clientsInfo?.get(ws);
             if (client) {
               const timeSinceLastPing = now - client.lastPing;
               const connectionDuration = now - client.connectionTime;
+              
+              let displayUserId = client.userId || 'Não autenticado';
+              let userType = '';
+              
+              // Se autenticado, buscar informações do usuário
+              if (client.authenticated && client.userId) {
+                try {
+                  const additionalUserCheck = await connectionManager.executeQuery(
+                    `SELECT u.nome FROM usuarios_adicionais u WHERE u.id = $1`,
+                    [client.userId]
+                  );
+                  
+                  if (additionalUserCheck.rows.length > 0) {
+                    displayUserId = `${client.userId} (${additionalUserCheck.rows[0].nome})`;
+                    userType = 'adicional';
+                  } else {
+                    displayUserId = `${client.userId} (Principal)`;
+                    userType = 'principal';
+                  }
+                } catch (error) {
+                  displayUserId = client.userId;
+                }
+              }
 
               const clientStatus = {
                 id: client.id,
                 authenticated: client.authenticated,
-                userId: client.userId || 'Não autenticado',
+                userId: displayUserId,
+                userType: userType,
                 ip: client.ip,
                 connectionDuration: Math.floor(connectionDuration / 1000) + 's',
                 lastPing: Math.floor(timeSinceLastPing / 1000) + 's atrás',
@@ -901,7 +962,7 @@ if (process.env.EXTERNAL_API_URL) {
                 staleClients.push(clientStatus);
               }
             }
-          });
+          }
 
           // Mostrar clientes ativos
           if (activeClients.length > 0) {
