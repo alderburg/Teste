@@ -39,6 +39,7 @@ interface SessionUpdateMessage extends WebSocketMessage {
 
 // Configurações do WebSocket
 let socket: WebSocket | null = null;
+let isInitializing = false; // Flag para prevenir inicializações simultâneas
 let reconnectAttempts = 0;
 let maxReconnectAttempts = 5;
 let reconnectTimeout: NodeJS.Timeout | null = null;
@@ -49,13 +50,22 @@ const heartbeatInterval_ms = 30000; // 30 segundos
 // Lista de assinantes para mensagens recebidas
 const subscribers: ((message: WebSocketMessage) => void)[] = [];
 
+// Singleton instance tracker
+let instanceId: string | null = null;
+
 /**
  * Inicializa a conexão WebSocket
  */
 export function initWebSocket() {
   if (typeof window === 'undefined') return; // Não executar no servidor
   
-  // Prevenir múltiplas inicializações
+  // Prevenir múltiplas inicializações simultâneas
+  if (isInitializing) {
+    console.log('WebSocket já está sendo inicializado, aguardando...');
+    return;
+  }
+  
+  // Verificar se já existe uma conexão ativa
   if (socket && socket.readyState === WebSocket.CONNECTING) {
     console.log('WebSocket já está conectando, aguardando...');
     return;
@@ -66,10 +76,16 @@ export function initWebSocket() {
     return;
   }
   
+  // Marcar como inicializando
+  isInitializing = true;
+  
   // Fechar conexão existente se houver
   if (socket) {
     closeWebSocket();
   }
+  
+  // Gerar ID único para esta instância
+  instanceId = Math.random().toString(36).substring(2, 15);
   
   try {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -105,6 +121,12 @@ export function initWebSocket() {
     // Iniciar heartbeat quando a conexão for aberta
   } catch (error) {
     console.error("Erro ao inicializar WebSocket:", error);
+    isInitializing = false; // Resetar flag em caso de erro
+  } finally {
+    // Resetar flag após tentativa de conexão
+    setTimeout(() => {
+      isInitializing = false;
+    }, 1000);
   }
 }
 
