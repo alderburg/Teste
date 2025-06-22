@@ -182,6 +182,15 @@ Preferred communication style: Simple, everyday language.
 - Differentiates between 'session_terminated' (with popup) and 'data_update' (silent sync)
 - Ensures optimal performance by targeting only relevant users for data updates
 
+## WebSocket Server Cleanup Complete (June 22, 2025)
+- Successfully resolved duplicate WebSocket server conflicts causing port binding errors
+- Removed all fragmented and duplicate WebSocket implementations from server/index.ts
+- Maintained single, stable WebSocket server on `/ws` endpoint with full functionality
+- WebSocket authentication system working correctly with both main and additional users
+- Heartbeat monitoring system operational (30-second intervals)
+- Real-time notifications functioning properly for related users
+- Server architecture now clean with no port conflicts or duplicate services
+
 ## WebSocket Migration Complete (June 19, 2025)
 - Successfully migrated entire "Minha Conta" page from TanStack Query to WebSocket-only architecture
 - Created comprehensive `useWebSocketData` hook for unified data management across all account components
