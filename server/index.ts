@@ -553,10 +553,153 @@ if (process.env.EXTERNAL_API_URL) {
 
   const server = await registerRoutes(app);
 
-  // Usar sistema WebSocket existente - apenas configurar funções globais
+  // Configurar WebSocket Server no servidor principal
+  const wss = new WebSocketServer({ 
+    server: server, 
+    path: '/ws',
+    verifyClient: (info) => {
+      console.log('🔍 WebSocket connection attempt from:', info.origin);
+      return true; // Aceitar todas as conexões por enquanto
+    }
+  });
+
+  // Inicializar sistema de clientes WebSocket
   if (!global.wsClients) {
     global.wsClients = new Set();
   }
+  if (!global.clientsInfo) {
+    global.clientsInfo = new Map();
+  }
+
+  // Configurar eventos do WebSocket Server
+  wss.on('connection', (ws, request) => {
+    console.log('🔗 Nova conexão WebSocket estabelecida');
+    console.log('🔗 URL:', request.url);
+    console.log('🔗 IP:', request.socket.remoteAddress);
+    
+    // Adicionar cliente ao conjunto global
+    global.wsClients.add(ws);
+    
+    // Criar informações do cliente
+    const clientId = Math.random().toString(36).substring(2, 15);
+    const clientInfo = {
+      id: clientId,
+      connectionTime: new Date(),
+      lastPing: new Date(),
+      isAlive: true,
+      authenticated: false,
+      userId: null,
+      sessionToken: null,
+      ip: request.socket.remoteAddress || 'unknown'
+    };
+    
+    global.clientsInfo.set(ws, clientInfo);
+    
+    console.log(`📊 Cliente ${clientId} conectado. Total de clientes: ${global.wsClients.size}`);
+
+    // Configurar ping/pong para manter conexão viva
+    ws.isAlive = true;
+    ws.on('pong', () => {
+      ws.isAlive = true;
+      clientInfo.lastPing = new Date();
+      clientInfo.isAlive = true;
+    });
+
+    // Processar mensagens recebidas
+    ws.on('message', async (data) => {
+      try {
+        const message = JSON.parse(data.toString());
+        console.log('📨 Mensagem WebSocket recebida:', message.type);
+        
+        // Processar mensagem de autenticação
+        if (message.type === 'auth') {
+          await handleWebSocketAuth(ws, message, clientInfo);
+        }
+        
+        // Responder a pings do cliente
+        if (message.type === 'ping') {
+          ws.send(JSON.stringify({ 
+            type: 'pong', 
+            timestamp: new Date().toISOString() 
+          }));
+        }
+        
+        // Responder a pongs do cliente
+        if (message.type === 'pong') {
+          clientInfo.lastPing = new Date();
+          clientInfo.isAlive = true;
+        }
+        
+      } catch (error) {
+        console.error('❌ Erro ao processar mensagem WebSocket:', error);
+      }
+    });
+
+    // Limpar quando cliente desconectar
+    ws.on('close', (code, reason) => {
+      console.log(`🔌 Cliente ${clientId} desconectado. Código: ${code}, Razão: ${reason}`);
+      global.wsClients.delete(ws);
+      global.clientsInfo.delete(ws);
+      console.log(`📊 Total de clientes restantes: ${global.wsClients.size}`);
+    });
+
+    // Tratar erros de conexão
+    ws.on('error', (error) => {
+      console.error(`❌ Erro WebSocket cliente ${clientId}:`, error);
+      global.wsClients.delete(ws);
+      global.clientsInfo.delete(ws);
+    });
+
+    // Enviar mensagem de boas-vindas
+    ws.send(JSON.stringify({
+      type: 'welcome',
+      message: 'Conectado ao servidor WebSocket',
+      clientId: clientId,
+      timestamp: new Date().toISOString()
+    }));
+  });
+
+  // Função para autenticação WebSocket
+  async function handleWebSocketAuth(ws: any, message: any, clientInfo: any) {
+    try {
+      const { sessionToken, userId } = message;
+      
+      if (sessionToken && userId) {
+        // Verificar se a sessão é válida
+        const isValid = await verifySessionToken(sessionToken, userId);
+        
+        if (isValid) {
+          clientInfo.authenticated = true;
+          clientInfo.userId = userId;
+          clientInfo.sessionToken = sessionToken;
+          
+          console.log(`✅ Cliente ${clientInfo.id} autenticado como usuário ${userId}`);
+          
+          ws.send(JSON.stringify({
+            type: 'auth_success',
+            message: 'Autenticação bem-sucedida',
+            userId: userId
+          }));
+        } else {
+          console.log(`❌ Falha na autenticação do cliente ${clientInfo.id}`);
+          
+          ws.send(JSON.stringify({
+            type: 'auth_failed',
+            message: 'Sessão inválida'
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('❌ Erro na autenticação WebSocket:', error);
+      
+      ws.send(JSON.stringify({
+        type: 'auth_error',
+        message: 'Erro interno de autenticação'
+      }));
+    }
+  }
+
+  console.log('🔗 WebSocket server configurado no caminho /ws');
 
   // Função global para notificar sobre sessão encerrada via sistema WebSocket existente
   (global as any).notifySessionTerminated = (userId: number, sessionToken: string) => {
