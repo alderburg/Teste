@@ -6,7 +6,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
   <meta name="description" content="Portal de Login Meu Preço Certo" />
   <title>Meu Preço Certo</title>
-  <meta name="site-url" content="<%= process.env.SITE_URL %>" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   
   <!-- Script para interceptar e corrigir WebSocket URLs inválidas do Vite HMR -->
@@ -14,9 +13,8 @@
     (function() {
       console.log('🔧 Ativando interceptador WebSocket...');
       
-      // Obter SITE_URL da meta tag ou detectar ambiente
-      const siteUrlMeta = document.querySelector('meta[name="site-url"]');
-      const siteUrl = siteUrlMeta ? siteUrlMeta.getAttribute('content') : null;
+      // Usar SITE_URL diretamente do .env (valor conhecido)
+      const siteUrl = 'https://19e94f5d-1339-4d6b-bf18-4fc9be5c433f-00-76xv8lvg8dwz.riker.replit.dev';
       
       // Detectar ambiente Replit
       const isReplit = window.location.hostname.includes('replit.dev') || 
