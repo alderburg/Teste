@@ -1314,26 +1314,27 @@ async function verifySessionToken(token: string, userId: number): Promise<boolea
     }
   }
 
-  // QUARTO: Verificar na tabela session (Passport.js) para todos os usuários relacionados
-  for (const relatedUserId of usuariosRelacionados) {
-    try {
-      const sessionQuery = `
-        SELECT s.sess
-        FROM session s 
-        WHERE s.sid = $1 AND s.sess::text LIKE $2
-      `;
+  // QUARTO: Como fallback, verificar na tabela sessions (Express Session) apenas se não encontrou na user_sessions_additional
+  try {
+    const sessionQuery = `
+      SELECT s.sess
+      FROM sessions s 
+      WHERE s.sid = $1 AND s.sess::text LIKE $2
+    `;
 
-      const userPattern = `%"user":${relatedUserId}%`;
+    // Verificar para o usuário principal
+    const mainUserId = usuariosPrincipais[0];
+    const userPattern = `%"user":${mainUserId}%`;
 
-      const sessionResult = await connectionManager.executeQuery(sessionQuery, [token, userPattern]);
-      if (sessionResult.rows.length > 0) {
-        console.log(`✅ Sessão encontrada na tabela session (Passport.js) para usuário ${relatedUserId}`);
-        console.log(`   - Solicitante: ${userId} ${isAdditionalUser ? '(usuário adicional)' : '(usuário principal)'}`);
-        return true;
-      }
-    } catch (sessionError) {
-      console.error(`Erro ao verificar session para usuário ${relatedUserId}:`, sessionError);
+    const sessionResult = await connectionManager.executeQuery(sessionQuery, [token, userPattern]);
+    if (sessionResult.rows.length > 0) {
+      console.log(`✅ Sessão encontrada na tabela sessions (Express Session) para usuário principal ${mainUserId}`);
+      console.log(`   - Solicitante: ${userId} ${isAdditionalUser ? '(usuário adicional)' : '(usuário principal)'}`);
+      return true;
     }
+  } catch (sessionError) {
+    console.log(`⚠️ Tabela sessions não existe ou erro ao verificar: ${sessionError.message}`);
+    // Não é um erro crítico, apenas significa que só temos user_sessions_additional
   }
 
   console.log(`❌ Token ${token.substring(0, 8)}... não encontrado em nenhuma tabela para usuário ${userId} nem seus relacionados ${usuariosRelacionados.join(', ')}`);
