@@ -609,25 +609,18 @@ if (process.env.EXTERNAL_API_URL) {
     ws.on('message', async (data) => {
       try {
         const message = JSON.parse(data.toString());
-        console.log('📨 Mensagem WebSocket recebida:', message.type, `(Cliente: ${clientInfo.id})`);
 
         // Processar mensagem de autenticação
         if (message.type === 'auth') {
-          console.log('🔐 Processando autenticação para cliente:', clientInfo.id);
           await handleWebSocketAuth(ws, message, clientInfo);
         }
 
-        // Processar informações do cliente
-        if (message.type === 'client_info') {
-          console.log('ℹ️ Informações do cliente recebidas:', clientInfo.id);
-          // Não fazer nada especial, apenas registrar
-        }
-
-        // Responder a pings do cliente
-        if (message.type === 'ping') {
+        // Responder a pings do servidor com pongs
+        if (message.type === 'server_ping') {
           ws.send(JSON.stringify({ 
             type: 'pong', 
-            timestamp: new Date().toISOString() 
+            timestamp: message.timestamp,
+            client_info: { url: window.location.pathname }
           }));
         }
 
@@ -638,8 +631,7 @@ if (process.env.EXTERNAL_API_URL) {
         }
 
       } catch (error) {
-        console.error('❌ Erro ao processar mensagem WebSocket:', error);
-        console.error('❌ Dados recebidos:', data.toString());
+        // Silenciar erros de WebSocket
       }
     });
 
@@ -934,7 +926,7 @@ if (process.env.EXTERNAL_API_URL) {
               ws.send(JSON.stringify(message));
               notificationsSent++;
               console.log(`📤 Notificação enviada para cliente específico: ${client.id} (usuário ${client.userId})`);
-              
+
               // SEGUNDO: Marcar para desconexão forçada
               clientsToDisconnect.push({ ws, client });
             } catch (error) {
@@ -950,11 +942,11 @@ if (process.env.EXTERNAL_API_URL) {
           clientsToDisconnect.forEach(({ ws, client }) => {
             try {
               console.log(`🔌 Forçando desconexão do cliente ${client.id} (sessão encerrada)`);
-              
+
               // Marcar cliente como desconectado
               client.authenticated = false;
               client.sessionToken = null;
-              
+
               // Enviar mensagem de desconexão forçada
               if (ws.readyState === 1) {
                 ws.send(JSON.stringify({
@@ -966,18 +958,18 @@ if (process.env.EXTERNAL_API_URL) {
 
               // Fechar conexão WebSocket
               ws.close(1000, 'Sessão encerrada');
-              
+
               // Remover da lista de clientes
               global.wsClients.delete(ws);
               global.clientsInfo?.delete(ws);
-              
+
               disconnectionsMade++;
               console.log(`✅ Cliente ${client.id} desconectado com sucesso`);
             } catch (disconnectError) {
               console.error(`❌ Erro ao desconectar cliente ${client.id}:`, disconnectError);
             }
           });
-          
+
           console.log(`🔌 Total de ${disconnectionsMade} cliente(s) desconectado(s) por sessão encerrada`);
         }, 500); // Aguardar 500ms para garantir que a notificação seja enviada
       }

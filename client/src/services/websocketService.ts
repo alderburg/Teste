@@ -232,7 +232,6 @@ export function subscribeToMessages(callback: (message: WebSocketMessage) => voi
 
 // Handlers de eventos WebSocket
 function handleOpen(event: Event) {
-  console.log("WebSocket conectado com sucesso");
   reconnectAttempts = 0;
   
   // Enviar informações do cliente para o servidor
@@ -279,7 +278,6 @@ function handleOpen(event: Event) {
 function handleMessage(event: MessageEvent) {
   try {
     const message = JSON.parse(event.data) as WebSocketMessage;
-    console.log("WebSocket mensagem recebida:", message);
     
     // Responder pings do servidor com pongs
     if (message.type === 'server_ping') {
@@ -290,20 +288,6 @@ function handleMessage(event: MessageEvent) {
       });
     }
     
-    // Registrar pongs recebidos
-    if (message.type === 'pong') {
-      console.log("Pong recebido do servidor:", message.timestamp);
-    }
-    
-    // Processar respostas de autenticação
-    if (message.type === 'auth_success') {
-      console.log("✅ Autenticação WebSocket bem-sucedida:", message);
-    }
-    
-    if (message.type === 'auth_error') {
-      console.error("❌ Erro de autenticação WebSocket:", message);
-    }
-    
     // Processar atualizações de dados
     if (message.type === 'data_update') {
       processDataUpdate(message as DataUpdateMessage);
@@ -311,14 +295,11 @@ function handleMessage(event: MessageEvent) {
     
     // Processar atualizações de sessões
     if (message.type === 'session_update') {
-      console.log("Atualização de sessão recebida:", message);
       processSessionUpdate(message as SessionUpdateMessage);
     }
     
     // Processar notificações de sessão encerrada
     if (message.type === 'session_terminated') {
-      console.log("🔒 Sessão encerrada recebida:", message);
-      
       // Verificar se é a sessão atual
       const currentSessionToken = localStorage.getItem('sessionToken') || 
                                  localStorage.getItem('token') || 
@@ -347,12 +328,11 @@ function handleMessage(event: MessageEvent) {
       }
     });
   } catch (error) {
-    console.error("Erro ao processar mensagem WebSocket:", error);
+    // Silenciar erro
   }
 }
 
 function handleClose(event: CloseEvent) {
-  console.log(`WebSocket desconectado: Código ${event.code}, Razão: ${event.reason}`);
   
   // Limpar heartbeat
   if (heartbeatInterval) {
@@ -363,7 +343,6 @@ function handleClose(event: CloseEvent) {
   // Tentar reconectar
   if (reconnectAttempts < maxReconnectAttempts) {
     reconnectAttempts++;
-    console.log(`Tentando reconectar (${reconnectAttempts}/${maxReconnectAttempts}) em ${reconnectDelay}ms...`);
     
     if (reconnectTimeout) {
       clearTimeout(reconnectTimeout);
@@ -372,8 +351,6 @@ function handleClose(event: CloseEvent) {
     reconnectTimeout = setTimeout(() => {
       initWebSocket();
     }, reconnectDelay);
-  } else {
-    console.log("Número máximo de tentativas de reconexão atingido. WebSocket desconectado permanentemente.");
   }
 }
 
@@ -384,11 +361,6 @@ function handleError(event: Event) {
 // Funções auxiliares
 function processDataUpdate(message: DataUpdateMessage) {
   const { resource, action, data, userId } = message;
-  
-  // Aqui você pode adicionar lógica específica para cada tipo de recurso
-  // Por exemplo, invalidar cache do React Query ou atualizar estados locais
-  
-  console.log(`Atualização de dados via WebSocket: ${action} em ${resource}, userId: ${userId || 'n/a'}`);
   
   // Disparar um evento customizado que componentes podem ouvir
   if (typeof window !== 'undefined') {
@@ -401,8 +373,6 @@ function processDataUpdate(message: DataUpdateMessage) {
 
 function processSessionUpdate(message: SessionUpdateMessage) {
   const { sessionId, status, deviceInfo, timestamp, userId } = message;
-  
-  console.log(`Atualização de sessão via WebSocket: ${status} para sessão ${sessionId}`);
   
   // Disparar um evento customizado que componentes podem ouvir
   if (typeof window !== 'undefined') {
