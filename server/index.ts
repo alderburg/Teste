@@ -898,8 +898,6 @@ if (process.env.EXTERNAL_API_URL) {
 
   // Função global para notificar sobre sessão encerrada via sistema WebSocket existente
   (global as any).notifySessionTerminated = (userId: number, sessionToken: string) => {
-    console.log(`🔔 Notificando encerramento da sessão ${sessionToken.substring(0, 8)}... para usuário ${userId}`);
-
     // Usar o sistema WebSocket existente para enviar notificação
     if (global.wsClients && global.wsClients.size > 0) {
       const message = {
@@ -910,8 +908,6 @@ if (process.env.EXTERNAL_API_URL) {
         timestamp: new Date().toISOString()
       };
 
-      let notificationsSent = 0;
-      let disconnectionsMade = 0;
       const clientsToDisconnect = [];
 
       // Procurar especificamente o cliente com a sessão encerrada
@@ -924,13 +920,11 @@ if (process.env.EXTERNAL_API_URL) {
             try {
               // PRIMEIRO: Enviar notificação
               ws.send(JSON.stringify(message));
-              notificationsSent++;
-              console.log(`📤 Notificação enviada para cliente específico: ${client.id} (usuário ${client.userId})`);
 
               // SEGUNDO: Marcar para desconexão forçada
               clientsToDisconnect.push({ ws, client });
             } catch (error) {
-              console.error('❌ Erro ao enviar notificação de sessão:', error);
+              // Silenciar erro
             }
           }
         }
@@ -941,8 +935,6 @@ if (process.env.EXTERNAL_API_URL) {
         setTimeout(() => {
           clientsToDisconnect.forEach(({ ws, client }) => {
             try {
-              console.log(`🔌 Forçando desconexão do cliente ${client.id} (sessão encerrada)`);
-
               // Marcar cliente como desconectado
               client.authenticated = false;
               client.sessionToken = null;
@@ -962,33 +954,12 @@ if (process.env.EXTERNAL_API_URL) {
               // Remover da lista de clientes
               global.wsClients.delete(ws);
               global.clientsInfo?.delete(ws);
-
-              disconnectionsMade++;
-              console.log(`✅ Cliente ${client.id} desconectado com sucesso`);
             } catch (disconnectError) {
-              console.error(`❌ Erro ao desconectar cliente ${client.id}:`, disconnectError);
+              // Silenciar erro
             }
           });
-
-          console.log(`🔌 Total de ${disconnectionsMade} cliente(s) desconectado(s) por sessão encerrada`);
         }, 500); // Aguardar 500ms para garantir que a notificação seja enviada
       }
-
-      if (notificationsSent === 0) {
-        console.log(`⚠️ Cliente com sessão ${sessionToken.substring(0, 8)}... não encontrado entre os ${global.wsClients.size} cliente(s) conectado(s)`);
-
-        // Debug: mostrar sessões dos clientes conectados
-        global.wsClients.forEach((ws: any) => {
-          const client = global.clientsInfo?.get(ws);
-          if (client && client.authenticated) {
-            console.log(`   - Cliente ${client.id}: sessão ${client.sessionToken?.substring(0, 8)}... (usuário ${client.userId})`);
-          }
-        });
-      } else {
-        console.log(`✅ ${notificationsSent} notificação(ões) de sessão encerrada enviada(s)`);
-      }
-    } else {
-      console.log(`⚠️ Nenhum cliente WebSocket conectado`);
     }
   };
 
