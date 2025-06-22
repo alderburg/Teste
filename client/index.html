@@ -13,8 +13,36 @@
     (function() {
       console.log('🔧 Ativando interceptador WebSocket...');
       
-      // Usar SITE_URL diretamente do .env (valor conhecido)
-      const siteUrl = 'https://19e94f5d-1339-4d6b-bf18-4fc9be5c433f-00-76xv8lvg8dwz.riker.replit.dev';
+      // SITE_URL obtido diretamente do ambiente
+      let cachedSiteUrl = null;
+      
+      // Tentar obter SITE_URL usando diferentes métodos
+      const getSiteUrlFromEnv = () => {
+        // Método 1: Se estiver no browser, obter do window.location
+        if (typeof window !== 'undefined') {
+          const hostname = window.location.hostname;
+          const protocol = window.location.protocol;
+          
+          // Para Replit, construir a URL a partir do hostname
+          if (hostname.includes('replit.dev') || hostname.includes('replit.co')) {
+            cachedSiteUrl = `${protocol}//${hostname}`;
+            console.log('✅ SITE_URL detectado automaticamente (Replit):', cachedSiteUrl);
+            return cachedSiteUrl;
+          }
+          
+          // Para desenvolvimento local
+          if (hostname === 'localhost' || hostname === '127.0.0.1') {
+            cachedSiteUrl = `${protocol}//localhost:3000`;
+            console.log('✅ SITE_URL detectado automaticamente (Local):', cachedSiteUrl);
+            return cachedSiteUrl;
+          }
+        }
+        
+        return null;
+      };
+      
+      // Obter SITE_URL na inicialização
+      getSiteUrlFromEnv();
       
       // Detectar ambiente Replit
       const isReplit = window.location.hostname.includes('replit.dev') || 
@@ -48,13 +76,14 @@
               const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
               let targetHost = window.location.host;
               
-              // Se temos SITE_URL, extrair o host dele
-              if (siteUrl) {
+              // Usar SITE_URL detectado automaticamente se disponível
+              if (cachedSiteUrl && cachedSiteUrl.trim()) {
                 try {
-                  const urlObj = new URL(siteUrl);
+                  const urlObj = new URL(cachedSiteUrl);
                   targetHost = urlObj.host;
+                  console.log('✅ Usando SITE_URL detectado:', cachedSiteUrl);
                 } catch (e) {
-                  console.log('Erro ao processar SITE_URL, usando host atual');
+                  console.log('Erro ao processar SITE_URL detectado, usando host atual');
                 }
               }
               

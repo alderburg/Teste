@@ -28,6 +28,12 @@ import { createProxyMiddleware } from 'http-proxy-middleware';
 
 const app = express();
 
+// Rota simples para fornecer SITE_URL para o interceptador WebSocket
+app.get('/api/site-url', (req: Request, res: Response) => {
+  res.set('Content-Type', 'text/plain');
+  res.send(process.env.SITE_URL || '');
+});
+
 // Configurar webhook do Stripe ANTES dos middlewares de parsing
 app.post("/api/stripe-webhook", express.raw({type: 'application/json'}), async (req, res) => {
   const sig = req.headers['stripe-signature'] as string;
