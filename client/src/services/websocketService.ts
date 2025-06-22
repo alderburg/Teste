@@ -246,13 +246,14 @@ function handleOpen(event: Event) {
     client_info: clientInfo
   });
 
-  // Tentar autenticação imediata
-  attemptAutoAuthentication();
-
-  // Agendar autenticação adicional após um breve delay como backup
-  setTimeout(() => {
-    attemptAutoAuthentication();
-  }, 2000);
+  // Notificar componentes sobre a conexão
+  subscribers.forEach(callback => {
+    try {
+      callback({ type: 'websocket_connected' });
+    } catch (error) {
+      console.error('Erro ao notificar conexão WebSocket:', error);
+    }
+  });
 
   // Iniciar heartbeat
   startHeartbeat();
