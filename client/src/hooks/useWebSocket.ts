@@ -317,6 +317,41 @@ export function useWebSocket() {
           console.log('🔗 Estado atualizado - connected deve estar true agora');
           console.log('🔗 ReadyState final:', socket.readyState);
           console.log('🔗 ⚡ A PARTIR DE AGORA, MENSAGENS DE AUTH PODEM SER ENVIADAS');
+          
+          // Enviar autenticação automaticamente se houver dados de sessão
+          try {
+            const sessionToken = localStorage.getItem('sessionToken') || document.cookie
+              .split('; ')
+              .find(row => row.startsWith('connect.sid='))
+              ?.split('=')[1];
+            
+            const userDataStr = localStorage.getItem('userData');
+            const userData = userDataStr ? JSON.parse(userDataStr) : null;
+            
+            if (sessionToken && userData?.id) {
+              console.log('🔐 Enviando autenticação WebSocket automaticamente...');
+              console.log('🔐 Session Token:', sessionToken.substring(0, 8) + '...');
+              console.log('🔐 User ID:', userData.id);
+              
+              const authMessage = {
+                type: 'auth',
+                sessionToken: sessionToken,
+                userId: userData.id,
+                timestamp: new Date().toISOString()
+              };
+              
+              socket.send(JSON.stringify(authMessage));
+              console.log('✅ Mensagem de autenticação enviada');
+            } else {
+              console.log('⚠️ Não foi possível encontrar dados de sessão para autenticação automática');
+              console.log('⚠️ sessionToken:', !!sessionToken);
+              console.log('⚠️ userData:', !!userData);
+              console.log('⚠️ userData.id:', userData?.id);
+            }
+          } catch (authError) {
+            console.error('❌ Erro ao enviar autenticação:', authError);
+          }
+          
           console.log('🔗 =============== FIM WEBSOCKET READY ===============');
         }, 100);
       });
