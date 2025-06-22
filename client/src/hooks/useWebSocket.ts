@@ -320,13 +320,38 @@ export function useWebSocket() {
           
           // Enviar autenticação automaticamente se houver dados de sessão
           try {
-            const sessionToken = localStorage.getItem('sessionToken') || document.cookie
-              .split('; ')
-              .find(row => row.startsWith('connect.sid='))
-              ?.split('=')[1];
+            // Tentar múltiplas fontes para o session token
+            let sessionToken = localStorage.getItem('sessionToken') || 
+                              localStorage.getItem('token');
             
-            const userDataStr = localStorage.getItem('userData');
-            const userData = userDataStr ? JSON.parse(userDataStr) : null;
+            // Se não encontrou, tentar nos cookies
+            if (!sessionToken) {
+              const cookieMatch = document.cookie.match(/mpc\.sid=([^;]+)/);
+              if (cookieMatch) {
+                sessionToken = decodeURIComponent(cookieMatch[1]);
+                // Remover o prefixo 's:' se existir
+                if (sessionToken.startsWith('s:')) {
+                  sessionToken = sessionToken.substring(2).split('.')[0];
+                }
+              }
+            }
+            
+            // Buscar dados do usuário de múltiplas fontes
+            let userData = null;
+            const userDataStr = localStorage.getItem('userData') || localStorage.getItem('user');
+            if (userDataStr) {
+              try {
+                userData = JSON.parse(userDataStr);
+              } catch (e) {
+                console.warn('Erro ao parsear userData:', e);
+              }
+            }
+            
+            console.log('🔍 Debug autenticação:', {
+              sessionToken: sessionToken ? sessionToken.substring(0, 10) + '...' : 'null',
+              userData: userData ? `ID: ${userData.id}` : 'null',
+              cookiesFull: document.cookie
+            });
             
             if (sessionToken && userData?.id) {
               console.log('🔐 Enviando autenticação WebSocket automaticamente...');
@@ -347,6 +372,8 @@ export function useWebSocket() {
               console.log('⚠️ sessionToken:', !!sessionToken);
               console.log('⚠️ userData:', !!userData);
               console.log('⚠️ userData.id:', userData?.id);
+              console.log('⚠️ Cookies disponíveis:', document.cookie);
+              console.log('⚠️ LocalStorage keys:', Object.keys(localStorage));
             }
           } catch (authError) {
             console.error('❌ Erro ao enviar autenticação:', authError);

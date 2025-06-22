@@ -609,11 +609,18 @@ if (process.env.EXTERNAL_API_URL) {
     ws.on('message', async (data) => {
       try {
         const message = JSON.parse(data.toString());
-        console.log('📨 Mensagem WebSocket recebida:', message.type);
+        console.log('📨 Mensagem WebSocket recebida:', message.type, `(Cliente: ${clientInfo.id})`);
         
         // Processar mensagem de autenticação
         if (message.type === 'auth') {
+          console.log('🔐 Processando autenticação para cliente:', clientInfo.id);
           await handleWebSocketAuth(ws, message, clientInfo);
+        }
+        
+        // Processar informações do cliente
+        if (message.type === 'client_info') {
+          console.log('ℹ️ Informações do cliente recebidas:', clientInfo.id);
+          // Não fazer nada especial, apenas registrar
         }
         
         // Responder a pings do cliente
@@ -632,6 +639,7 @@ if (process.env.EXTERNAL_API_URL) {
         
       } catch (error) {
         console.error('❌ Erro ao processar mensagem WebSocket:', error);
+        console.error('❌ Dados recebidos:', data.toString());
       }
     });
 
@@ -664,6 +672,8 @@ if (process.env.EXTERNAL_API_URL) {
     try {
       const { sessionToken, userId } = message;
       
+      console.log(`🔐 Tentativa de autenticação - Cliente: ${clientInfo.id}, userId: ${userId}, token: ${sessionToken?.substring(0, 8)}...`);
+      
       if (sessionToken && userId) {
         // Verificar se a sessão é válida
         const isValid = await verifySessionToken(sessionToken, userId);
@@ -672,29 +682,42 @@ if (process.env.EXTERNAL_API_URL) {
           clientInfo.authenticated = true;
           clientInfo.userId = userId;
           clientInfo.sessionToken = sessionToken;
+          clientInfo.authTimestamp = new Date();
           
           console.log(`✅ Cliente ${clientInfo.id} autenticado como usuário ${userId}`);
           
           ws.send(JSON.stringify({
             type: 'auth_success',
             message: 'Autenticação bem-sucedida',
-            userId: userId
+            userId: userId,
+            timestamp: new Date().toISOString()
           }));
         } else {
-          console.log(`❌ Falha na autenticação do cliente ${clientInfo.id}`);
+          console.log(`❌ Falha na autenticação do cliente ${clientInfo.id} - sessão inválida`);
           
           ws.send(JSON.stringify({
             type: 'auth_failed',
-            message: 'Sessão inválida'
+            message: 'Sessão inválida',
+            timestamp: new Date().toISOString()
           }));
         }
+      } else {
+        console.log(`❌ Falha na autenticação do cliente ${clientInfo.id} - dados incompletos`);
+        console.log(`   sessionToken: ${!!sessionToken}, userId: ${!!userId}`);
+        
+        ws.send(JSON.stringify({
+          type: 'auth_failed',
+          message: 'Dados de autenticação incompletos',
+          timestamp: new Date().toISOString()
+        }));
       }
     } catch (error) {
       console.error('❌ Erro na autenticação WebSocket:', error);
       
       ws.send(JSON.stringify({
         type: 'auth_error',
-        message: 'Erro interno de autenticação'
+        message: 'Erro interno de autenticação',
+        timestamp: new Date().toISOString()
       }));
     }
   }
