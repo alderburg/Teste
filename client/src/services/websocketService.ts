@@ -246,35 +246,11 @@ function handleOpen(event: Event) {
     client_info: clientInfo
   });
   
-  // Autenticação automática - obter o token de sessão do cookie connect.sid
-  let sessionToken = '';
-  
-  // Primeiro tentar obter do cookie connect.sid (usado pelo express-session)
-  const cookies = document.cookie.split(';');
-  for (let cookie of cookies) {
-    cookie = cookie.trim();
-    if (cookie.startsWith('connect.sid=')) {
-      sessionToken = cookie.substring('connect.sid='.length);
-      // Remover encoding se necessário
-      if (sessionToken.startsWith('s%3A')) {
-        sessionToken = sessionToken.substring(4);
-      }
-      if (sessionToken.includes('.')) {
-        sessionToken = sessionToken.split('.')[0];
-      }
-      break;
-    }
-  }
-  
-  // Se não encontrou no connect.sid, tentar outras fontes
-  if (!sessionToken) {
-    sessionToken = localStorage.getItem('sessionToken') || 
-                   localStorage.getItem('token') || 
-                   document.cookie.split(';').find(c => c.trim().startsWith('sessionToken='))?.split('=')[1] || 
-                   '';
-  }
-  
-  console.log(`🔍 Token de sessão encontrado: ${sessionToken ? sessionToken.substring(0, 10) + '...' : 'NENHUM'}`);
+  // Autenticação automática se houver token de sessão
+  const sessionToken = localStorage.getItem('sessionToken') || 
+                       localStorage.getItem('token') || 
+                       document.cookie.split(';').find(c => c.trim().startsWith('sessionToken='))?.split('=')[1] || 
+                       '';
   
   if (sessionToken) {
     // Tentar obter userId do localStorage ou fazer uma requisição para obtê-lo
@@ -288,14 +264,12 @@ function handleOpen(event: Event) {
             userId: userData.id,
             sessionToken: sessionToken
           });
-          console.log(`🔐 Autenticação WebSocket enviada para usuário ${userData.id} com token ${sessionToken.substring(0, 10)}...`);
+          console.log(`🔐 Autenticação WebSocket enviada para usuário ${userData.id}`);
         }
       } catch (error) {
         console.error('Erro ao parsear dados do usuário:', error);
       }
     }
-  } else {
-    console.log('⚠️ Nenhum token de sessão encontrado para autenticação WebSocket');
   }
   
   // Iniciar heartbeat
