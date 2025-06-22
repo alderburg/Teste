@@ -736,34 +736,6 @@ if (process.env.EXTERNAL_API_URL) {
     return removidos;
   }
 
-  // Função para verificar token de sessão
-  async function verifySessionToken(sessionToken: string, userId: number): Promise<boolean> {
-    try {
-      const { connectionManager } = await import('./connection-manager');
-      
-      // Verificar na tabela de sessões principais
-      const sessionCheck = await connectionManager.executeQuery(
-        'SELECT sid FROM session WHERE sid = $1 AND expire > NOW()',
-        [sessionToken]
-      );
-      
-      if (sessionCheck.rows.length > 0) {
-        return true;
-      }
-      
-      // Verificar na tabela de sessões adicionais
-      const additionalSessionCheck = await connectionManager.executeQuery(
-        'SELECT id FROM user_sessions_additional WHERE token = $1 AND expires_at > NOW() AND is_active = true',
-        [sessionToken]
-      );
-      
-      return additionalSessionCheck.rows.length > 0;
-    } catch (error) {
-      console.error('Erro ao verificar token de sessão:', error);
-      return false;
-    }
-  }
-
   // Função para autenticação WebSocket
   async function handleWebSocketAuth(ws: any, message: any, clientInfo: any) {
     try {
@@ -783,56 +755,79 @@ if (process.env.EXTERNAL_API_URL) {
           let displayName = 'Principal';
           
           try {
-            // Primeiro verificar se é usuário principal
-            const principalUserCheck = await connectionManager.executeQuery(
-              `SELECT id, username FROM users WHERE id = $1`,
+            // Verificar se é usuário adicional conectando com sessão específica
+            const additionalUserCheck = await connectionManager.executeQuery(
+              `SELECT u.id, u.nome, u.user_id FROM usuarios_adicionais u 
+               WHERE u.id = $1`,
               [userId]
             );
             
-            if (principalUserCheck.rows.length > 0) {
-              // É um usuário principal
-              realUserId = userId;
-              userType = 'Principal';
-              displayName = principalUserCheck.rows[0].username;
-              console.log(`👤 Usuário principal detectado: ID ${userId} (${displayName})`);
+            if (additionalUserCheck.rows.length > 0) {
+              // É um usuário adicional
+              realUserId = additionalUserCheck.rows[0].id;
+              userType = 'Adicional';
+              displayName = additionalUserCheck.rows[0].nome;
+              console.log(`👤 Usuário adicional detectado: ID ${realUserId} (${displayName}), pai: ${additionalUserCheck.rows[0].user_id}`);
             } else {
-              // Verificar se é usuário adicional
-              const additionalUserCheck = await connectionManager.executeQuery(
-                `SELECT u.id, u.nome, u.user_id FROM usuarios_adicionais u 
-                 WHERE u.id = $1`,
+              // É um usuário principal - buscar o nome do usuário principal
+              const principalUserCheck = await connectionManager.executeQuery(
+                `SELECT username FROM users WHERE id = $1`,
                 [userId]
               );
               
-              if (additionalUserCheck.rows.length > 0) {
-                // É um usuário adicional
-                realUserId = additionalUserCheck.rows[0].id;
-                userType = 'Adicional';
-                displayName = additionalUserCheck.rows[0].nome;
-                console.log(`👤 Usuário adicional detectado: ID ${realUserId} (${displayName}), pai: ${additionalUserCheck.rows[0].user_id}`);
+              if (principalUserCheck.rows.length > 0) {
+                displayName = principalUserCheck.rows[0].username;
               }
+              
+              console.log(`👤 Usuário principal detectado: ID ${userId} (${displayName})`);
             }
           } catch (error) {
             console.error('Erro ao verificar tipo de usuário:', error);
           }
           
-          // SEGUNDO: Configurar as informações do cliente atual (sem remover outras conexões)
-          console.log(`📊 Permitindo múltiplas conexões - Total: ${global.wsClients.size}`);
+          // SEGUNDO: Limpar conexões antigas do mesmo usuário (evitar duplicatas)
+          let conexoesRemovidas = 0;
+          const conexoesParaRemover = [];
           
-          // Armazenar informações adicionais para o heartbeat
-          let parentUserId = null;
-          if (userType === 'Adicional') {
-            // Para usuários adicionais, buscar o ID do pai
-            try {
-              const parentCheck = await connectionManager.executeQuery(
-                `SELECT user_id FROM usuarios_adicionais WHERE id = $1`,
-                [realUserId]
-              );
-              if (parentCheck.rows.length > 0) {
-                parentUserId = parentCheck.rows[0].user_id;
+          // Primeiro, identificar conexões para remover
+          global.wsClients.forEach((existingWs) => {
+            if (existingWs !== ws) {
+              const existingClientInfo = global.clientsInfo?.get(existingWs);
+              
+              // Remover conexões antigas do mesmo usuário (mesmo ID real)
+              if (existingClientInfo && 
+                  existingClientInfo.authenticated && 
+                  existingClientInfo.realUserId === realUserId) {
+                
+                console.log(`🧹 Marcando para remoção conexão antiga do usuário ${realUserId}: cliente ${existingClientInfo.id}`);
+                conexoesParaRemover.push(existingWs);
               }
-            } catch (error) {
-              console.error('Erro ao buscar ID do pai:', error);
             }
+          });
+          
+          // Depois, remover as conexões identificadas
+          conexoesParaRemover.forEach(existingWs => {
+            try {
+              // Notificar o cliente que será desconectado
+              existingWs.send(JSON.stringify({
+                type: 'session_replaced',
+                message: 'Sua sessão foi substituída por uma nova conexão',
+                timestamp: new Date().toISOString()
+              }));
+              
+              // Fechar a conexão
+              existingWs.terminate();
+            } catch (e) {
+              // Ignorar erros de terminate
+            }
+            
+            global.wsClients.delete(existingWs);
+            global.clientsInfo?.delete(existingWs);
+            conexoesRemovidas++;
+          });
+          
+          if (conexoesRemovidas > 0) {
+            console.log(`🧹 Total de ${conexoesRemovidas} conexão(ões) antiga(s) removida(s) para usuário ${realUserId}`);
           }
           
           // TERCEIRO: Configurar as informações do cliente atual
@@ -841,7 +836,6 @@ if (process.env.EXTERNAL_API_URL) {
           clientInfo.realUserId = realUserId; // ID real do usuário (adicional ou principal)
           clientInfo.userType = userType;
           clientInfo.displayName = displayName;
-          clientInfo.parentUserId = parentUserId; // ID do pai (para usuários adicionais)
           clientInfo.sessionToken = sessionToken;
           clientInfo.authTimestamp = new Date();
           
@@ -1089,8 +1083,7 @@ if (process.env.EXTERNAL_API_URL) {
                 if (client.realUserId && client.userType && client.displayName) {
                   // Usar informações já processadas na autenticação
                   if (client.userType === 'Adicional') {
-                    // Para usuário adicional, mostrar ID do filho e nome do filho, mais ID do pai
-                    displayUserId = `${client.realUserId} (${client.displayName}) - Pai: ${client.parentUserId || 'N/A'}`;
+                    displayUserId = `${client.realUserId} (${client.displayName})`;
                     userType = 'adicional';
                   } else {
                     displayUserId = `${client.realUserId} (${client.displayName})`;
@@ -1314,27 +1307,26 @@ async function verifySessionToken(token: string, userId: number): Promise<boolea
     }
   }
 
-  // QUARTO: Como fallback, verificar na tabela session (Express Session) apenas se não encontrou na user_sessions_additional
-  try {
-    const sessionQuery = `
-      SELECT s.sess
-      FROM session s 
-      WHERE s.sid = $1 AND s.sess::text LIKE $2
-    `;
+  // QUARTO: Verificar na tabela session (Passport.js) para todos os usuários relacionados
+  for (const relatedUserId of usuariosRelacionados) {
+    try {
+      const sessionQuery = `
+        SELECT s.sess
+        FROM session s 
+        WHERE s.sid = $1 AND s.sess::text LIKE $2
+      `;
 
-    // Verificar para o usuário principal
-    const mainUserId = usuariosPrincipais[0];
-    const userPattern = `%"user":${mainUserId}%`;
+      const userPattern = `%"user":${relatedUserId}%`;
 
-    const sessionResult = await connectionManager.executeQuery(sessionQuery, [token, userPattern]);
-    if (sessionResult.rows.length > 0) {
-      console.log(`✅ Sessão encontrada na tabela session (Express Session) para usuário principal ${mainUserId}`);
-      console.log(`   - Solicitante: ${userId} ${isAdditionalUser ? '(usuário adicional)' : '(usuário principal)'}`);
-      return true;
+      const sessionResult = await connectionManager.executeQuery(sessionQuery, [token, userPattern]);
+      if (sessionResult.rows.length > 0) {
+        console.log(`✅ Sessão encontrada na tabela session (Passport.js) para usuário ${relatedUserId}`);
+        console.log(`   - Solicitante: ${userId} ${isAdditionalUser ? '(usuário adicional)' : '(usuário principal)'}`);
+        return true;
+      }
+    } catch (sessionError) {
+      console.error(`Erro ao verificar session para usuário ${relatedUserId}:`, sessionError);
     }
-  } catch (sessionError) {
-    console.log(`⚠️ Tabela session não existe ou erro ao verificar: ${sessionError.message}`);
-    // Não é um erro crítico, apenas significa que só temos user_sessions_additional
   }
 
   console.log(`❌ Token ${token.substring(0, 8)}... não encontrado em nenhuma tabela para usuário ${userId} nem seus relacionados ${usuariosRelacionados.join(', ')}`);

@@ -58,58 +58,58 @@ let instanceId: string | null = null;
  */
 export function initWebSocket() {
   if (typeof window === 'undefined') return; // Não executar no servidor
-
+  
   // Prevenir múltiplas inicializações simultâneas
   if (isInitializing) {
     console.log('WebSocket já está sendo inicializado, aguardando...');
     return;
   }
-
+  
   // Verificar se já existe uma conexão ativa
   if (socket && socket.readyState === WebSocket.CONNECTING) {
     console.log('WebSocket já está conectando, aguardando...');
     return;
   }
-
+  
   if (socket && socket.readyState === WebSocket.OPEN) {
     console.log('WebSocket já está conectado');
     return;
   }
-
+  
   // Marcar como inicializando
   isInitializing = true;
-
+  
   // Fechar conexão existente se houver
   if (socket) {
     closeWebSocket();
   }
-
+  
   // Gerar ID único para esta instância
   instanceId = Math.random().toString(36).substring(2, 15);
-
+  
   try {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     // Detectar porta automaticamente baseado na URL atual
     const host = window.location.hostname;
     let port = window.location.port;
-
+    
     // Se não houver porta na URL (HTTPS padrão), usar a mesma da página atual
     if (!port) {
       port = window.location.protocol === "https:" ? "443" : "80";
     }
-
+    
     // Para desenvolvimento local, sempre usar a porta atual da página
     const wsUrl = `${protocol}//${host}:${port}/ws`;
-
+    
     console.log(`Conectando WebSocket em ${wsUrl}`);
-
+    
     socket = new WebSocket(wsUrl);
-
+    
     socket.addEventListener('open', handleOpen);
     socket.addEventListener('message', handleMessage);
     socket.addEventListener('close', handleClose);
     socket.addEventListener('error', handleError);
-
+    
     // Adicionar ao conjunto global para notificações
     if (typeof window !== 'undefined' && socket) {
       if (!window.wsClients) {
@@ -117,7 +117,7 @@ export function initWebSocket() {
       }
       window.wsClients.add(socket);
     }
-
+    
     // Iniciar heartbeat quando a conexão for aberta
   } catch (error) {
     console.error("Erro ao inicializar WebSocket:", error);
@@ -141,28 +141,28 @@ export function closeWebSocket() {
         clearInterval(heartbeatInterval);
         heartbeatInterval = null;
       }
-
+      
       if (reconnectTimeout) {
         clearTimeout(reconnectTimeout);
         reconnectTimeout = null;
       }
-
+      
       // Remover listeners
       socket.removeEventListener('open', handleOpen);
       socket.removeEventListener('message', handleMessage);
       socket.removeEventListener('close', handleClose);
       socket.removeEventListener('error', handleError);
-
+      
       // Remover do conjunto global
       if (typeof window !== 'undefined' && window.wsClients) {
         window.wsClients.delete(socket);
       }
-
+      
       // Fechar a conexão se estiver aberta
       if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
         socket.close();
       }
-
+      
       socket = null;
       reconnectAttempts = 0;
     } catch (error) {
@@ -209,7 +209,7 @@ export function notify(
     data,
     userId
   };
-
+  
   return sendMessage(message);
 }
 
@@ -220,7 +220,7 @@ export function notify(
  */
 export function subscribeToMessages(callback: (message: WebSocketMessage) => void) {
   subscribers.push(callback);
-
+  
   // Retorna uma função para cancelar a inscrição
   return () => {
     const index = subscribers.indexOf(callback);
@@ -234,27 +234,44 @@ export function subscribeToMessages(callback: (message: WebSocketMessage) => voi
 function handleOpen(event: Event) {
   console.log("WebSocket conectado com sucesso");
   reconnectAttempts = 0;
-
+  
   // Enviar informações do cliente para o servidor
   const clientInfo: ClientInfo = {
     url: window.location.pathname,
     // Adicionar outras informações do cliente aqui (device, browser, etc)
   };
-
+  
   sendMessage({
     type: 'client_info',
     client_info: clientInfo
   });
-
-  // Notificar componentes sobre a conexão
-  subscribers.forEach(callback => {
-    try {
-      callback({ type: 'websocket_connected' });
-    } catch (error) {
-      console.error('Erro ao notificar conexão WebSocket:', error);
+  
+  // Autenticação automática se houver token de sessão
+  const sessionToken = localStorage.getItem('sessionToken') || 
+                       localStorage.getItem('token') || 
+                       document.cookie.split(';').find(c => c.trim().startsWith('sessionToken='))?.split('=')[1] || 
+                       '';
+  
+  if (sessionToken) {
+    // Tentar obter userId do localStorage ou fazer uma requisição para obtê-lo
+    const userDataStr = localStorage.getItem('user');
+    if (userDataStr) {
+      try {
+        const userData = JSON.parse(userDataStr);
+        if (userData.id) {
+          sendMessage({
+            type: 'auth',
+            userId: userData.id,
+            sessionToken: sessionToken
+          });
+          console.log(`🔐 Autenticação WebSocket enviada para usuário ${userData.id}`);
+        }
+      } catch (error) {
+        console.error('Erro ao parsear dados do usuário:', error);
+      }
     }
-  });
-
+  }
+  
   // Iniciar heartbeat
   startHeartbeat();
 }
@@ -263,7 +280,7 @@ function handleMessage(event: MessageEvent) {
   try {
     const message = JSON.parse(event.data) as WebSocketMessage;
     console.log("WebSocket mensagem recebida:", message);
-
+    
     // Responder pings do servidor com pongs
     if (message.type === 'server_ping') {
       sendMessage({
@@ -272,42 +289,42 @@ function handleMessage(event: MessageEvent) {
         client_info: { url: window.location.pathname }
       });
     }
-
+    
     // Registrar pongs recebidos
     if (message.type === 'pong') {
       console.log("Pong recebido do servidor:", message.timestamp);
     }
-
+    
     // Processar respostas de autenticação
     if (message.type === 'auth_success') {
       console.log("✅ Autenticação WebSocket bem-sucedida:", message);
     }
-
+    
     if (message.type === 'auth_error') {
       console.error("❌ Erro de autenticação WebSocket:", message);
     }
-
+    
     // Processar atualizações de dados
     if (message.type === 'data_update') {
       processDataUpdate(message as DataUpdateMessage);
     }
-
+    
     // Processar atualizações de sessões
     if (message.type === 'session_update') {
       console.log("Atualização de sessão recebida:", message);
       processSessionUpdate(message as SessionUpdateMessage);
     }
-
+    
     // Processar notificações de sessão encerrada
     if (message.type === 'session_terminated') {
       console.log("🔒 Sessão encerrada recebida:", message);
-
+      
       // Verificar se é a sessão atual
       const currentSessionToken = localStorage.getItem('sessionToken') || 
                                  localStorage.getItem('token') || 
                                  document.cookie.split(';').find(c => c.trim().startsWith('sessionToken='))?.split('=')[1] || 
                                  '';
-
+      
       if (currentSessionToken === message.sessionToken) {
         // Disparar evento específico para sessão encerrada
         const sessionTerminatedEvent = new CustomEvent('session-terminated', { 
@@ -320,7 +337,7 @@ function handleMessage(event: MessageEvent) {
         window.dispatchEvent(sessionTerminatedEvent);
       }
     }
-
+    
     // Notificar todos os assinantes
     subscribers.forEach(callback => {
       try {
@@ -336,22 +353,22 @@ function handleMessage(event: MessageEvent) {
 
 function handleClose(event: CloseEvent) {
   console.log(`WebSocket desconectado: Código ${event.code}, Razão: ${event.reason}`);
-
+  
   // Limpar heartbeat
   if (heartbeatInterval) {
     clearInterval(heartbeatInterval);
     heartbeatInterval = null;
   }
-
+  
   // Tentar reconectar
   if (reconnectAttempts < maxReconnectAttempts) {
     reconnectAttempts++;
     console.log(`Tentando reconectar (${reconnectAttempts}/${maxReconnectAttempts}) em ${reconnectDelay}ms...`);
-
+    
     if (reconnectTimeout) {
       clearTimeout(reconnectTimeout);
     }
-
+    
     reconnectTimeout = setTimeout(() => {
       initWebSocket();
     }, reconnectDelay);
@@ -367,12 +384,12 @@ function handleError(event: Event) {
 // Funções auxiliares
 function processDataUpdate(message: DataUpdateMessage) {
   const { resource, action, data, userId } = message;
-
+  
   // Aqui você pode adicionar lógica específica para cada tipo de recurso
   // Por exemplo, invalidar cache do React Query ou atualizar estados locais
-
+  
   console.log(`Atualização de dados via WebSocket: ${action} em ${resource}, userId: ${userId || 'n/a'}`);
-
+  
   // Disparar um evento customizado que componentes podem ouvir
   if (typeof window !== 'undefined') {
     const customEvent = new CustomEvent('websocket-data-update', { 
@@ -384,9 +401,9 @@ function processDataUpdate(message: DataUpdateMessage) {
 
 function processSessionUpdate(message: SessionUpdateMessage) {
   const { sessionId, status, deviceInfo, timestamp, userId } = message;
-
+  
   console.log(`Atualização de sessão via WebSocket: ${status} para sessão ${sessionId}`);
-
+  
   // Disparar um evento customizado que componentes podem ouvir
   if (typeof window !== 'undefined') {
     const customEvent = new CustomEvent('websocket-session-update', { 
@@ -421,15 +438,6 @@ export function stopSessionMonitoring(userId: number): boolean {
 }
 
 /**
- * Força uma nova tentativa de autenticação
- * Útil quando o usuário navega para páginas que requerem autenticação
- */
-export function forceReauth(): void {
-  console.log('Forçando reautenticação WebSocket...');
-  tryAutoAuthentication();
-}
-
-/**
  * Encerra uma sessão específica
  * @param sessionId ID da sessão a ser encerrada
  * @param userId ID do usuário dono da sessão
@@ -447,7 +455,7 @@ function startHeartbeat() {
   if (heartbeatInterval) {
     clearInterval(heartbeatInterval);
   }
-
+  
   heartbeatInterval = setInterval(() => {
     if (socket && socket.readyState === WebSocket.OPEN) {
       sendMessage({
@@ -456,78 +464,6 @@ function startHeartbeat() {
       });
     }
   }, heartbeatInterval_ms);
-}
-
-/**
- * Tenta autenticar automaticamente com dados da sessão
- * @returns true se a autenticação foi enviada, false caso contrário
- */
-export async function attemptAutoAuthentication(): Promise<boolean> {
-  try {
-    // Obter token de sessão
-    let sessionToken = getSessionToken();
-    let userId: number | null = null;
-
-    // Tentar obter userId do contexto de autenticação primeiro
-    if (typeof window !== 'undefined' && (window as any).authContext?.user?.id) {
-      userId = (window as any).authContext.user.id;
-      console.log('userId obtido do contexto de autenticação:', userId);
-    }
-
-    // Se não conseguiu obter do contexto, tentar via API
-    if (!userId) {
-      try {
-        const response = await fetch('/api/conta/me');
-        if (response.ok) {
-          const userData = await response.json();
-          if (userData.id) {
-            userId = userData.id;
-            console.log('userId obtido via API /api/conta/me:', userId);
-          } else {
-            console.log('userId não encontrado na resposta da API /api/conta/me');
-          }
-        } else {
-          console.log('Falha ao obter userId via API /api/conta/me');
-        }
-      } catch (apiError) {
-        console.warn('Erro ao obter userId via API:', apiError);
-      }
-    }
-
-    // Enviar autenticação se temos os dados necessários
-    if (sessionToken && userId) {
-      const authMessage = {
-        type: 'auth',
-        userId: userId,
-        sessionToken: sessionToken
-      };
-
-      console.log(`🔐 Enviando autenticação automática para usuário ${userId} com token ${sessionToken.substring(0, 8)}...`);
-      const success = sendMessage(authMessage);
-
-      if (success) {
-        console.log('✅ Autenticação automática enviada com sucesso');
-        return true;
-      } else {
-        console.log('❌ Falha ao enviar autenticação automática - tentando novamente');
-        // Tentar novamente após um breve delay
-        setTimeout(() => {
-          sendMessage(authMessage);
-        }, 1000);
-        return false;
-      }
-    } else {
-      console.log('⚠️ Autenticação automática não executada - dados insuficientes:', {
-        hasToken: !!sessionToken,
-        hasUserId: !!userId,
-        tokenPreview: sessionToken ? sessionToken.substring(0, 8) + '...' : 'N/A'
-      });
-      return false;
-    }
-  } catch (error) {
-    console.error('❌ Erro na autenticação automática:', error);
-    return false;
-  }
 }
 
 // Exportar funções principais

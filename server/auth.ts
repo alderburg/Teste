@@ -1212,23 +1212,11 @@ export function isAuthenticated(req: Request, res: Response, next: NextFunction)
       try {
         const { connectionManager } = await import('./connection-manager');
 
-        // Verificar se a sessão ainda existe na tabela user_sessions_additional OU na tabela session
-        let sessionExists = await connectionManager.executeQuery(`
+        // Verificar se a sessão ainda existe na tabela user_sessions_additional
+        const sessionExists = await connectionManager.executeQuery(`
           SELECT id FROM user_sessions_additional 
           WHERE token = $1 AND is_active = true AND expires_at > NOW()
         `, [req.sessionID]);
-
-        // Se não encontrou na user_sessions_additional, verificar na tabela session (Express Session)
-        if (sessionExists.rows.length === 0) {
-          try {
-            sessionExists = await connectionManager.executeQuery(`
-              SELECT sid FROM session 
-              WHERE sid = $1 AND expire > NOW()
-            `, [req.sessionID]);
-          } catch (error) {
-            console.log('⚠️ Erro ao verificar tabela session:', error.message);
-          }
-        }
 
         if (sessionExists.rows.length === 0) {
           console.log(`🔒 Sessão ${req.sessionID.substring(0, 8)}... não encontrada ou expirada - forçando logout`);

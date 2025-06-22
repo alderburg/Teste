@@ -75,21 +75,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // no servidor. Isso corrige o problema de redirecionamento após logout, pois
         // não confiamos em dados locais que podem estar desatualizados.
 
-        // Manter dados locais temporariamente para WebSocket (limpar apenas se necessário)
-        const userData = localStorage.getItem('userData');
-        let hasLocalData = false;
-        
-        try {
-          if (userData) {
-            const parsedData = JSON.parse(userData);
-            if (parsedData && parsedData.id) {
-              hasLocalData = true;
-            }
-          }
-        } catch (e) {
-          // Se dados locais estão corrompidos, limpar
-          localStorage.removeItem('userData');
-        }
+        // Limpamos dados locais antigos para garantir
+        localStorage.removeItem('userData');
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
 
         // Verificar se o usuário está autenticado chamando a API
         const response = await fetch('/api/user', {
@@ -110,7 +99,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         } else {
           // Se a resposta não for ok, o usuário não está autenticado
           // API retornou não-OK, usuário não autenticado
-          // Limpar dados locais apenas agora que confirmamos com o servidor
+          // Garantir que todos os dados locais sejam limpos
           localStorage.removeItem('userData');
           localStorage.removeItem('user');
           localStorage.removeItem('token');
