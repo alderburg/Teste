@@ -576,10 +576,10 @@ if (process.env.EXTERNAL_API_URL) {
     console.log('🔗 Nova conexão WebSocket estabelecida');
     console.log('🔗 URL:', request.url);
     console.log('🔗 IP:', request.socket.remoteAddress);
-    
+
     // Adicionar cliente ao conjunto global
     global.wsClients.add(ws);
-    
+
     // Criar informações do cliente
     const clientId = Math.random().toString(36).substring(2, 15);
     const clientInfo = {
@@ -592,9 +592,9 @@ if (process.env.EXTERNAL_API_URL) {
       sessionToken: null,
       ip: request.socket.remoteAddress || 'unknown'
     };
-    
+
     global.clientsInfo.set(ws, clientInfo);
-    
+
     console.log(`📊 Cliente ${clientId} conectado. Total de clientes: ${global.wsClients.size}`);
 
     // Configurar ping/pong para manter conexão viva
@@ -610,19 +610,19 @@ if (process.env.EXTERNAL_API_URL) {
       try {
         const message = JSON.parse(data.toString());
         console.log('📨 Mensagem WebSocket recebida:', message.type, `(Cliente: ${clientInfo.id})`);
-        
+
         // Processar mensagem de autenticação
         if (message.type === 'auth') {
           console.log('🔐 Processando autenticação para cliente:', clientInfo.id);
           await handleWebSocketAuth(ws, message, clientInfo);
         }
-        
+
         // Processar informações do cliente
         if (message.type === 'client_info') {
           console.log('ℹ️ Informações do cliente recebidas:', clientInfo.id);
           // Não fazer nada especial, apenas registrar
         }
-        
+
         // Responder a pings do cliente
         if (message.type === 'ping') {
           ws.send(JSON.stringify({ 
@@ -630,13 +630,13 @@ if (process.env.EXTERNAL_API_URL) {
             timestamp: new Date().toISOString() 
           }));
         }
-        
+
         // Responder a pongs do cliente
         if (message.type === 'pong') {
           clientInfo.lastPing = new Date();
           clientInfo.isAlive = true;
         }
-        
+
       } catch (error) {
         console.error('❌ Erro ao processar mensagem WebSocket:', error);
         console.error('❌ Dados recebidos:', data.toString());
@@ -671,31 +671,31 @@ if (process.env.EXTERNAL_API_URL) {
   async function handleWebSocketAuth(ws: any, message: any, clientInfo: any) {
     try {
       const { sessionToken, userId } = message;
-      
+
       console.log(`🔐 Tentativa de autenticação - Cliente: ${clientInfo.id}, userId: ${userId}, token: ${sessionToken?.substring(0, 8)}...`);
-      
+
       if (sessionToken && userId) {
         // Verificar se a sessão é válida
         const isValid = await verifySessionToken(sessionToken, userId);
-        
+
         if (isValid) {
           clientInfo.authenticated = true;
           clientInfo.userId = userId; // Este será sempre o ID real do usuário solicitante
           clientInfo.sessionToken = sessionToken;
           clientInfo.authTimestamp = new Date();
-          
+
           // Buscar informações do usuário para exibir corretamente
           const { connectionManager } = await import('./connection-manager');
           let displayUserId = userId;
           let userType = 'Principal';
-          
+
           try {
             // Verificar se é usuário adicional
             const additionalUserCheck = await connectionManager.executeQuery(
               `SELECT u.nome FROM usuarios_adicionais u WHERE u.id = $1`,
               [userId]
             );
-            
+
             if (additionalUserCheck.rows.length > 0) {
               displayUserId = userId; // Mostrar o ID do usuário adicional
               userType = `Adicional (${additionalUserCheck.rows[0].nome})`;
@@ -703,9 +703,9 @@ if (process.env.EXTERNAL_API_URL) {
           } catch (error) {
             console.error('Erro ao verificar tipo de usuário:', error);
           }
-          
+
           console.log(`✅ Cliente ${clientInfo.id} autenticado como usuário ${displayUserId} - Tipo: ${userType}`);
-          
+
           ws.send(JSON.stringify({
             type: 'auth_success',
             message: 'Autenticação bem-sucedida',
@@ -714,7 +714,7 @@ if (process.env.EXTERNAL_API_URL) {
           }));
         } else {
           console.log(`❌ Falha na autenticação do cliente ${clientInfo.id} - sessão inválida`);
-          
+
           ws.send(JSON.stringify({
             type: 'auth_failed',
             message: 'Sessão inválida',
@@ -724,7 +724,7 @@ if (process.env.EXTERNAL_API_URL) {
       } else {
         console.log(`❌ Falha na autenticação do cliente ${clientInfo.id} - dados incompletos`);
         console.log(`   sessionToken: ${!!sessionToken}, userId: ${!!userId}`);
-        
+
         ws.send(JSON.stringify({
           type: 'auth_failed',
           message: 'Dados de autenticação incompletos',
@@ -733,7 +733,7 @@ if (process.env.EXTERNAL_API_URL) {
       }
     } catch (error) {
       console.error('❌ Erro na autenticação WebSocket:', error);
-      
+
       ws.send(JSON.stringify({
         type: 'auth_error',
         message: 'Erro interno de autenticação',
@@ -871,7 +871,7 @@ if (process.env.EXTERNAL_API_URL) {
           console.log('🔄 Proxy WebSocket upgrade request recebido');
           console.log('🔄 URL:', request.url);
           console.log('🔄 Headers:', request.headers);
-          
+
           // Usar o middleware de proxy para fazer upgrade
           const proxyMiddleware = createProxyMiddleware({
             target: `http://localhost:${port}`,
@@ -881,7 +881,7 @@ if (process.env.EXTERNAL_API_URL) {
               console.error('Erro no upgrade WebSocket:', err.message);
             }
           });
-          
+
           proxyMiddleware.upgrade(request, socket, head);
         });
 
@@ -893,7 +893,7 @@ if (process.env.EXTERNAL_API_URL) {
         // Sistema de Heartbeat - verificar clientes a cada 30 segundos
         const heartbeatInterval = setInterval(async () => {
           console.log('\n🔄 === HEARTBEAT WEBSOCKET ===');
-          
+
           // Limpar clientes desconectados primeiro
           const clientesToRemove = [];
           global.wsClients.forEach(ws => {
@@ -901,14 +901,14 @@ if (process.env.EXTERNAL_API_URL) {
               clientesToRemove.push(ws);
             }
           });
-          
+
           clientesToRemove.forEach(ws => {
             const clientInfo = global.clientsInfo?.get(ws);
             console.log(`🧹 Removendo cliente desconectado: ${clientInfo?.id}`);
             global.wsClients.delete(ws);
             global.clientsInfo?.delete(ws);
           });
-          
+
           console.log(`📊 Total de clientes conectados: ${global.wsClients.size}`);
 
           const now = new Date();
@@ -921,29 +921,44 @@ if (process.env.EXTERNAL_API_URL) {
             if (client) {
               const timeSinceLastPing = now - client.lastPing;
               const connectionDuration = now - client.connectionTime;
-              
+
               let displayUserId = client.userId || 'Não autenticado';
               let userType = '';
-              
+
               // Se autenticado, buscar informações do usuário
               if (client.authenticated && client.userId) {
-                try {
-                  const additionalUserCheck = await connectionManager.executeQuery(
-                    `SELECT u.nome FROM usuarios_adicionais u WHERE u.id = $1`,
-                    [client.userId]
-                  );
-                  
-                  if (additionalUserCheck.rows.length > 0) {
-                    displayUserId = `${client.userId} (${additionalUserCheck.rows[0].nome})`;
-                    userType = 'adicional';
-                  } else {
-                    displayUserId = `${client.userId} (Principal)`;
-                    userType = 'principal';
+                // Fallback - buscar nome do usuário no banco
+                  try {
+                    let nomeUsuario = 'Nome não encontrado';
+
+                    // Verificar se é usuário adicional
+                    const additionalCheck = await connectionManager.executeQuery(
+                      `SELECT nome FROM usuarios_adicionais WHERE id = $1`,
+                      [client.userId]
+                    );
+
+                    if (additionalCheck.rows.length > 0) {
+                      nomeUsuario = additionalCheck.rows[0].nome;
+                      userType = 'adicional';
+                    } else {
+                      // Buscar nome do usuário principal
+                      const principalCheck = await connectionManager.executeQuery(
+                        `SELECT username FROM users WHERE id = $1`,
+                        [client.userId]
+                      );
+
+                      if (principalCheck.rows.length > 0) {
+                        nomeUsuario = principalCheck.rows[0].username;
+                        userType = 'principal';
+                      }
+                    }
+
+                    displayUserId = `${client.userId} (${nomeUsuario})`;
+                  } catch (error) {
+                    console.error('Erro ao buscar nome do usuário no fallback:', error);
+                    displayUserId = client.userId ? client.userId.toString() : 'Não autenticado';
+                    userType = 'desconhecido';
                   }
-                } catch (error) {
-                  displayUserId = client.userId;
-                }
-              }
 
               const clientStatus = {
                 id: client.id,
