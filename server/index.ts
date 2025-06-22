@@ -1084,7 +1084,7 @@ if (process.env.EXTERNAL_API_URL) {
                   // Usar informações já processadas na autenticação
                   if (client.userType === 'Adicional') {
                     // Para usuário adicional, mostrar informações mais detalhadas
-                    displayUserId = `${client.userId} (pai) → ${client.realUserId} (${client.displayName})`;
+                    displayUserId = `${client.realUserId} (${client.displayName}) via pai ${client.userId}`;
                     userType = 'adicional';
                   } else {
                     // Para usuário principal, mostrar o ID real
