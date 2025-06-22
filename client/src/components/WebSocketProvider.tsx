@@ -1,5 +1,5 @@
 import { ReactNode, createContext, useContext, useEffect, useState } from 'react';
-import { useWebSocket } from '@/hooks/useWebSocket';
+import { initWebSocket, sendMessage as sendWebSocketMessage, subscribeToMessages, closeWebSocket } from '@/services/websocketService';
 import { useToast } from '@/hooks/use-toast';
 import { SessionTerminatedModal } from '@/components/auth/SessionTerminatedModal';
 import { useAuth } from '@/hooks/use-auth';
@@ -28,8 +28,8 @@ interface WebSocketProviderProps {
 }
 
 export default function WebSocketProvider({ children }: WebSocketProviderProps) {
-  const { connected, sendMessage } = useWebSocket();
   const { user } = useAuth();
+  const [connected, setConnected] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | undefined>(undefined);
   const [sessionTerminated, setSessionTerminated] = useState(false);
   const [terminationMessage, setTerminationMessage] = useState<string>("");
@@ -40,6 +40,33 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
     user: user?.id,
     authAttempted
   });
+
+  // Inicializar WebSocket apenas uma vez quando há usuário logado
+  useEffect(() => {
+    if (user && !connected) {
+      console.log('🔗 Inicializando WebSocket para usuário logado:', user.id);
+      initWebSocket();
+      setConnected(true);
+    }
+    
+    return () => {
+      if (!user && connected) {
+        console.log('🔌 Fechando WebSocket - usuário deslogado');
+        closeWebSocket();
+        setConnected(false);
+      }
+    };
+  }, [user, connected]);
+
+  // Wrapper para sendMessage
+  const sendMessage = (message: any): boolean => {
+    try {
+      return sendWebSocketMessage(message);
+    } catch (error) {
+      console.error('Erro ao enviar mensagem WebSocket:', error);
+      return false;
+    }
+  };
 
   // Ativar proteção IMEDIATAMENTE quando sessão estiver encerrada
   useSessionGuard(sessionTerminated);
@@ -81,7 +108,7 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
 
   // Autenticação WebSocket SIMPLIFICADA
   useEffect(() => {
-    if (!connected || !user || !sendMessage || authAttempted) {
+    if (!connected || !user || authAttempted) {
       return;
     }
 
@@ -123,7 +150,7 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
       console.error('❌ Erro ao enviar mensagem de autenticação:', error);
       setAuthAttempted(false);
     }
-  }, [connected, user, sendMessage, authAttempted]);
+  }, [connected, user, authAttempted]);
 
   // Reset authAttempted quando desconectar
   useEffect(() => {
@@ -160,42 +187,33 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
     setTerminationMessage(message);
   };
 
-  // Atualizar o timestamp sempre que recebermos uma mensagem
+  // Configurar listeners para mensagens WebSocket usando subscribeToMessages
   useEffect(() => {
-    const handleWebSocketMessage = (event: any) => {
+    const unsubscribe = subscribeToMessages((message) => {
       setLastUpdated(new Date());
 
-      if (event.detail && event.detail.type === 'session_terminated') {
-        const terminatedSessionToken = event.detail.sessionToken;
-        if (checkIfCurrentSession(terminatedSessionToken)) {
-          activateSessionProtection(event.detail.message || "Sua sessão foi encerrada por outro usuário");
+      if (message.type === 'session_terminated') {
+        const terminatedSessionToken = message.sessionToken;
+        if (terminatedSessionToken && checkIfCurrentSession(terminatedSessionToken)) {
+          activateSessionProtection(message.message || "Sua sessão foi encerrada por outro usuário");
         }
       }
 
-      if (event.detail && event.detail.type === 'data_update') {
-        const { resource, action, data } = event.detail;
+      if (message.type === 'data_update') {
+        const { resource, action, data } = message;
         const customEvent = new CustomEvent('websocket-data-update', {
           detail: { resource, action, data }
         });
         window.dispatchEvent(customEvent);
       }
 
-      if (event.detail && event.detail.type === 'auth_success') {
+      if (message.type === 'auth_success') {
         console.log('✅ Autenticação WebSocket confirmada pelo servidor');
-      }
-    };
-
-    window.addEventListener('websocket-message-received', handleWebSocketMessage);
-    window.addEventListener('session-terminated', (event: any) => {
-      if (checkIfCurrentSession(event.detail.sessionToken)) {
-        activateSessionProtection(event.detail.message || "Sua sessão foi encerrada por outro usuário");
       }
     });
 
-    return () => {
-      window.removeEventListener('websocket-message-received', handleWebSocketMessage);
-      window.removeEventListener('session-terminated', handleWebSocketMessage);
-    };
+    // Cleanup function para remover subscription
+    return unsubscribe;
   }, []);
 
   return (
