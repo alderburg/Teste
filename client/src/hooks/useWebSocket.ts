@@ -22,15 +22,23 @@ export function useWebSocket() {
   const sendMessage = useCallback((message: WebSocketMessage): boolean => {
     try {
       if (socket && socket.readyState === WebSocket.OPEN) {
+        console.log('📤 Enviando mensagem WebSocket:', message.type, message);
         socket.send(JSON.stringify(message));
+        console.log('✅ Mensagem enviada com sucesso');
         return true;
+      } else {
+        console.log('❌ WebSocket não está aberto:', {
+          socketExists: !!socket,
+          readyState: socket?.readyState,
+          expectedState: WebSocket.OPEN
+        });
+        return false;
       }
-      return false;
     } catch (error) {
-      console.error("Erro ao enviar mensagem WebSocket:", error);
+      console.error("❌ Erro ao enviar mensagem WebSocket:", error);
       return false;
     }
-  }, []);
+  }, [socket]);
 
   useEffect(() => {
     const connect = () => {
