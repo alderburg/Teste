@@ -20,7 +20,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { createServer } from "http";
-import { WebSocketServer } from "ws";
+import { WebSocketServer, WebSocket } from "ws";
 
 // import { setupSetupIntentRoute } from "./setup-intent-route"; // Removido - rotas centralizadas
 import { setupPaymentIntentRoute } from "./create-payment-intent";
@@ -646,16 +646,45 @@ if (process.env.EXTERNAL_API_URL) {
     // Limpar quando cliente desconectar
     ws.on('close', (code, reason) => {
       console.log(`🔌 Cliente ${clientId} desconectado. Código: ${code}, Razão: ${reason}`);
-      global.wsClients.delete(ws);
-      global.clientsInfo.delete(ws);
+      
+      // Garantir remoção completa
+      if (global.wsClients.has(ws)) {
+        global.wsClients.delete(ws);
+      }
+      if (global.clientsInfo?.has(ws)) {
+        global.clientsInfo.delete(ws);
+      }
+      
+      // Limpeza adicional: verificar se há conexões órfãs
+      let limpezaAdicional = 0;
+      global.wsClients.forEach(cliente => {
+        if (cliente.readyState === WebSocket.CLOSED || cliente.readyState === WebSocket.CLOSING) {
+          global.wsClients.delete(cliente);
+          global.clientsInfo?.delete(cliente);
+          limpezaAdicional++;
+        }
+      });
+      
+      if (limpezaAdicional > 0) {
+        console.log(`🧹 Limpeza adicional: ${limpezaAdicional} conexão(ões) órfã(s) removida(s)`);
+      }
+      
       console.log(`📊 Total de clientes restantes: ${global.wsClients.size}`);
     });
 
     // Tratar erros de conexão
     ws.on('error', (error) => {
       console.error(`❌ Erro WebSocket cliente ${clientId}:`, error);
-      global.wsClients.delete(ws);
-      global.clientsInfo.delete(ws);
+      
+      // Garantir remoção completa
+      if (global.wsClients.has(ws)) {
+        global.wsClients.delete(ws);
+      }
+      if (global.clientsInfo?.has(ws)) {
+        global.clientsInfo.delete(ws);
+      }
+      
+      console.log(`📊 Total de clientes após erro: ${global.wsClients.size}`);
     });
 
     // Enviar mensagem de boas-vindas
@@ -666,6 +695,33 @@ if (process.env.EXTERNAL_API_URL) {
       timestamp: new Date().toISOString()
     }));
   });
+
+  // Função de limpeza geral de conexões
+  function limpezaGeralConexoes() {
+    const antes = global.wsClients.size;
+    let removidos = 0;
+    
+    const clientesParaRemover = [];
+    
+    global.wsClients.forEach(ws => {
+      if (ws.readyState !== WebSocket.OPEN) {
+        clientesParaRemover.push(ws);
+      }
+    });
+    
+    clientesParaRemover.forEach(ws => {
+      const clientInfo = global.clientsInfo?.get(ws);
+      global.wsClients.delete(ws);
+      global.clientsInfo?.delete(ws);
+      removidos++;
+    });
+    
+    if (removidos > 0) {
+      console.log(`🧹 Limpeza geral: ${removidos} conexão(ões) removida(s). Antes: ${antes}, Depois: ${global.wsClients.size}`);
+    }
+    
+    return removidos;
+  }
 
   // Função para autenticação WebSocket
   async function handleWebSocketAuth(ws: any, message: any, clientInfo: any) {
@@ -894,22 +950,38 @@ if (process.env.EXTERNAL_API_URL) {
         const heartbeatInterval = setInterval(async () => {
           console.log('\n🔄 === HEARTBEAT WEBSOCKET ===');
           
-          // Limpar clientes desconectados primeiro
-          const clientesToRemove = [];
+          // Executar limpeza geral primeiro
+          limpezaGeralConexoes();
+          
+          // LIMPEZA COMPLETA: Remover todas as conexões que não estão OPEN
+          const clientesToRemover = [];
+          let removidosCount = 0;
+          
           global.wsClients.forEach(ws => {
-            if (ws.readyState !== 1) { // WebSocket.OPEN = 1
-              clientesToRemove.push(ws);
+            // Verificar múltiplas condições de conexão inválida
+            if (ws.readyState !== WebSocket.OPEN || 
+                ws.readyState === WebSocket.CLOSED || 
+                ws.readyState === WebSocket.CLOSING) {
+              clientesToRemover.push(ws);
             }
           });
           
-          clientesToRemove.forEach(ws => {
+          // Remover todas as conexões inválidas
+          clientesToRemover.forEach(ws => {
             const clientInfo = global.clientsInfo?.get(ws);
-            console.log(`🧹 Removendo cliente desconectado: ${clientInfo?.id}`);
+            if (clientInfo) {
+              console.log(`🧹 Removendo cliente ${clientInfo.id} (readyState: ${ws.readyState})`);
+              removidosCount++;
+            }
             global.wsClients.delete(ws);
             global.clientsInfo?.delete(ws);
           });
           
-          console.log(`📊 Total de clientes conectados: ${global.wsClients.size}`);
+          if (removidosCount > 0) {
+            console.log(`🧹 Total de ${removidosCount} conexão(ões) inválida(s) removida(s)`);
+          }
+          
+          console.log(`📊 Total de clientes conectados (após limpeza): ${global.wsClients.size}`);
 
           const now = new Date();
           const activeClients = [];
@@ -984,16 +1056,48 @@ if (process.env.EXTERNAL_API_URL) {
           }
 
           // Enviar ping para todos os clientes e remover os que não respondem
-          global.wsClients.forEach(ws => {
-            if (ws.isAlive === false) {
-              console.log(`🗑️ Removendo cliente inativo: ${global.clientsInfo?.get(ws)?.id}`);
+          const clientesAtivos = Array.from(global.wsClients);
+          
+          clientesAtivos.forEach(ws => {
+            // Verificar se a conexão ainda é válida
+            if (ws.readyState !== 1) { // WebSocket.OPEN = 1
+              const clientInfo = global.clientsInfo?.get(ws);
+              console.log(`🗑️ Removendo cliente inválido: ${clientInfo?.id} (readyState: ${ws.readyState})`);
               global.clientsInfo?.delete(ws);
               global.wsClients.delete(ws);
-              return ws.terminate();
+              try {
+                if (ws.readyState === 1) {
+                  ws.terminate();
+                }
+              } catch (e) {
+                // Ignorar erros de terminate
+              }
+              return;
+            }
+            
+            if (ws.isAlive === false) {
+              const clientInfo = global.clientsInfo?.get(ws);
+              console.log(`🗑️ Removendo cliente inativo: ${clientInfo?.id}`);
+              global.clientsInfo?.delete(ws);
+              global.wsClients.delete(ws);
+              try {
+                ws.terminate();
+              } catch (e) {
+                // Ignorar erros de terminate
+              }
+              return;
             }
 
             ws.isAlive = false;
-            ws.ping();
+            try {
+              ws.ping();
+            } catch (e) {
+              // Se ping falhar, remover cliente
+              const clientInfo = global.clientsInfo?.get(ws);
+              console.log(`🗑️ Ping falhou, removendo cliente: ${clientInfo?.id}`);
+              global.clientsInfo?.delete(ws);
+              global.wsClients.delete(ws);
+            }
 
             // Enviar ping customizado também
             try {
