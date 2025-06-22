@@ -62,27 +62,58 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
   useEffect(() => {
     if (user && connected) {
       console.log('👤 Usuário alterado - forçando nova autenticação WebSocket:', user.id);
-      // Pequeno delay para garantir que a conexão está estável
-      setTimeout(() => {
-        const sessionToken = getSessionToken();
-        if (sessionToken) {
-          const authMessage = {
-            type: 'auth',
-            userId: user.id,
-            sessionToken: sessionToken
-          };
+      // Autenticação imediata sem delay
+      const sessionToken = getSessionToken();
+      if (sessionToken) {
+        const authMessage = {
+          type: 'auth',
+          userId: user.id,
+          sessionToken: sessionToken
+        };
 
-          console.log(`🔐 Enviando nova autenticação após mudança de usuário:`, {
-            type: authMessage.type,
-            userId: authMessage.userId,
-            tokenPreview: authMessage.sessionToken.substring(0, 10) + '...'
-          });
+        console.log(`🔐 Enviando nova autenticação após mudança de usuário:`, {
+          type: authMessage.type,
+          userId: authMessage.userId,
+          tokenPreview: authMessage.sessionToken.substring(0, 10) + '...'
+        });
 
-          sendMessage(authMessage);
+        const success = sendMessage(authMessage);
+        if (!success) {
+          console.log('❌ Falha na primeira tentativa - tentando novamente em 500ms');
+          setTimeout(() => {
+            sendMessage(authMessage);
+          }, 500);
         }
-      }, 100);
+      }
     }
   }, [user?.id, connected]); // Reage especificamente à mudança do ID do usuário
+
+  // Autenticação adicional quando usuário aparece pela primeira vez
+  useEffect(() => {
+    if (user && connected && !authAttempted) {
+      console.log('🔄 Primeira autenticação do usuário após login:', user.id);
+      const sessionToken = getSessionToken();
+      
+      if (sessionToken) {
+        const authMessage = {
+          type: 'auth',
+          userId: user.id,
+          sessionToken: sessionToken
+        };
+
+        console.log('🔐 Enviando primeira autenticação após login');
+        const success = sendMessage(authMessage);
+        setAuthAttempted(true);
+        
+        if (!success) {
+          console.log('❌ Primeira autenticação falhou - reagendando');
+          setTimeout(() => {
+            sendMessage(authMessage);
+          }, 1000);
+        }
+      }
+    }
+  }, [user, connected, authAttempted]);
 
   // Wrapper para sendMessage
   const sendMessage = (message: any): boolean => {
