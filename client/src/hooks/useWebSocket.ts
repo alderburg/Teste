@@ -18,7 +18,6 @@ export function useWebSocket() {
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 5;
   const reconnectDelay = 3000;
-  const currentPath = useRef(window.location.pathname);
 
   const sendMessage = useCallback((message: WebSocketMessage): boolean => {
     try {
@@ -36,75 +35,9 @@ export function useWebSocket() {
     }
   }, [socket]);
 
-  // Função para fechar conexão anterior de forma mais agressiva
-  const closeExistingConnection = useCallback(() => {
-    if (socket) {
-      console.log('🔌 Fechando conexão WebSocket anterior devido à mudança de rota');
-      try {
-        // Fechar de forma mais agressiva
-        if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
-          socket.close(1000, 'Mudança de rota');
-        }
-        // Forçar terminate se necessário
-        setTimeout(() => {
-          if (socket && socket.readyState !== WebSocket.CLOSED) {
-            try {
-              (socket as any).terminate?.();
-            } catch (e) {
-              // Ignorar erros
-            }
-          }
-        }, 100);
-      } catch (error) {
-        console.error('Erro ao fechar conexão anterior:', error);
-      }
-      setSocket(null);
-      setConnected(false);
-      reconnectAttempts.current = 0;
-    }
-  }, [socket]);
-
   useEffect(() => {
-    // Detectar mudança de rota
-    const handleRouteChange = () => {
-      const newPath = window.location.pathname;
-      if (currentPath.current !== newPath) {
-        console.log(`🔄 Mudança de rota detectada: ${currentPath.current} → ${newPath}`);
-        currentPath.current = newPath;
-        
-        // Fechar conexão anterior e criar nova
-        closeExistingConnection();
-        
-        // Aguardar um pouco antes de reconectar para garantir limpeza
-        setTimeout(() => {
-          console.log('🔗 Criando nova conexão WebSocket após mudança de rota');
-          connect();
-        }, 500);
-      }
-    };
-
-    // Listener para mudanças de rota (funciona com React Router)
-    window.addEventListener('popstate', handleRouteChange);
-    
-    // Observer para mudanças no pathname (funciona com navegação programática)
-    const observer = new MutationObserver(() => {
-      handleRouteChange();
-    });
-    
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-      attributes: false
-    });
-
     const connect = () => {
       try {
-        // Se já existe uma conexão ativa, não criar outra
-        if (socket && socket.readyState === WebSocket.OPEN) {
-          console.log('⚠️ Conexão WebSocket já existe e está ativa');
-          return;
-        }
-
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
         const host = window.location.hostname;
         let port = window.location.port;
@@ -114,7 +47,7 @@ export function useWebSocket() {
         }
 
         const wsUrl = `${protocol}//${host}:${port}/ws`;
-        console.log(`🔗 Conectando WebSocket: ${wsUrl} (rota: ${window.location.pathname})`);
+        console.log(`🔗 Conectando WebSocket: ${wsUrl}`);
 
         const newSocket = new WebSocket(wsUrl);
 
@@ -208,25 +141,9 @@ export function useWebSocket() {
 
     connect();
 
-    // Conectar inicialmente
-    connect();
-
     return () => {
-      console.log('🧹 Limpeza do useWebSocket');
-      
-      // Remover listeners
-      window.removeEventListener('popstate', handleRouteChange);
-      observer.disconnect();
-      
-      // Fechar conexão
       if (socket) {
-        try {
-          if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
-            socket.close(1000, 'Componente desmontado');
-          }
-        } catch (error) {
-          console.error('Erro ao fechar WebSocket na limpeza:', error);
-        }
+        socket.close();
         setSocket(null);
       }
     };

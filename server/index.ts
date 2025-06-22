@@ -20,7 +20,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { createServer } from "http";
-import { WebSocketServer, WebSocket } from "ws";
+import { WebSocketServer } from "ws";
 
 // import { setupSetupIntentRoute } from "./setup-intent-route"; // Removido - rotas centralizadas
 import { setupPaymentIntentRoute } from "./create-payment-intent";
@@ -576,10 +576,10 @@ if (process.env.EXTERNAL_API_URL) {
     console.log('🔗 Nova conexão WebSocket estabelecida');
     console.log('🔗 URL:', request.url);
     console.log('🔗 IP:', request.socket.remoteAddress);
-
+    
     // Adicionar cliente ao conjunto global
     global.wsClients.add(ws);
-
+    
     // Criar informações do cliente
     const clientId = Math.random().toString(36).substring(2, 15);
     const clientInfo = {
@@ -592,9 +592,9 @@ if (process.env.EXTERNAL_API_URL) {
       sessionToken: null,
       ip: request.socket.remoteAddress || 'unknown'
     };
-
+    
     global.clientsInfo.set(ws, clientInfo);
-
+    
     console.log(`📊 Cliente ${clientId} conectado. Total de clientes: ${global.wsClients.size}`);
 
     // Configurar ping/pong para manter conexão viva
@@ -610,19 +610,19 @@ if (process.env.EXTERNAL_API_URL) {
       try {
         const message = JSON.parse(data.toString());
         console.log('📨 Mensagem WebSocket recebida:', message.type, `(Cliente: ${clientInfo.id})`);
-
+        
         // Processar mensagem de autenticação
         if (message.type === 'auth') {
           console.log('🔐 Processando autenticação para cliente:', clientInfo.id);
           await handleWebSocketAuth(ws, message, clientInfo);
         }
-
+        
         // Processar informações do cliente
         if (message.type === 'client_info') {
           console.log('ℹ️ Informações do cliente recebidas:', clientInfo.id);
           // Não fazer nada especial, apenas registrar
         }
-
+        
         // Responder a pings do cliente
         if (message.type === 'ping') {
           ws.send(JSON.stringify({ 
@@ -630,13 +630,13 @@ if (process.env.EXTERNAL_API_URL) {
             timestamp: new Date().toISOString() 
           }));
         }
-
+        
         // Responder a pongs do cliente
         if (message.type === 'pong') {
           clientInfo.lastPing = new Date();
           clientInfo.isAlive = true;
         }
-
+        
       } catch (error) {
         console.error('❌ Erro ao processar mensagem WebSocket:', error);
         console.error('❌ Dados recebidos:', data.toString());
@@ -645,59 +645,17 @@ if (process.env.EXTERNAL_API_URL) {
 
     // Limpar quando cliente desconectar
     ws.on('close', (code, reason) => {
-      const clientInfo = global.clientsInfo?.get(ws);
       console.log(`🔌 Cliente ${clientId} desconectado. Código: ${code}, Razão: ${reason}`);
-
-      if (clientInfo && clientInfo.authenticated) {
-        console.log(`🔌 Cliente autenticado desconectado: ${clientInfo.realUserId || clientInfo.userId} (${clientInfo.userType || 'tipo desconhecido'})`);
-      }
-
-      // Garantir remoção completa
-      if (global.wsClients.has(ws)) {
-        global.wsClients.delete(ws);
-      }
-      if (global.clientsInfo?.has(ws)) {
-        global.clientsInfo.delete(ws);
-      }
-
-      // Limpeza adicional mais rigorosa: verificar se há conexões órfãs
-      let limpezaAdicional = 0;
-      const clientesParaRemover = [];
-
-      global.wsClients.forEach(cliente => {
-        if (cliente.readyState === WebSocket.CLOSED || 
-            cliente.readyState === WebSocket.CLOSING ||
-            cliente.readyState === 3) { // 3 = CLOSED
-          clientesParaRemover.push(cliente);
-        }
-      });
-
-      clientesParaRemover.forEach(cliente => {
-        global.wsClients.delete(cliente);
-        global.clientsInfo?.delete(cliente);
-        limpezaAdicional++;
-      });
-
-      if (limpezaAdicional > 0) {
-        console.log(`🧹 Limpeza adicional: ${limpezaAdicional} conexão(ões) órfã(s) removida(s)`);
-      }
-
+      global.wsClients.delete(ws);
+      global.clientsInfo.delete(ws);
       console.log(`📊 Total de clientes restantes: ${global.wsClients.size}`);
     });
 
     // Tratar erros de conexão
     ws.on('error', (error) => {
       console.error(`❌ Erro WebSocket cliente ${clientId}:`, error);
-
-      // Garantir remoção completa
-      if (global.wsClients.has(ws)) {
-        global.wsClients.delete(ws);
-      }
-      if (global.clientsInfo?.has(ws)) {
-        global.clientsInfo.delete(ws);
-      }
-
-      console.log(`📊 Total de clientes após erro: ${global.wsClients.size}`);
+      global.wsClients.delete(ws);
+      global.clientsInfo.delete(ws);
     });
 
     // Enviar mensagem de boas-vindas
@@ -709,168 +667,34 @@ if (process.env.EXTERNAL_API_URL) {
     }));
   });
 
-  // Função de limpeza geral de conexões
-  function limpezaGeralConexoes() {
-    const antes = global.wsClients.size;
-    let removidos = 0;
-
-    const clientesParaRemover = [];
-
-    global.wsClients.forEach(ws => {
-      if (ws.readyState !== WebSocket.OPEN) {
-        clientesParaRemover.push(ws);
-      }
-    });
-
-    clientesParaRemover.forEach(ws => {
-      const clientInfo = global.clientsInfo?.get(ws);
-      global.wsClients.delete(ws);
-      global.clientsInfo?.delete(ws);
-      removidos++;
-    });
-
-    if (removidos > 0) {
-      console.log(`🧹 Limpeza geral: ${removidos} conexão(ões) removida(s). Antes: ${antes}, Depois: ${global.wsClients.size}`);
-    }
-
-    return removidos;
-  }
-
   // Função para autenticação WebSocket
   async function handleWebSocketAuth(ws: any, message: any, clientInfo: any) {
     try {
       const { sessionToken, userId } = message;
-
+      
       console.log(`🔐 Tentativa de autenticação - Cliente: ${clientInfo.id}, userId: ${userId}, token: ${sessionToken?.substring(0, 8)}...`);
-
+      
       if (sessionToken && userId) {
         // Verificar se a sessão é válida
         const isValid = await verifySessionToken(sessionToken, userId);
-
+        
         if (isValid) {
-          // PRIMEIRO: Detectar o tipo de usuário e obter o ID real
-          const { connectionManager } = await import('./connection-manager');
-          let realUserId = userId;
-          let userType = 'Principal';
-          let displayName = 'Principal';
-
-          try {
-            // Verificar se é usuário adicional conectando com sessão específica
-            const additionalUserCheck = await connectionManager.executeQuery(
-              `SELECT u.id, u.nome, u.user_id FROM usuarios_adicionais u 
-               WHERE u.id = $1`,
-              [userId]
-            );
-
-            if (additionalUserCheck.rows.length > 0) {
-              // É um usuário adicional
-              realUserId = additionalUserCheck.rows[0].id;
-              userType = 'Adicional';
-              displayName = additionalUserCheck.rows[0].nome;
-              console.log(`👤 Usuário adicional detectado: ID ${realUserId} (${displayName}), pai: ${additionalUserCheck.rows[0].user_id}`);
-            } else {
-              // É um usuário principal - buscar o nome do usuário principal
-              const principalUserCheck = await connectionManager.executeQuery(
-                `SELECT username FROM users WHERE id = $1`,
-                [userId]
-              );
-
-              if (principalUserCheck.rows.length > 0) {
-                displayName = principalUserCheck.rows[0].username;
-              }
-
-              console.log(`👤 Usuário principal detectado: ID ${userId} (${displayName})`);
-            }
-          } catch (error) {
-            console.error('Erro ao verificar tipo de usuário:', error);
-          }
-
-          // SEGUNDO: Limpar TODAS as conexões antigas deste usuário de forma mais agressiva
-          let conexoesRemovidas = 0;
-          const clientesParaRemover = [];
-
-          // Primeiro, coletamos todas as conexões para remoção
-          global.wsClients.forEach((existingWs) => {
-            if (existingWs !== ws) { // Não remover a conexão atual
-              const existingClientInfo = global.clientsInfo?.get(existingWs);
-
-              if (existingClientInfo) {
-                // Remover conexões antigas autenticadas do mesmo usuário (por ID real)
-                if (existingClientInfo.authenticated && 
-                    existingClientInfo.realUserId === realUserId) {
-                  console.log(`🧹 Removendo conexão autenticada antiga do usuário ${realUserId}: cliente ${existingClientInfo.id}`);
-                  clientesParaRemover.push(existingWs);
-                }
-                // Remover conexões antigas autenticadas do mesmo userId (sessão)
-                else if (existingClientInfo.authenticated && 
-                         existingClientInfo.userId === userId) {
-                  console.log(`🧹 Removendo conexão autenticada antiga da sessão ${userId}: cliente ${existingClientInfo.id}`);
-                  clientesParaRemover.push(existingWs);
-                }
-                // Remover TODAS as conexões não autenticadas do mesmo IP (mais agressivo)
-                else if (!existingClientInfo.authenticated && 
-                         existingClientInfo.ip === clientInfo.ip) {
-                  console.log(`🧹 Removendo conexão não autenticada órfã do IP ${existingClientInfo.ip}: cliente ${existingClientInfo.id}`);
-                  clientesParaRemover.push(existingWs);
-                }
-                // Remover conexões muito antigas (> 5 minutos) independente do estado
-                else {
-                  const agora = new Date();
-                  const tempoConexao = agora.getTime() - existingClientInfo.connectionTime.getTime();
-                  if (tempoConexao > 300000) { // 5 minutos
-                    console.log(`🧹 Removendo conexão muito antiga: cliente ${existingClientInfo.id} (${Math.floor(tempoConexao/60000)} min)`);
-                    clientesParaRemover.push(existingWs);
-                  }
-                }
-              } else {
-                // Conexão sem informações de cliente - remover imediatamente
-                console.log(`🧹 Removendo conexão sem informações de cliente`);
-                clientesParaRemover.push(existingWs);
-              }
-            }
-          });
-
-          // Agora removemos todas as conexões coletadas
-          clientesParaRemover.forEach(existingWs => {
-            try {
-              if (existingWs.readyState === WebSocket.OPEN) {
-                existingWs.terminate();
-              }
-            } catch (e) {
-              // Ignorar erros de terminate
-            }
-
-            global.wsClients.delete(existingWs);
-            global.clientsInfo?.delete(existingWs);
-            conexoesRemovidas++;
-          });
-
-          if (conexoesRemovidas > 0) {
-            console.log(`🧹 Total de ${conexoesRemovidas} conexão(ões) antiga(s) removida(s) para usuário ${realUserId}`);
-          }
-
-          // TERCEIRO: Configurar as informações do cliente atual
           clientInfo.authenticated = true;
-          clientInfo.userId = userId; // ID usado para verificação de sessão (pai para usuários adicionais)
-          clientInfo.realUserId = realUserId; // ID real do usuário (adicional ou principal)
-          clientInfo.userType = userType;
-          clientInfo.displayName = displayName;
+          clientInfo.userId = userId;
           clientInfo.sessionToken = sessionToken;
           clientInfo.authTimestamp = new Date();
-
-          console.log(`✅ Cliente ${clientInfo.id} autenticado como usuário ${realUserId} - Tipo: ${userType} (${displayName})`);
-
+          
+          console.log(`✅ Cliente ${clientInfo.id} autenticado como usuário ${userId}`);
+          
           ws.send(JSON.stringify({
             type: 'auth_success',
             message: 'Autenticação bem-sucedida',
-            userId: realUserId, // Retornar o ID real
-            userType: userType,
-            displayName: displayName,
+            userId: userId,
             timestamp: new Date().toISOString()
           }));
         } else {
           console.log(`❌ Falha na autenticação do cliente ${clientInfo.id} - sessão inválida`);
-
+          
           ws.send(JSON.stringify({
             type: 'auth_failed',
             message: 'Sessão inválida',
@@ -880,7 +704,7 @@ if (process.env.EXTERNAL_API_URL) {
       } else {
         console.log(`❌ Falha na autenticação do cliente ${clientInfo.id} - dados incompletos`);
         console.log(`   sessionToken: ${!!sessionToken}, userId: ${!!userId}`);
-
+        
         ws.send(JSON.stringify({
           type: 'auth_failed',
           message: 'Dados de autenticação incompletos',
@@ -889,7 +713,7 @@ if (process.env.EXTERNAL_API_URL) {
       }
     } catch (error) {
       console.error('❌ Erro na autenticação WebSocket:', error);
-
+      
       ws.send(JSON.stringify({
         type: 'auth_error',
         message: 'Erro interno de autenticação',
@@ -1027,7 +851,7 @@ if (process.env.EXTERNAL_API_URL) {
           console.log('🔄 Proxy WebSocket upgrade request recebido');
           console.log('🔄 URL:', request.url);
           console.log('🔄 Headers:', request.headers);
-
+          
           // Usar o middleware de proxy para fazer upgrade
           const proxyMiddleware = createProxyMiddleware({
             target: `http://localhost:${port}`,
@@ -1037,7 +861,7 @@ if (process.env.EXTERNAL_API_URL) {
               console.error('Erro no upgrade WebSocket:', err.message);
             }
           });
-
+          
           proxyMiddleware.upgrade(request, socket, head);
         });
 
@@ -1047,107 +871,24 @@ if (process.env.EXTERNAL_API_URL) {
         });
 
         // Sistema de Heartbeat - verificar clientes a cada 30 segundos
-        const heartbeatInterval = setInterval(async () => {
+        const heartbeatInterval = setInterval(() => {
           console.log('\n🔄 === HEARTBEAT WEBSOCKET ===');
-
-          // Executar limpeza geral primeiro
-          limpezaGeralConexoes();
-
-          // LIMPEZA COMPLETA: Remover todas as conexões que não estão OPEN
-          const clientesToRemover = [];
-          let removidosCount = 0;
-
-          global.wsClients.forEach(ws => {
-            // Verificar múltiplas condições de conexão inválida
-            if (ws.readyState !== WebSocket.OPEN || 
-                ws.readyState === WebSocket.CLOSED || 
-                ws.readyState === WebSocket.CLOSING) {
-              clientesToRemover.push(ws);
-            }
-          });
-
-          // Remover todas as conexões inválidas
-          clientesToRemover.forEach(ws => {
-            const clientInfo = global.clientsInfo?.get(ws);
-            if (clientInfo) {
-              console.log(`🧹 Removendo cliente ${clientInfo.id} (readyState: ${ws.readyState})`);
-              removidosCount++;
-            }
-            global.wsClients.delete(ws);
-            global.clientsInfo?.delete(ws);
-          });
-
-          if (removidosCount > 0) {
-            console.log(`🧹 Total de ${removidosCount} conexão(ões) inválida(s) removida(s)`);
-          }
-
-          console.log(`📊 Total de clientes conectados (após limpeza): ${global.wsClients.size}`);
+          console.log(`📊 Total de clientes conectados: ${global.wsClients.size}`);
 
           const now = new Date();
           const activeClients = [];
           const staleClients = [];
-          const { connectionManager } = await import('./connection-manager');
 
-          for (const ws of global.wsClients) {
+          global.wsClients.forEach(ws => {
             const client = global.clientsInfo?.get(ws);
             if (client) {
               const timeSinceLastPing = now - client.lastPing;
               const connectionDuration = now - client.connectionTime;
 
-              let displayUserId = 'Não autenticado';
-              let userType = '';
-
-              // Se autenticado, usar as informações já processadas
-              if (client.authenticated) {
-                if (client.realUserId && client.userType && client.displayName) {
-                  // Usar informações já processadas na autenticação
-                  if (client.userType === 'Adicional') {
-                    displayUserId = `${client.realUserId} (${client.displayName})`;
-                    userType = 'adicional';
-                  } else {
-                    displayUserId = `${client.realUserId} (${client.displayName})`;
-                    userType = 'principal';
-                  }
-                } else {
-                  // Fallback - buscar nome do usuário no banco
-                  try {
-                    let nomeUsuario = 'Desconhecido';
-
-                    // Verificar se é usuário adicional
-                    const additionalCheck = await connectionManager.executeQuery(
-                      `SELECT nome FROM usuarios_adicionais WHERE id = $1`,
-                      [client.userId]
-                    );
-
-                    if (additionalCheck.rows.length > 0) {
-                      nomeUsuario = additionalCheck.rows[0].nome;
-                      userType = 'adicional';
-                    } else {
-                      // Buscar nome do usuário principal
-                      const principalCheck = await connectionManager.executeQuery(
-                        `SELECT username FROM users WHERE id = $1`,
-                        [client.userId]
-                      );
-
-                      if (principalCheck.rows.length > 0) {
-                        nomeUsuario = principalCheck.rows[0].username;
-                        userType = 'principal';
-                      }
-                    }
-
-                    displayUserId = `${client.userId} (${nomeUsuario})`;
-                  } catch (error) {
-                    displayUserId = client.userId ? client.userId.toString() : 'Não autenticado';
-                    userType = 'desconhecido';
-                  }
-                }
-              }
-
               const clientStatus = {
                 id: client.id,
                 authenticated: client.authenticated,
-                userId: displayUserId,
-                userType: userType,
+                userId: client.userId || 'Não autenticado',
                 ip: client.ip,
                 connectionDuration: Math.floor(connectionDuration / 1000) + 's',
                 lastPing: Math.floor(timeSinceLastPing / 1000) + 's atrás',
@@ -1160,7 +901,7 @@ if (process.env.EXTERNAL_API_URL) {
                 staleClients.push(clientStatus);
               }
             }
-          }
+          });
 
           // Mostrar clientes ativos
           if (activeClients.length > 0) {
@@ -1182,48 +923,16 @@ if (process.env.EXTERNAL_API_URL) {
           }
 
           // Enviar ping para todos os clientes e remover os que não respondem
-          const clientesAtivos = Array.from(global.wsClients);
-
-          clientesAtivos.forEach(ws => {
-            // Verificar se a conexão ainda é válida
-            if (ws.readyState !== 1) { // WebSocket.OPEN = 1
-              const clientInfo = global.clientsInfo?.get(ws);
-              console.log(`🗑️ Removendo cliente inválido: ${clientInfo?.id} (readyState: ${ws.readyState})`);
-              global.clientsInfo?.delete(ws);
-              global.wsClients.delete(ws);
-              try {
-                if (ws.readyState === 1) {
-                  ws.terminate();
-                }
-              } catch (e) {
-                // Ignorar erros de terminate
-              }
-              return;
-            }
-
+          global.wsClients.forEach(ws => {
             if (ws.isAlive === false) {
-              const clientInfo = global.clientsInfo?.get(ws);
-              console.log(`🗑️ Removendo cliente inativo: ${clientInfo?.id}`);
+              console.log(`🗑️ Removendo cliente inativo: ${global.clientsInfo?.get(ws)?.id}`);
               global.clientsInfo?.delete(ws);
               global.wsClients.delete(ws);
-              try {
-                ws.terminate();
-              } catch (e) {
-                // Ignorar erros de terminate
-              }
-              return;
+              return ws.terminate();
             }
 
             ws.isAlive = false;
-            try {
-              ws.ping();
-            } catch (e) {
-              // Se ping falhar, remover cliente
-              const clientInfo = global.clientsInfo?.get(ws);
-              console.log(`🗑️ Ping falhou, removendo cliente: ${clientInfo?.id}`);
-              global.clientsInfo?.delete(ws);
-              global.wsClients.delete(ws);
-            }
+            ws.ping();
 
             // Enviar ping customizado também
             try {
@@ -1261,94 +970,46 @@ async function verifySessionToken(token: string, userId: number): Promise<boolea
 
   console.log(`🔍 Verificando token ${token.substring(0, 8)}... para usuário ${userId}`);
 
-  // PRIMEIRO: Verificar se é usuário adicional e buscar o usuário pai
-  let usuariosPrincipais = [userId];
-  let isAdditionalUser = false;
+  // PRIMEIRO: Verificar na tabela user_sessions_additional (principal para WebSocket)
+  const userSessionQuery = `
+    SELECT user_id, user_type, is_active, expires_at
+    FROM user_sessions_additional 
+    WHERE token = $1 AND user_id = $2 AND is_active = true AND expires_at > NOW()
+  `;
 
   try {
-    const additionalUserCheck = await connectionManager.executeQuery(
-      `SELECT user_id FROM usuarios_adicionais WHERE id = $1`,
-      [userId]
-    );
-
-    if (additionalUserCheck.rows.length > 0) {
-      const parentUserId = additionalUserCheck.rows[0].user_id;
-      usuariosPrincipais = [parentUserId];
-      isAdditionalUser = true;
-      console.log(`👤 Usuário ${userId} é adicional, verificando sessão do pai: ${parentUserId}`);
+    const userSessionResult = await connectionManager.executeQuery(userSessionQuery, [token, userId]);
+    if (userSessionResult.rows.length > 0) {
+      console.log(`✅ Sessão encontrada na tabela user_sessions_additional`);
+      console.log(`   - user_id: ${userSessionResult.rows[0].user_id}`);
+      console.log(`   - user_type: ${userSessionResult.rows[0].user_type}`);
+      console.log(`   - is_active: ${userSessionResult.rows[0].is_active}`);
+      return true;
     }
-  } catch (error) {
-    console.error('Erro ao verificar se é usuário adicional:', error);
+  } catch (userSessionError) {
+    console.error('Erro ao verificar na tabela user_sessions_additional:', userSessionError);
   }
 
-  // SEGUNDO: Buscar usuários filhos dos usuários principais
-  let usuariosRelacionados = [...usuariosPrincipais];
+  // SEGUNDO: Verificar na tabela session (Passport.js) com consulta corrigida
+  const sessionQuery = `
+    SELECT s.sess
+    FROM session s 
+    WHERE s.sid = $1 AND s.sess::text LIKE $2
+  `;
 
-  for (const principalId of usuariosPrincipais) {
-    try {
-      const usuariosFilhos = await connectionManager.executeQuery(
-        `SELECT id FROM usuarios_adicionais WHERE user_id = $1`,
-        [principalId]
-      );
+  const userPattern = `%"user":${userId}%`;
 
-      usuariosFilhos.rows.forEach(filho => {
-        if (!usuariosRelacionados.includes(filho.id)) {
-          usuariosRelacionados.push(filho.id);
-        }
-      });
-    } catch (error) {
-      console.error(`Erro ao buscar usuários filhos de ${principalId}:`, error);
+  try {
+    const sessionResult = await connectionManager.executeQuery(sessionQuery, [token, userPattern]);
+    if (sessionResult.rows.length > 0) {
+      console.log(`✅ Sessão encontrada na tabela session (Passport.js)`);
+      return true;
     }
+  } catch (sessionError) {
+    console.error('Erro ao verificar na tabela session:', sessionError);
   }
 
-  console.log(`👥 Usuários relacionados para verificação: ${usuariosRelacionados.join(', ')}`);
-
-  // TERCEIRO: Verificar token na tabela user_sessions_additional para todos os usuários relacionados
-  for (const relatedUserId of usuariosRelacionados) {
-    try {
-      const userSessionQuery = `
-        SELECT user_id, user_type, is_active, expires_at
-        FROM user_sessions_additional 
-        WHERE token = $1 AND user_id = $2 AND is_active = true AND expires_at > NOW()
-      `;
-
-      const userSessionResult = await connectionManager.executeQuery(userSessionQuery, [token, relatedUserId]);
-      if (userSessionResult.rows.length > 0) {
-        console.log(`✅ Sessão encontrada na tabela user_sessions_additional para usuário ${relatedUserId}`);
-        console.log(`   - user_id: ${userSessionResult.rows[0].user_id}`);
-        console.log(`   - user_type: ${userSessionResult.rows[0].user_type}`);
-        console.log(`   - is_active: ${userSessionResult.rows[0].is_active}`);
-        console.log(`   - Solicitante: ${userId} ${isAdditionalUser ? '(usuário adicional)' : '(usuário principal)'}`);
-        return true;
-      }
-    } catch (userSessionError) {
-      console.error(`Erro ao verificar sessão para usuário ${relatedUserId}:`, userSessionError);
-    }
-  }
-
-  // QUARTO: Verificar na tabela session (Passport.js) para todos os usuários relacionados
-  for (const relatedUserId of usuariosRelacionados) {
-    try {
-      const sessionQuery = `
-        SELECT s.sess
-        FROM session s 
-        WHERE s.sid = $1 AND s.sess::text LIKE $2
-      `;
-
-      const userPattern = `%"user":${relatedUserId}%`;
-
-      const sessionResult = await connectionManager.executeQuery(sessionQuery, [token, userPattern]);
-      if (sessionResult.rows.length > 0) {
-        console.log(`✅ Sessão encontrada na tabela session (Passport.js) para usuário ${relatedUserId}`);
-        console.log(`   - Solicitante: ${userId} ${isAdditionalUser ? '(usuário adicional)' : '(usuário principal)'}`);
-        return true;
-      }
-    } catch (sessionError) {
-      console.error(`Erro ao verificar session para usuário ${relatedUserId}:`, sessionError);
-    }
-  }
-
-  console.log(`❌ Token ${token.substring(0, 8)}... não encontrado em nenhuma tabela para usuário ${userId} nem seus relacionados ${usuariosRelacionados.join(', ')}`);
+  console.log(`❌ Token ${token.substring(0, 8)}... não encontrado em nenhuma tabela para usuário ${userId}`);
   return false;
 }
 

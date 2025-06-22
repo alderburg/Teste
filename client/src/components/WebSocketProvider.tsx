@@ -34,45 +34,12 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
   const [sessionTerminated, setSessionTerminated] = useState(false);
   const [terminationMessage, setTerminationMessage] = useState<string>("");
   const [authAttempted, setAuthAttempted] = useState(false);
-  const [currentRoute, setCurrentRoute] = useState(window.location.pathname);
 
   console.log('🔐 WebSocketProvider - Estados:', {
     connected,
     user: user?.id,
-    authAttempted,
-    route: currentRoute
+    authAttempted
   });
-
-  // Detectar mudanças de rota e resetar estado de autenticação
-  useEffect(() => {
-    const handleRouteChange = () => {
-      const newRoute = window.location.pathname;
-      if (currentRoute !== newRoute) {
-        console.log(`🔄 WebSocketProvider: Mudança de rota detectada: ${currentRoute} → ${newRoute}`);
-        setCurrentRoute(newRoute);
-        setAuthAttempted(false); // Reset estado de autenticação para nova rota
-      }
-    };
-
-    // Listener para mudanças de rota
-    window.addEventListener('popstate', handleRouteChange);
-    
-    // Observer para mudanças programáticas
-    const observer = new MutationObserver(() => {
-      handleRouteChange();
-    });
-    
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-      attributes: false
-    });
-
-    return () => {
-      window.removeEventListener('popstate', handleRouteChange);
-      observer.disconnect();
-    };
-  }, [currentRoute]);
 
   // Ativar proteção IMEDIATAMENTE quando sessão estiver encerrada
   useSessionGuard(sessionTerminated);
@@ -158,18 +125,12 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
     }
   }, [connected, user, sendMessage, authAttempted]);
 
-  // Reset authAttempted quando desconectar ou mudar de rota
+  // Reset authAttempted quando desconectar
   useEffect(() => {
     if (!connected) {
-      console.log('🔌 WebSocket desconectado - resetando estado de autenticação');
       setAuthAttempted(false);
     }
   }, [connected]);
-
-  // Reset authAttempted quando mudar de rota
-  useEffect(() => {
-    setAuthAttempted(false);
-  }, [currentRoute]);
 
   // Função para verificar se a sessão atual foi encerrada
   const checkIfCurrentSession = (terminatedToken: string): boolean => {
