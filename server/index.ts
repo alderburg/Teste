@@ -968,28 +968,11 @@ if (process.env.EXTERNAL_API_URL) {
 async function verifySessionToken(token: string, userId: number): Promise<boolean> {
   const { connectionManager } = await import('./connection-manager');
 
-  // Verificar na tabela session (Passport.js)
-  const sessionQuery = `
-    SELECT s.sess
-    FROM session s 
-    WHERE s.sid = $1 AND s.sess @> $2
-  `;
+  console.log(`🔍 Verificando token ${token.substring(0, 8)}... para usuário ${userId}`);
 
-  const sessionData = { passport: { user: userId } };
-
-  try {
-    const sessionResult = await connectionManager.executeQuery(sessionQuery, [token, JSON.stringify(sessionData)]);
-    if (sessionResult.rows.length > 0) {
-      console.log(`✅ Sessão encontrada na tabela session (Passport.js)`);
-      return true;
-    }
-  } catch (sessionError) {
-    console.error('Erro ao verificar na tabela session:', sessionError);
-  }
-
-  // Se não encontrou, tentar user_sessions_additional
+  // PRIMEIRO: Verificar na tabela user_sessions_additional (principal para WebSocket)
   const userSessionQuery = `
-    SELECT user_id
+    SELECT user_id, user_type, is_active, expires_at
     FROM user_sessions_additional 
     WHERE token = $1 AND user_id = $2 AND is_active = true AND expires_at > NOW()
   `;
@@ -998,13 +981,35 @@ async function verifySessionToken(token: string, userId: number): Promise<boolea
     const userSessionResult = await connectionManager.executeQuery(userSessionQuery, [token, userId]);
     if (userSessionResult.rows.length > 0) {
       console.log(`✅ Sessão encontrada na tabela user_sessions_additional`);
+      console.log(`   - user_id: ${userSessionResult.rows[0].user_id}`);
+      console.log(`   - user_type: ${userSessionResult.rows[0].user_type}`);
+      console.log(`   - is_active: ${userSessionResult.rows[0].is_active}`);
       return true;
     }
   } catch (userSessionError) {
     console.error('Erro ao verificar na tabela user_sessions_additional:', userSessionError);
   }
 
-  console.log(`❌ Token não encontrado em nenhuma tabela`);
+  // SEGUNDO: Verificar na tabela session (Passport.js) com consulta corrigida
+  const sessionQuery = `
+    SELECT s.sess
+    FROM session s 
+    WHERE s.sid = $1 AND s.sess::text LIKE $2
+  `;
+
+  const userPattern = `%"user":${userId}%`;
+
+  try {
+    const sessionResult = await connectionManager.executeQuery(sessionQuery, [token, userPattern]);
+    if (sessionResult.rows.length > 0) {
+      console.log(`✅ Sessão encontrada na tabela session (Passport.js)`);
+      return true;
+    }
+  } catch (sessionError) {
+    console.error('Erro ao verificar na tabela session:', sessionError);
+  }
+
+  console.log(`❌ Token ${token.substring(0, 8)}... não encontrado em nenhuma tabela para usuário ${userId}`);
   return false;
 }
 
