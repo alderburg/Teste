@@ -558,7 +558,6 @@ if (process.env.EXTERNAL_API_URL) {
     server: server, 
     path: '/ws',
     verifyClient: (info) => {
-      console.log('🔍 WebSocket connection attempt from:', info.origin);
       return true; // Aceitar todas as conexões por enquanto
     }
   });
@@ -573,10 +572,6 @@ if (process.env.EXTERNAL_API_URL) {
 
   // Configurar eventos do WebSocket Server
   wss.on('connection', (ws, request) => {
-    console.log('🔗 Nova conexão WebSocket estabelecida');
-    console.log('🔗 URL:', request.url);
-    console.log('🔗 IP:', request.socket.remoteAddress);
-
     // Adicionar cliente ao conjunto global
     global.wsClients.add(ws);
 
@@ -594,8 +589,6 @@ if (process.env.EXTERNAL_API_URL) {
     };
 
     global.clientsInfo.set(ws, clientInfo);
-
-    console.log(`📊 Cliente ${clientId} conectado. Total de clientes: ${global.wsClients.size}`);
 
     // Configurar ping/pong para manter conexão viva
     ws.isAlive = true;
@@ -638,11 +631,6 @@ if (process.env.EXTERNAL_API_URL) {
     // Limpar quando cliente desconectar
     ws.on('close', (code, reason) => {
       const clientInfo = global.clientsInfo?.get(ws);
-      console.log(`🔌 Cliente ${clientId} desconectado. Código: ${code}, Razão: ${reason}`);
-
-      if (clientInfo && clientInfo.authenticated) {
-        console.log(`🔌 Cliente autenticado desconectado: ${clientInfo.realUserId || clientInfo.userId} (${clientInfo.userType || 'tipo desconhecido'})`);
-      }
 
       // Garantir remoção completa
       if (global.wsClients.has(ws)) {
@@ -670,17 +658,11 @@ if (process.env.EXTERNAL_API_URL) {
         limpezaAdicional++;
       });
 
-      if (limpezaAdicional > 0) {
-        console.log(`🧹 Limpeza adicional: ${limpezaAdicional} conexão(ões) órfã(s) removida(s)`);
-      }
 
-      console.log(`📊 Total de clientes restantes: ${global.wsClients.size}`);
     });
 
     // Tratar erros de conexão
     ws.on('error', (error) => {
-      console.error(`❌ Erro WebSocket cliente ${clientId}:`, error);
-
       // Garantir remoção completa
       if (global.wsClients.has(ws)) {
         global.wsClients.delete(ws);
@@ -688,8 +670,6 @@ if (process.env.EXTERNAL_API_URL) {
       if (global.clientsInfo?.has(ws)) {
         global.clientsInfo.delete(ws);
       }
-
-      console.log(`📊 Total de clientes após erro: ${global.wsClients.size}`);
     });
 
     // Enviar mensagem de boas-vindas
@@ -721,9 +701,7 @@ if (process.env.EXTERNAL_API_URL) {
       removidos++;
     });
 
-    if (removidos > 0) {
-      console.log(`🧹 Limpeza geral: ${removidos} conexão(ões) removida(s). Antes: ${antes}, Depois: ${global.wsClients.size}`);
-    }
+
 
     return removidos;
   }
@@ -894,7 +872,7 @@ if (process.env.EXTERNAL_API_URL) {
     }
   }
 
-  console.log('🔗 WebSocket server configurado no caminho /ws');
+
 
   // Função global para notificar sobre sessão encerrada via sistema WebSocket existente
   (global as any).notifySessionTerminated = (userId: number, sessionToken: string) => {
