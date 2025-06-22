@@ -36,14 +36,25 @@ export function useWebSocket() {
     }
   }, [socket]);
 
-  // Função para fechar conexão anterior
+  // Função para fechar conexão anterior de forma mais agressiva
   const closeExistingConnection = useCallback(() => {
     if (socket) {
       console.log('🔌 Fechando conexão WebSocket anterior devido à mudança de rota');
       try {
+        // Fechar de forma mais agressiva
         if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
           socket.close(1000, 'Mudança de rota');
         }
+        // Forçar terminate se necessário
+        setTimeout(() => {
+          if (socket && socket.readyState !== WebSocket.CLOSED) {
+            try {
+              (socket as any).terminate?.();
+            } catch (e) {
+              // Ignorar erros
+            }
+          }
+        }, 100);
       } catch (error) {
         console.error('Erro ao fechar conexão anterior:', error);
       }
