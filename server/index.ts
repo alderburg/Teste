@@ -753,6 +753,7 @@ if (process.env.EXTERNAL_API_URL) {
           let realUserId = userId;
           let userType = 'Principal';
           let displayName = 'Principal';
+          let parentUserId = null;
 
           try {
             // Verificar se é usuário adicional conectando com sessão específica
@@ -763,11 +764,12 @@ if (process.env.EXTERNAL_API_URL) {
             );
 
             if (additionalUserCheck.rows.length > 0) {
-              // É um usuário adicional
+              // É um usuário adicional - manter o ID do usuário adicional como principal
               realUserId = additionalUserCheck.rows[0].id;
               userType = 'Adicional';
               displayName = additionalUserCheck.rows[0].nome;
-              console.log(`👤 Usuário adicional detectado: ID ${realUserId} (${displayName}), pai: ${additionalUserCheck.rows[0].user_id}`);
+              parentUserId = additionalUserCheck.rows[0].user_id;
+              console.log(`👤 Usuário adicional detectado: ID ${realUserId} (${displayName}), pai: ${parentUserId}`);
             } else {
               // É um usuário principal - buscar o nome do usuário principal
               const principalUserCheck = await connectionManager.executeQuery(
@@ -836,6 +838,7 @@ if (process.env.EXTERNAL_API_URL) {
           clientInfo.realUserId = realUserId; // ID real do usuário (adicional ou principal)
           clientInfo.userType = userType;
           clientInfo.displayName = displayName;
+          clientInfo.parentUserId = parentUserId; // ID do pai se for usuário adicional
           clientInfo.sessionToken = sessionToken;
           clientInfo.authTimestamp = new Date();
 
@@ -847,6 +850,7 @@ if (process.env.EXTERNAL_API_URL) {
             userId: realUserId, // Retornar o ID real
             userType: userType,
             displayName: displayName,
+            parentUserId: parentUserId,
             timestamp: new Date().toISOString()
           }));
         } else {
@@ -1083,7 +1087,7 @@ if (process.env.EXTERNAL_API_URL) {
                 if (client.realUserId && client.userType && client.displayName) {
                   // Usar informações já processadas na autenticação
                   if (client.userType === 'Adicional') {
-                    // Para usuário adicional, mostrar o usuário adicional como principal
+                    // Para usuário adicional, mostrar APENAS o usuário adicional
                     displayUserId = `${client.realUserId} (${client.displayName})`;
                     userType = 'adicional';
                   } else {
