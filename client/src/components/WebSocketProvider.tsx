@@ -61,7 +61,10 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
   // Forçar nova autenticação quando o usuário muda (login/logout)
   useEffect(() => {
     if (user && connected) {
-      console.log('👤 Usuário alterado - forçando nova autenticação WebSocket:', user.id);
+      console.log('👤 Usuário detectado - forçando autenticação WebSocket:', user.id);
+      // Reset do flag de autenticação para garantir nova tentativa
+      setAuthAttempted(false);
+      
       // Autenticação imediata sem delay
       const sessionToken = getSessionToken();
       if (sessionToken) {
@@ -71,19 +74,37 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
           sessionToken: sessionToken
         };
 
-        console.log(`🔐 Enviando nova autenticação após mudança de usuário:`, {
+        console.log(`🔐 Enviando autenticação para usuário detectado:`, {
           type: authMessage.type,
           userId: authMessage.userId,
           tokenPreview: authMessage.sessionToken.substring(0, 10) + '...'
         });
 
         const success = sendMessage(authMessage);
+        setAuthAttempted(true);
+        
         if (!success) {
           console.log('❌ Falha na primeira tentativa - tentando novamente em 500ms');
           setTimeout(() => {
             sendMessage(authMessage);
           }, 500);
         }
+      } else {
+        console.log('⚠️ Token não encontrado para usuário:', user.id);
+        // Tentar novamente após um delay para dar tempo aos cookies carregarem
+        setTimeout(() => {
+          const retryToken = getSessionToken();
+          if (retryToken) {
+            const authMessage = {
+              type: 'auth',
+              userId: user.id,
+              sessionToken: retryToken
+            };
+            console.log('🔄 Retry: Token encontrado, enviando autenticação');
+            sendMessage(authMessage);
+            setAuthAttempted(true);
+          }
+        }, 1000);
       }
     }
   }, [user?.id, connected]); // Reage especificamente à mudança do ID do usuário
@@ -128,38 +149,45 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
   // Ativar proteção IMEDIATAMENTE quando sessão estiver encerrada
   useSessionGuard(sessionTerminated);
 
-  // Função SIMPLES para obter token de sessão
+  // Função ROBUSTA para obter token de sessão
   const getSessionToken = (): string | null => {
-    // Método 1: Tentar cookie de sessão do Express/Passport
+    // Método 1: Tentar todos os cookies de sessão possíveis
     const cookies = document.cookie.split(';');
+    const sessionCookieNames = ['connect.sid', 'mpc.sid', 'session_token', 'sessionToken'];
+    
     for (let cookie of cookies) {
       const [name, value] = cookie.trim().split('=');
-      if (name === 'connect.sid' || name === 'mpc.sid') {
+      if (sessionCookieNames.includes(name) && value) {
         const decodedValue = decodeURIComponent(value);
-        console.log(`🍪 Token encontrado: ${name} = ${decodedValue.substring(0, 10)}...`);
+        console.log(`🍪 Token encontrado no cookie: ${name} = ${decodedValue.substring(0, 10)}...`);
         return decodedValue;
       }
     }
 
-    // Método 2: Fazer requisição síncrona para obter token
-    try {
-      const xhr = new XMLHttpRequest();
-      xhr.open('GET', '/api/conta/session-token', false); // false = síncrono
-      xhr.withCredentials = true;
-      xhr.send();
-
-      if (xhr.status === 200) {
-        const response = JSON.parse(xhr.responseText);
-        if (response.token) {
-          console.log(`🔑 Token obtido via API: ${response.token.substring(0, 10)}...`);
-          return response.token;
+    // Método 2: Tentar localStorage/sessionStorage
+    const storageKeys = ['sessionToken', 'token', 'userData'];
+    for (const key of storageKeys) {
+      const value = localStorage.getItem(key) || sessionStorage.getItem(key);
+      if (value) {
+        try {
+          // Se for JSON, tentar extrair token
+          const parsed = JSON.parse(value);
+          if (parsed.token || parsed.sessionToken) {
+            const token = parsed.token || parsed.sessionToken;
+            console.log(`💾 Token encontrado no storage: ${key} = ${token.substring(0, 10)}...`);
+            return token;
+          }
+        } catch {
+          // Se não for JSON, usar como string direta
+          if (value.length > 10) { // Assumir que token tem pelo menos 10 caracteres
+            console.log(`💾 Token encontrado no storage: ${key} = ${value.substring(0, 10)}...`);
+            return value;
+          }
         }
       }
-    } catch (error) {
-      console.error('Erro ao obter token via API:', error);
     }
 
-    console.log('❌ Nenhum token de sessão encontrado');
+    console.log('❌ Nenhum token de sessão encontrado nos cookies ou storage');
     return null;
   };
 
