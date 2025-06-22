@@ -96,6 +96,10 @@ async function processStripeEvent(event: any) {
         await handleSubscriptionCanceled(event.data.object);
         break;
     }
+  } catch (error) {
+    console.error('❌ Erro ao processar evento do Stripe:', error);
+  }
+}
 
 async function handleInvoicePaymentSucceeded(invoice: any) {
     try {
