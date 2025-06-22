@@ -743,7 +743,7 @@ if (process.env.EXTERNAL_API_URL) {
       
       // Verificar na tabela de sessões principais
       const sessionCheck = await connectionManager.executeQuery(
-        'SELECT id FROM session WHERE session_id = $1 AND expires > NOW()',
+        'SELECT sid FROM session WHERE sid = $1 AND expire > NOW()',
         [sessionToken]
       );
       
