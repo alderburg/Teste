@@ -645,7 +645,12 @@ if (process.env.EXTERNAL_API_URL) {
 
     // Limpar quando cliente desconectar
     ws.on('close', (code, reason) => {
+      const clientInfo = global.clientsInfo?.get(ws);
       console.log(`🔌 Cliente ${clientId} desconectado. Código: ${code}, Razão: ${reason}`);
+      
+      if (clientInfo && clientInfo.authenticated) {
+        console.log(`🔌 Cliente autenticado desconectado: ${clientInfo.realUserId || clientInfo.userId} (${clientInfo.userType || 'tipo desconhecido'})`);
+      }
       
       // Garantir remoção completa
       if (global.wsClients.has(ws)) {
@@ -655,14 +660,22 @@ if (process.env.EXTERNAL_API_URL) {
         global.clientsInfo.delete(ws);
       }
       
-      // Limpeza adicional: verificar se há conexões órfãs
+      // Limpeza adicional mais rigorosa: verificar se há conexões órfãs
       let limpezaAdicional = 0;
+      const clientesParaRemover = [];
+      
       global.wsClients.forEach(cliente => {
-        if (cliente.readyState === WebSocket.CLOSED || cliente.readyState === WebSocket.CLOSING) {
-          global.wsClients.delete(cliente);
-          global.clientsInfo?.delete(cliente);
-          limpezaAdicional++;
+        if (cliente.readyState === WebSocket.CLOSED || 
+            cliente.readyState === WebSocket.CLOSING ||
+            cliente.readyState === 3) { // 3 = CLOSED
+          clientesParaRemover.push(cliente);
         }
+      });
+      
+      clientesParaRemover.forEach(cliente => {
+        global.wsClients.delete(cliente);
+        global.clientsInfo?.delete(cliente);
+        limpezaAdicional++;
       });
       
       if (limpezaAdicional > 0) {
@@ -735,37 +748,82 @@ if (process.env.EXTERNAL_API_URL) {
         const isValid = await verifySessionToken(sessionToken, userId);
         
         if (isValid) {
-          clientInfo.authenticated = true;
-          clientInfo.userId = userId; // Este será sempre o ID real do usuário solicitante
-          clientInfo.sessionToken = sessionToken;
-          clientInfo.authTimestamp = new Date();
-          
-          // Buscar informações do usuário para exibir corretamente
+          // PRIMEIRO: Detectar o tipo de usuário e obter o ID real
           const { connectionManager } = await import('./connection-manager');
-          let displayUserId = userId;
+          let realUserId = userId;
           let userType = 'Principal';
+          let displayName = 'Principal';
           
           try {
             // Verificar se é usuário adicional
             const additionalUserCheck = await connectionManager.executeQuery(
-              `SELECT u.nome FROM usuarios_adicionais u WHERE u.id = $1`,
-              [userId]
+              `SELECT u.id, u.nome FROM usuarios_adicionais u WHERE u.user_id = $1 AND u.id IN (
+                SELECT s.user_id FROM user_sessions_additional s 
+                WHERE s.token = $2 AND s.user_type = 'additional'
+              )`,
+              [userId, sessionToken]
             );
             
             if (additionalUserCheck.rows.length > 0) {
-              displayUserId = userId; // Mostrar o ID do usuário adicional
-              userType = `Adicional (${additionalUserCheck.rows[0].nome})`;
+              // É um usuário adicional - usar o ID do usuário adicional
+              realUserId = additionalUserCheck.rows[0].id;
+              userType = 'Adicional';
+              displayName = additionalUserCheck.rows[0].nome;
+              console.log(`👤 Usuário adicional detectado: ID ${realUserId} (${displayName}), pai: ${userId}`);
+            } else {
+              console.log(`👤 Usuário principal detectado: ID ${userId}`);
             }
           } catch (error) {
             console.error('Erro ao verificar tipo de usuário:', error);
           }
           
-          console.log(`✅ Cliente ${clientInfo.id} autenticado como usuário ${displayUserId} - Tipo: ${userType}`);
+          // SEGUNDO: Limpar conexões antigas do mesmo usuário (evitar duplicatas)
+          let conexoesRemovidas = 0;
+          global.wsClients.forEach((existingWs, index) => {
+            if (existingWs !== ws) {
+              const existingClientInfo = global.clientsInfo?.get(existingWs);
+              
+              // Remover conexões antigas do mesmo usuário (mesmo ID real)
+              if (existingClientInfo && 
+                  existingClientInfo.authenticated && 
+                  existingClientInfo.realUserId === realUserId) {
+                
+                console.log(`🧹 Removendo conexão antiga do usuário ${realUserId}: cliente ${existingClientInfo.id}`);
+                
+                try {
+                  existingWs.terminate();
+                } catch (e) {
+                  // Ignorar erros de terminate
+                }
+                
+                global.wsClients.delete(existingWs);
+                global.clientsInfo?.delete(existingWs);
+                conexoesRemovidas++;
+              }
+            }
+          });
+          
+          if (conexoesRemovidas > 0) {
+            console.log(`🧹 Total de ${conexoesRemovidas} conexão(ões) antiga(s) removida(s) para usuário ${realUserId}`);
+          }
+          
+          // TERCEIRO: Configurar as informações do cliente atual
+          clientInfo.authenticated = true;
+          clientInfo.userId = userId; // ID usado para verificação de sessão (pai para usuários adicionais)
+          clientInfo.realUserId = realUserId; // ID real do usuário (adicional ou principal)
+          clientInfo.userType = userType;
+          clientInfo.displayName = displayName;
+          clientInfo.sessionToken = sessionToken;
+          clientInfo.authTimestamp = new Date();
+          
+          console.log(`✅ Cliente ${clientInfo.id} autenticado como usuário ${realUserId} - Tipo: ${userType} (${displayName})`);
           
           ws.send(JSON.stringify({
             type: 'auth_success',
             message: 'Autenticação bem-sucedida',
-            userId: userId,
+            userId: realUserId, // Retornar o ID real
+            userType: userType,
+            displayName: displayName,
             timestamp: new Date().toISOString()
           }));
         } else {
@@ -994,26 +1052,24 @@ if (process.env.EXTERNAL_API_URL) {
               const timeSinceLastPing = now - client.lastPing;
               const connectionDuration = now - client.connectionTime;
               
-              let displayUserId = client.userId || 'Não autenticado';
+              let displayUserId = 'Não autenticado';
               let userType = '';
               
-              // Se autenticado, buscar informações do usuário
-              if (client.authenticated && client.userId) {
-                try {
-                  const additionalUserCheck = await connectionManager.executeQuery(
-                    `SELECT u.nome FROM usuarios_adicionais u WHERE u.id = $1`,
-                    [client.userId]
-                  );
-                  
-                  if (additionalUserCheck.rows.length > 0) {
-                    displayUserId = `${client.userId} (${additionalUserCheck.rows[0].nome})`;
+              // Se autenticado, usar as informações já processadas
+              if (client.authenticated) {
+                if (client.realUserId && client.userType && client.displayName) {
+                  // Usar informações já processadas na autenticação
+                  if (client.userType === 'Adicional') {
+                    displayUserId = `${client.realUserId} (${client.displayName})`;
                     userType = 'adicional';
                   } else {
-                    displayUserId = `${client.userId} (Principal)`;
+                    displayUserId = `${client.realUserId} (Principal)`;
                     userType = 'principal';
                   }
-                } catch (error) {
-                  displayUserId = client.userId;
+                } else {
+                  // Fallback para clientes autenticados sem as novas informações
+                  displayUserId = client.userId ? client.userId.toString() : 'Não autenticado';
+                  userType = 'desconhecido';
                 }
               }
 
