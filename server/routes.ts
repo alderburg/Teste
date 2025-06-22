@@ -7171,6 +7171,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Rota para obter token de sessão atual (para autenticação WebSocket)
+  app.get("/api/conta/session-token", isAuthenticated, (req, res) => {
+    try {
+      const sessionId = req.sessionID;
+      
+      if (!sessionId) {
+        return res.status(400).json({ error: "Session ID não encontrado" });
+      }
+
+      console.log(`🔑 Fornecendo token de sessão: ${sessionId.substring(0, 8)}...`);
+      
+      return res.json({ 
+        token: sessionId,
+        userId: req.user?.id
+      });
+    } catch (error) {
+      console.error("Erro ao obter token de sessão:", error);
+      return res.status(500).json({ error: "Erro interno" });
+    }
+  });
+
   // Nova rota para verificar status de autenticação (incluindo 2FA)
   app.get("/api/auth/verify", (req, res) => {
     // Primeiro verifica se o usuário está autenticado

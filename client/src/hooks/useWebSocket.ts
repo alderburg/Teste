@@ -1,5 +1,5 @@
+
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { queryClient } from '@/lib/queryClient';
 
 interface WebSocketMessage {
   type: string;
@@ -22,16 +22,11 @@ export function useWebSocket() {
   const sendMessage = useCallback((message: WebSocketMessage): boolean => {
     try {
       if (socket && socket.readyState === WebSocket.OPEN) {
-        console.log('📤 Enviando mensagem WebSocket:', message.type, message);
         socket.send(JSON.stringify(message));
-        console.log('✅ Mensagem enviada com sucesso');
+        console.log('✅ Mensagem WebSocket enviada:', message.type);
         return true;
       } else {
-        console.log('❌ WebSocket não está aberto:', {
-          socketExists: !!socket,
-          readyState: socket?.readyState,
-          expectedState: WebSocket.OPEN
-        });
+        console.log('❌ WebSocket não está aberto. Estado:', socket?.readyState);
         return false;
       }
     } catch (error) {
@@ -52,47 +47,45 @@ export function useWebSocket() {
         }
 
         const wsUrl = `${protocol}//${host}:${port}/ws`;
-        console.log(`Conectando WebSocket em ${wsUrl}`);
+        console.log(`🔗 Conectando WebSocket: ${wsUrl}`);
 
         const newSocket = new WebSocket(wsUrl);
 
         newSocket.addEventListener('open', () => {
-          console.log("WebSocket conectado");
+          console.log("✅ WebSocket conectado");
           setConnected(true);
           reconnectAttempts.current = 0;
 
-          // Enviar informações do cliente
+          // Enviar informações básicas do cliente
           newSocket.send(JSON.stringify({
             type: 'client_info',
-            client_info: {
-              url: window.location.pathname,
-              userAgent: navigator.userAgent,
-              timestamp: new Date().toISOString()
-            }
+            url: window.location.pathname,
+            timestamp: new Date().toISOString()
           }));
         });
 
         newSocket.addEventListener('close', () => {
-          console.log("WebSocket desconectado");
+          console.log("🔌 WebSocket desconectado");
           setConnected(false);
 
           // Tentar reconectar
           if (reconnectAttempts.current < maxReconnectAttempts) {
             reconnectAttempts.current++;
-            console.log(`Tentando reconectar em ${reconnectDelay}ms (${reconnectAttempts.current}/${maxReconnectAttempts})`);
+            console.log(`🔄 Reconectando... (${reconnectAttempts.current}/${maxReconnectAttempts})`);
             setTimeout(connect, reconnectDelay);
+          } else {
+            console.log('❌ Máximo de tentativas de reconexão atingido');
           }
         });
 
         newSocket.addEventListener('error', (error) => {
-          console.error("Erro WebSocket:", error);
+          console.error("❌ Erro WebSocket:", error);
         });
 
         newSocket.addEventListener('message', (event) => {
           try {
             const message = JSON.parse(event.data);
-            console.log("Mensagem WebSocket recebida:", message);
-
+            
             // Responder a pings do servidor
             if (message.type === 'server_ping') {
               newSocket.send(JSON.stringify({
@@ -101,15 +94,7 @@ export function useWebSocket() {
               }));
             }
 
-            // Processar atualizações de dados
-            if (message.type === 'data_update') {
-              const customEvent = new CustomEvent('websocket-data-update', {
-                detail: message
-              });
-              window.dispatchEvent(customEvent);
-            }
-
-            // Processar resposta de autenticação
+            // Processar mensagens de autenticação
             if (message.type === 'auth_success') {
               console.log("✅ Autenticação WebSocket bem-sucedida");
               const customEvent = new CustomEvent('websocket-message-received', {
@@ -122,6 +107,18 @@ export function useWebSocket() {
               console.log("❌ Falha na autenticação WebSocket:", message.message);
             }
 
+            if (message.type === 'auth_error') {
+              console.log("❌ Erro na autenticação WebSocket:", message.message);
+            }
+
+            // Processar atualizações de dados
+            if (message.type === 'data_update') {
+              const customEvent = new CustomEvent('websocket-data-update', {
+                detail: message
+              });
+              window.dispatchEvent(customEvent);
+            }
+
             // Processar sessões encerradas
             if (message.type === 'session_terminated') {
               const customEvent = new CustomEvent('session-terminated', {
@@ -131,14 +128,14 @@ export function useWebSocket() {
             }
 
           } catch (error) {
-            console.error("Erro ao processar mensagem WebSocket:", error);
+            console.error("❌ Erro ao processar mensagem WebSocket:", error);
           }
         });
 
         setSocket(newSocket);
 
       } catch (error) {
-        console.error("Erro ao conectar WebSocket:", error);
+        console.error("❌ Erro ao conectar WebSocket:", error);
       }
     };
 
