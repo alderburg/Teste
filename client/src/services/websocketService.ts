@@ -246,10 +246,20 @@ function handleOpen(event: Event) {
     client_info: clientInfo
   });
   
-  // Tentar autenticação automática imediatamente
+  // Tentar autenticação automática imediatamente e repetir se necessário
   setTimeout(() => {
     tryAutoAuthentication();
   }, 100); // Pequeno delay para garantir que a conexão está estável
+  
+  // Tentar novamente após 1 segundo para casos onde o login acabou de acontecer
+  setTimeout(() => {
+    tryAutoAuthentication();
+  }, 1000);
+  
+  // Tentar uma terceira vez após 3 segundos para garantir
+  setTimeout(() => {
+    tryAutoAuthentication();
+  }, 3000);
   
   // Iniciar heartbeat
   startHeartbeat();
@@ -417,6 +427,15 @@ export function stopSessionMonitoring(userId: number): boolean {
 }
 
 /**
+ * Força uma nova tentativa de autenticação
+ * Útil quando o usuário navega para páginas que requerem autenticação
+ */
+export function forceReauth(): void {
+  console.log('Forçando reautenticação WebSocket...');
+  tryAutoAuthentication();
+}
+
+/**
  * Encerra uma sessão específica
  * @param sessionId ID da sessão a ser encerrada
  * @param userId ID do usuário dono da sessão
@@ -449,7 +468,7 @@ function tryAutoAuthentication() {
   console.log('Iniciando tentativa de autenticação automática...');
   
   try {
-    // Obter token de sessão dos cookies
+    // Método 1: Obter token dos cookies
     let sessionToken = null;
     const cookies = document.cookie.split(';');
     
@@ -462,7 +481,7 @@ function tryAutoAuthentication() {
       }
     }
 
-    // Se não encontrou nos cookies, tentar API
+    // Método 2: Tentar API se não encontrou nos cookies
     if (!sessionToken) {
       try {
         const xhr = new XMLHttpRequest();
@@ -482,9 +501,10 @@ function tryAutoAuthentication() {
       }
     }
 
-    // Obter dados do usuário do localStorage
+    // Método 3: Obter userId do localStorage ou sessionStorage
     let userId = null;
     try {
+      // Primeiro tentar localStorage
       const userDataStr = localStorage.getItem('user');
       if (userDataStr) {
         const userData = JSON.parse(userDataStr);
@@ -492,8 +512,39 @@ function tryAutoAuthentication() {
           userId = userData.id;
         }
       }
+      
+      // Se não encontrou, tentar sessionStorage
+      if (!userId) {
+        const sessionUserStr = sessionStorage.getItem('user');
+        if (sessionUserStr) {
+          const sessionUser = JSON.parse(sessionUserStr);
+          if (sessionUser && sessionUser.id) {
+            userId = sessionUser.id;
+          }
+        }
+      }
     } catch (storageError) {
       console.warn('Erro ao obter dados do usuário:', storageError);
+    }
+
+    // Método 4: Se ainda não tem userId, tentar via API
+    if (!userId && sessionToken) {
+      try {
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', '/api/conta/me', false);
+        xhr.withCredentials = true;
+        xhr.send();
+
+        if (xhr.status === 200) {
+          const response = JSON.parse(xhr.responseText);
+          if (response.user && response.user.id) {
+            userId = response.user.id;
+            console.log('UserId obtido via API /api/conta/me');
+          }
+        }
+      } catch (apiError) {
+        console.warn('Erro ao obter userId via API:', apiError);
+      }
     }
 
     // Enviar autenticação se temos os dados necessários
@@ -509,17 +560,21 @@ function tryAutoAuthentication() {
       
       if (success) {
         console.log('Autenticação automática enviada com sucesso');
+        return true;
       } else {
         console.log('Falha ao enviar autenticação automática');
+        return false;
       }
     } else {
       console.log('Autenticação automática não executada - dados insuficientes:', {
         hasToken: !!sessionToken,
         hasUserId: !!userId
       });
+      return false;
     }
   } catch (error) {
     console.error('Erro na autenticação automática:', error);
+    return false;
   }
 }
 
