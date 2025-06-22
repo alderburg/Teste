@@ -43,9 +43,9 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
   console.log('🎭 connected:', connected, '(tipo:', typeof connected, ')');
   console.log('🎭 user:', user, '(tipo:', typeof user, ')');
   console.log('🎭 user?.id:', user?.id, '(tipo:', typeof user?.id, ')');
-  console.log('🎭 sendMessage:', sendMessage, '(tipo:', typeof sendMessage, ')');
-  console.log('🎭 sendMessage função completa:', sendMessage);
-  console.log('🎭 sendMessage existe?', !!sendMessage);
+  console.log('🎭 sendMessage tipo:', typeof sendMessage, '| existe:', !!sendMessage);
+  console.log('🎭 sendMessage função válida:', typeof sendMessage === 'function');
+  console.log('🎭 sendMessage é null?', sendMessage === null);
   console.log('🎭 sessionTerminated:', sessionTerminated);
   console.log('🎭 🎭 🎭 =============== FIM ESTADOS DETALHADOS =============== 🎭 🎭 🎭');
 
@@ -325,7 +325,8 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
     console.log('🔄 =============== VERIFICAÇÕES DE CONDIÇÕES ===============');
     console.log('🔄 Condição 1 - connected:', connected ? '✅ TRUE' : '❌ FALSE');
     console.log('🔄 Condição 2 - user:', user ? '✅ TRUE' : '❌ FALSE');
-    console.log('🔄 Condição 3 - sendMessage:', !!sendMessage ? '✅ TRUE' : '❌ FALSE');
+    console.log('🔄 Condição 3 - sendMessage existe:', !!sendMessage ? '✅ TRUE' : '❌ FALSE');
+    console.log('🔄 Condição 3 - sendMessage é função:', typeof sendMessage === 'function' ? '✅ TRUE' : '❌ FALSE');
     console.log('🔄 TODAS as condições:', (connected && user && sendMessage) ? '✅ VERDADEIRAS' : '❌ ALGUMA É FALSA');
     console.log('🔄 🔄 🔄 =============== INÍCIO VERIFICAÇÕES CONDICIONAIS =============== 🔄 🔄 🔄');
     
@@ -354,14 +355,49 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
     }
     console.log('✅ ✅ ✅ Condição 2 PASSOU: Usuário encontrado, ID:', user.id, '✅ ✅ ✅');
     
-    if (!sendMessage) {
+    if (!sendMessage || sendMessage === null) {
       console.log('❌ ❌ ❌ =============== FALHA: SENDMESSAGE NÃO DISPONÍVEL =============== ❌ ❌ ❌');
       console.log('❌ sendMessage =', sendMessage);
       console.log('❌ typeof sendMessage =', typeof sendMessage);
       console.log('❌ !!sendMessage =', !!sendMessage);
-      console.log('❌ ERRO CRÍTICO! SendMessage deveria estar disponível');
-      console.log('❌ RETORNANDO EARLY - não prosseguindo com autenticação');
-      console.log('❌ =============== FIM FALHA SENDMESSAGE ===============');
+      console.log('❌ sendMessage === null =', sendMessage === null);
+      console.log('❌ TENTANDO ALTERNATIVA: Envio direto via WebSocket');
+      
+      // ALTERNATIVA: Enviar autenticação diretamente via WebSocket global se disponível
+      if (window.WebSocket && typeof window.WebSocket === 'function') {
+        console.log('🔧 Tentando autenticação via conexão WebSocket direta...');
+        
+        // Buscar token de sessão diretamente
+        const cookies = document.cookie.split(';');
+        let sessionToken = null;
+        
+        for (let cookie of cookies) {
+          const [name, value] = cookie.trim().split('=');
+          if (name === 'mpc.sid' || name === 'connect.sid') {
+            sessionToken = decodeURIComponent(value);
+            break;
+          }
+        }
+        
+        if (sessionToken) {
+          console.log('🔧 Token encontrado, criando conexão direta...');
+          
+          // Enviar via evento personalizado para o WebSocket existente
+          const authEvent = new CustomEvent('manual-websocket-auth', {
+            detail: {
+              type: 'auth',
+              userId: user.id,
+              sessionToken: sessionToken,
+              timestamp: new Date().toISOString()
+            }
+          });
+          
+          window.dispatchEvent(authEvent);
+          console.log('🔧 Evento de autenticação manual enviado');
+        }
+      }
+      
+      console.log('❌ RETORNANDO EARLY - função sendMessage não disponível');
       return;
     }
     console.log('✅ ✅ ✅ Condição 3 PASSOU: SendMessage disponível ✅ ✅ ✅');
