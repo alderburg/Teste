@@ -1038,7 +1038,24 @@ if (process.env.EXTERNAL_API_URL) {
 
         proxyServer.listen(proxyPort, () => {
           log(`Proxy server running on port ${proxyPort}, forwarding to port ${port}`);
-          log(`WebSocket proxy configurado para upgrades em ws://localhost:${proxyPort}/ws`);
+          
+          // Usar SITE_URL se disponível, senão usar localhost
+          const siteUrl = process.env.SITE_URL;
+          let wsUrl;
+          
+          if (siteUrl) {
+            try {
+              const url = new URL(siteUrl);
+              const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+              wsUrl = `${protocol}//${url.host}/ws`;
+            } catch (e) {
+              wsUrl = `ws://localhost:${proxyPort}/ws`;
+            }
+          } else {
+            wsUrl = `ws://localhost:${proxyPort}/ws`;
+          }
+          
+          log(`WebSocket proxy configurado para upgrades em ${wsUrl}`);
         });
 
         // Sistema de Heartbeat - verificar clientes a cada 30 segundos
