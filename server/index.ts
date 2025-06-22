@@ -680,8 +680,28 @@ if (process.env.EXTERNAL_API_URL) {
 
         const proxyServer = createServer(proxyApp); // Criar servidor HTTP para o proxy
 
+        // Configurar upgrade de WebSocket no proxy
+        proxyServer.on('upgrade', (request, socket, head) => {
+          console.log('🔄 Proxy WebSocket upgrade request recebido');
+          console.log('🔄 URL:', request.url);
+          console.log('🔄 Headers:', request.headers);
+          
+          // Usar o middleware de proxy para fazer upgrade
+          const proxyMiddleware = createProxyMiddleware({
+            target: `http://localhost:${port}`,
+            changeOrigin: true,
+            ws: true,
+            onError: (err, req, res) => {
+              console.error('Erro no upgrade WebSocket:', err.message);
+            }
+          });
+          
+          proxyMiddleware.upgrade(request, socket, head);
+        });
+
         proxyServer.listen(proxyPort, () => {
           log(`Proxy server running on port ${proxyPort}, forwarding to port ${port}`);
+          log(`WebSocket proxy configurado para upgrades em ws://localhost:${proxyPort}/ws`);
         });
 
         // Sistema de Heartbeat - verificar clientes a cada 30 segundos
