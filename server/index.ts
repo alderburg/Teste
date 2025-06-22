@@ -1314,11 +1314,11 @@ async function verifySessionToken(token: string, userId: number): Promise<boolea
     }
   }
 
-  // QUARTO: Como fallback, verificar na tabela sessions (Express Session) apenas se não encontrou na user_sessions_additional
+  // QUARTO: Como fallback, verificar na tabela session (Express Session) apenas se não encontrou na user_sessions_additional
   try {
     const sessionQuery = `
       SELECT s.sess
-      FROM sessions s 
+      FROM session s 
       WHERE s.sid = $1 AND s.sess::text LIKE $2
     `;
 
@@ -1328,12 +1328,12 @@ async function verifySessionToken(token: string, userId: number): Promise<boolea
 
     const sessionResult = await connectionManager.executeQuery(sessionQuery, [token, userPattern]);
     if (sessionResult.rows.length > 0) {
-      console.log(`✅ Sessão encontrada na tabela sessions (Express Session) para usuário principal ${mainUserId}`);
+      console.log(`✅ Sessão encontrada na tabela session (Express Session) para usuário principal ${mainUserId}`);
       console.log(`   - Solicitante: ${userId} ${isAdditionalUser ? '(usuário adicional)' : '(usuário principal)'}`);
       return true;
     }
   } catch (sessionError) {
-    console.log(`⚠️ Tabela sessions não existe ou erro ao verificar: ${sessionError.message}`);
+    console.log(`⚠️ Tabela session não existe ou erro ao verificar: ${sessionError.message}`);
     // Não é um erro crítico, apenas significa que só temos user_sessions_additional
   }
 
