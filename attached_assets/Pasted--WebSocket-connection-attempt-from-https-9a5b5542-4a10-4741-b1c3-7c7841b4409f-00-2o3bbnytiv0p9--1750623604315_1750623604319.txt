@@ -1,0 +1,66 @@
+🔍 WebSocket connection attempt from: https://9a5b5542-4a10-4741-b1c3-7c7841b4409f-00-2o3bbnytiv0p9.spock.replit.dev:3000
+🔗 Nova conexão WebSocket estabelecida
+🔗 URL: /ws
+🔗 IP: 172.31.128.58
+📊 Cliente oh6myofr29r conectado. Total de clientes: 1
+🔍 WebSocket connection attempt from: https://9a5b5542-4a10-4741-b1c3-7c7841b4409f-00-2o3bbnytiv0p9.spock.replit.dev:3000
+🔗 Nova conexão WebSocket estabelecida
+🔗 URL: /ws
+🔗 IP: 172.31.128.58
+📊 Cliente mp782ke8d6 conectado. Total de clientes: 2
+
+🔄 === HEARTBEAT WEBSOCKET ===
+📊 Total de clientes conectados (após limpeza): 2
+✅ Clientes ativos: 2 (0 autenticados)
+   🔓 ID: oh6myofr29r | Usuário: Não autenticado | IP: 172.31.128.58 | Conectado há: 29s | Último ping: 29s atrás
+   🔓 ID: mp782ke8d6 | Usuário: Não autenticado | IP: 172.31.128.58 | Conectado há: 28s | Último ping: 28s atrás
+🗑️ Removendo cliente inválido: mp782ke8d6 (readyState: 2)
+=== FIM HEARTBEAT ===
+
+🔌 Cliente mp782ke8d6 desconectado. Código: 1001, Razão: 
+📊 Total de clientes restantes: 1
+⚠️ Retry 1/2 após 100ms. Erro: Connection terminated due to connection timeout
+⚠️ Retry 1/2 após 100ms. Erro: Connection terminated due to connection timeout
+⚠️ Retry 1/2 após 100ms. Erro: Connection terminated due to connection timeout
+🔌 Cliente oh6myofr29r desconectado. Código: 1001, Razão: 
+📊 Total de clientes restantes: 0
+
+🔄 === HEARTBEAT WEBSOCKET ===
+📊 Total de clientes conectados (após limpeza): 0
+=== FIM HEARTBEAT ===
+
+🔄 Atividade da sessão atualizada: 3Wfrip1Z...
+🔄 Atividade da sessão atualizada: 3Wfrip1Z...
+🔄 Atividade da sessão atualizada: 3Wfrip1Z...
+🔄 Atividade da sessão atualizada: 3Wfrip1Z...
+🔄 Atividade da sessão atualizada: 3Wfrip1Z...
+🔍 WebSocket connection attempt from: https://9a5b5542-4a10-4741-b1c3-7c7841b4409f-00-2o3bbnytiv0p9.spock.replit.dev:3000
+🔗 Nova conexão WebSocket estabelecida
+🔗 URL: /ws
+🔗 IP: 172.31.128.58
+📊 Cliente sbnv297h0u conectado. Total de clientes: 1
+🔄 Atividade da sessão atualizada: 3Wfrip1Z...
+🔄 Atividade da sessão atualizada: 3Wfrip1Z...
+🔄 Atividade da sessão atualizada: 3Wfrip1Z...
+🔑 Fornecendo token de sessão: 3Wfrip1Z...
+🔄 Atividade da sessão atualizada: 3Wfrip1Z...
+🔄 Atividade da sessão atualizada: 3Wfrip1Z...
+🔄 Atividade da sessão atualizada: 3Wfrip1Z...
+🔑 Fornecendo token de sessão: 3Wfrip1Z...
+🔐 Tentativa de autenticação - Cliente: sbnv297h0u, userId: 3, token: 3Wfrip1Z...
+🔍 Verificando token 3Wfrip1Z... para usuário 3
+👥 Usuários relacionados para verificação: 3, 45
+✅ Sessão encontrada na tabela user_sessions_additional para usuário 3
+   - user_id: 3
+   - user_type: main
+   - is_active: true
+   - Solicitante: 3 (usuário principal)
+👤 Usuário principal detectado: ID 3 (admin)
+✅ Cliente sbnv297h0u autenticado como usuário 3 - Tipo: Principal (admin)
+
+🔄 === HEARTBEAT WEBSOCKET ===
+📊 Total de clientes conectados (após limpeza): 1
+✅ Clientes ativos: 1 (1 autenticados)
+   🔐 ID: sbnv297h0u | Usuário: 3 (admin) | IP: 172.31.128.58 | Conectado há: 25s | Último ping: 25s atrás
+=== FIM HEARTBEAT ===
+
