@@ -55,6 +55,17 @@ const subscribers: ((message: WebSocketMessage) => void)[] = [];
 export function initWebSocket() {
   if (typeof window === 'undefined') return; // Não executar no servidor
   
+  // Prevenir múltiplas inicializações
+  if (socket && socket.readyState === WebSocket.CONNECTING) {
+    console.log('WebSocket já está conectando, aguardando...');
+    return;
+  }
+  
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    console.log('WebSocket já está conectado');
+    return;
+  }
+  
   // Fechar conexão existente se houver
   if (socket) {
     closeWebSocket();

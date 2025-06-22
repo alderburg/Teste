@@ -787,7 +787,10 @@ if (process.env.EXTERNAL_API_URL) {
           
           // SEGUNDO: Limpar conexões antigas do mesmo usuário (evitar duplicatas)
           let conexoesRemovidas = 0;
-          global.wsClients.forEach((existingWs, index) => {
+          const conexoesParaRemover = [];
+          
+          // Primeiro, identificar conexões para remover
+          global.wsClients.forEach((existingWs) => {
             if (existingWs !== ws) {
               const existingClientInfo = global.clientsInfo?.get(existingWs);
               
@@ -796,19 +799,31 @@ if (process.env.EXTERNAL_API_URL) {
                   existingClientInfo.authenticated && 
                   existingClientInfo.realUserId === realUserId) {
                 
-                console.log(`🧹 Removendo conexão antiga do usuário ${realUserId}: cliente ${existingClientInfo.id}`);
-                
-                try {
-                  existingWs.terminate();
-                } catch (e) {
-                  // Ignorar erros de terminate
-                }
-                
-                global.wsClients.delete(existingWs);
-                global.clientsInfo?.delete(existingWs);
-                conexoesRemovidas++;
+                console.log(`🧹 Marcando para remoção conexão antiga do usuário ${realUserId}: cliente ${existingClientInfo.id}`);
+                conexoesParaRemover.push(existingWs);
               }
             }
+          });
+          
+          // Depois, remover as conexões identificadas
+          conexoesParaRemover.forEach(existingWs => {
+            try {
+              // Notificar o cliente que será desconectado
+              existingWs.send(JSON.stringify({
+                type: 'session_replaced',
+                message: 'Sua sessão foi substituída por uma nova conexão',
+                timestamp: new Date().toISOString()
+              }));
+              
+              // Fechar a conexão
+              existingWs.terminate();
+            } catch (e) {
+              // Ignorar erros de terminate
+            }
+            
+            global.wsClients.delete(existingWs);
+            global.clientsInfo?.delete(existingWs);
+            conexoesRemovidas++;
           });
           
           if (conexoesRemovidas > 0) {
@@ -1352,7 +1367,6 @@ async function updateSessionActivity(sessionToken: string): Promise<void> {
 }
 
 // The code has been updated to include WebSocket client management and session handling.
-import { WebSocket } from 'ws';
 
 // Função para notificar usuários relacionados via WebSocket
   (global as any).notifyRelatedUsers = async (resource: string, action: string, data: any, userId: number) => {
