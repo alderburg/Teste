@@ -755,23 +755,31 @@ if (process.env.EXTERNAL_API_URL) {
           let displayName = 'Principal';
           
           try {
-            // Verificar se é usuário adicional
+            // Verificar se é usuário adicional conectando com sessão específica
             const additionalUserCheck = await connectionManager.executeQuery(
-              `SELECT u.id, u.nome FROM usuarios_adicionais u WHERE u.user_id = $1 AND u.id IN (
-                SELECT s.user_id FROM user_sessions_additional s 
-                WHERE s.token = $2 AND s.user_type = 'additional'
-              )`,
-              [userId, sessionToken]
+              `SELECT u.id, u.nome, u.user_id FROM usuarios_adicionais u 
+               WHERE u.id = $1`,
+              [userId]
             );
             
             if (additionalUserCheck.rows.length > 0) {
-              // É um usuário adicional - usar o ID do usuário adicional
+              // É um usuário adicional
               realUserId = additionalUserCheck.rows[0].id;
               userType = 'Adicional';
               displayName = additionalUserCheck.rows[0].nome;
-              console.log(`👤 Usuário adicional detectado: ID ${realUserId} (${displayName}), pai: ${userId}`);
+              console.log(`👤 Usuário adicional detectado: ID ${realUserId} (${displayName}), pai: ${additionalUserCheck.rows[0].user_id}`);
             } else {
-              console.log(`👤 Usuário principal detectado: ID ${userId}`);
+              // É um usuário principal - buscar o nome do usuário principal
+              const principalUserCheck = await connectionManager.executeQuery(
+                `SELECT username FROM users WHERE id = $1`,
+                [userId]
+              );
+              
+              if (principalUserCheck.rows.length > 0) {
+                displayName = principalUserCheck.rows[0].username;
+              }
+              
+              console.log(`👤 Usuário principal detectado: ID ${userId} (${displayName})`);
             }
           } catch (error) {
             console.error('Erro ao verificar tipo de usuário:', error);
@@ -1063,13 +1071,41 @@ if (process.env.EXTERNAL_API_URL) {
                     displayUserId = `${client.realUserId} (${client.displayName})`;
                     userType = 'adicional';
                   } else {
-                    displayUserId = `${client.realUserId} (Principal)`;
+                    displayUserId = `${client.realUserId} (${client.displayName})`;
                     userType = 'principal';
                   }
                 } else {
-                  // Fallback para clientes autenticados sem as novas informações
-                  displayUserId = client.userId ? client.userId.toString() : 'Não autenticado';
-                  userType = 'desconhecido';
+                  // Fallback - buscar nome do usuário no banco
+                  try {
+                    let nomeUsuario = 'Desconhecido';
+                    
+                    // Verificar se é usuário adicional
+                    const additionalCheck = await connectionManager.executeQuery(
+                      `SELECT nome FROM usuarios_adicionais WHERE id = $1`,
+                      [client.userId]
+                    );
+                    
+                    if (additionalCheck.rows.length > 0) {
+                      nomeUsuario = additionalCheck.rows[0].nome;
+                      userType = 'adicional';
+                    } else {
+                      // Buscar nome do usuário principal
+                      const principalCheck = await connectionManager.executeQuery(
+                        `SELECT username FROM users WHERE id = $1`,
+                        [client.userId]
+                      );
+                      
+                      if (principalCheck.rows.length > 0) {
+                        nomeUsuario = principalCheck.rows[0].username;
+                        userType = 'principal';
+                      }
+                    }
+                    
+                    displayUserId = `${client.userId} (${nomeUsuario})`;
+                  } catch (error) {
+                    displayUserId = client.userId ? client.userId.toString() : 'Não autenticado';
+                    userType = 'desconhecido';
+                  }
                 }
               }
 
