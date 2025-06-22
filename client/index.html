@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
   <meta name="description" content="Portal de Login Meu Preço Certo" />
   <title>Meu Preço Certo</title>
+  <meta name="site-url" content="<%= process.env.SITE_URL %>" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   
   <!-- Script para interceptar e corrigir WebSocket URLs inválidas do Vite HMR -->
@@ -13,51 +14,94 @@
     (function() {
       console.log('🔧 Ativando interceptador WebSocket...');
       
+      // Obter SITE_URL da meta tag ou detectar ambiente
+      const siteUrlMeta = document.querySelector('meta[name="site-url"]');
+      const siteUrl = siteUrlMeta ? siteUrlMeta.getAttribute('content') : null;
+      
       // Detectar ambiente Replit
       const isReplit = window.location.hostname.includes('replit.dev') || 
                       window.location.hostname.includes('replit.co') ||
-                      window.location.hostname.includes('repl.co');
+                      window.location.hostname.includes('repl.co') ||
+                      siteUrl?.includes('replit');
       
       // Interceptar todas as criações de WebSocket
       const OriginalWebSocket = window.WebSocket;
       
       window.WebSocket = function(url, protocols) {
-        console.log('WebSocket tentativa:', url);
+        console.log('🔍 WebSocket interceptado:', url);
         
-        // Detectar e corrigir URLs problemáticas
-        if (typeof url === 'string' && 
-            (url.includes('undefined') || 
-             url.includes(':undefined') || 
-             url.match(/localhost:(?:$|\/|\?)/))) {
+        // Sempre verificar se contém localhost e corrigir para Replit
+        if (typeof url === 'string') {
+          let needsFix = false;
+          let originalUrl = url;
           
-          console.log('🔧 URL problemática detectada, corrigindo:', url);
+          // Detectar URLs problemáticas
+          if (url.includes('undefined') || 
+              url.includes(':undefined') || 
+              url.includes('localhost')) {
+            needsFix = true;
+          }
           
-          if (isReplit) {
-            // Para Replit, usar sempre o host atual
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const host = window.location.host;
+          if (needsFix) {
+            console.log('🔧 URL requer correção:', url);
             
-            // Substituir padrões problemáticos
-            let fixedUrl = url;
-            fixedUrl = fixedUrl.replace(/wss?:\/\/localhost:undefined/, `${protocol}//${host}`);
-            fixedUrl = fixedUrl.replace(/localhost:undefined/, host);
-            fixedUrl = fixedUrl.replace(/wss?:\/\/localhost(?::\d+)?/, `${protocol}//${host}`);
-            fixedUrl = fixedUrl.replace(/localhost(?::\d+)?/, host);
-            
-            console.log('✅ URL corrigida para Replit:', fixedUrl);
-            url = fixedUrl;
+            if (isReplit) {
+              // Para Replit, usar SITE_URL se disponível, senão usar host atual
+              const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+              let targetHost = window.location.host;
+              
+              // Se temos SITE_URL, extrair o host dele
+              if (siteUrl) {
+                try {
+                  const urlObj = new URL(siteUrl);
+                  targetHost = urlObj.host;
+                } catch (e) {
+                  console.log('Erro ao processar SITE_URL, usando host atual');
+                }
+              }
+              
+              // Múltiplas substituições para capturar todos os casos
+              let fixedUrl = url;
+              
+              // Substituir localhost:undefined
+              fixedUrl = fixedUrl.replace(/wss?:\/\/localhost:undefined/, `${protocol}//${targetHost}`);
+              fixedUrl = fixedUrl.replace(/localhost:undefined/, targetHost);
+              
+              // Substituir localhost com qualquer porta
+              fixedUrl = fixedUrl.replace(/wss?:\/\/localhost(?::\d+)?/, `${protocol}//${targetHost}`);
+              fixedUrl = fixedUrl.replace(/localhost(?::\d+)?/g, targetHost);
+              
+              // Substituir apenas :undefined
+              fixedUrl = fixedUrl.replace(/:undefined/, '');
+              
+              console.log('✅ Replit - SITE_URL:', siteUrl);
+              console.log('✅ Replit - Host usado:', targetHost);
+              console.log('✅ Replit - Original:', originalUrl);
+              console.log('✅ Replit - Corrigida:', fixedUrl);
+              url = fixedUrl;
+            } else {
+              // Para desenvolvimento local
+              url = url.replace(/localhost:undefined/, 'localhost:3000');
+              url = url.replace(/:undefined/, ':3000');
+              console.log('✅ Local - Corrigida:', url);
+            }
           } else {
-            // Para desenvolvimento local
-            url = url.replace(/localhost:undefined/, 'localhost:3000');
-            url = url.replace(/:undefined/, ':3000');
-            console.log('✅ URL corrigida para local:', url);
+            console.log('✓ URL parece OK:', url);
           }
         }
         
         try {
-          return new OriginalWebSocket(url, protocols);
+          console.log('🚀 Criando WebSocket com URL final:', url);
+          const ws = new OriginalWebSocket(url, protocols);
+          
+          // Log eventos de conexão
+          ws.addEventListener('open', () => console.log('✅ WebSocket conectado:', url));
+          ws.addEventListener('error', (e) => console.error('❌ Erro WebSocket:', e, 'URL:', url));
+          ws.addEventListener('close', (e) => console.log('🔌 WebSocket fechado:', e.code, url));
+          
+          return ws;
         } catch (error) {
-          console.error('Erro WebSocket após correção:', error, 'URL:', url);
+          console.error('💥 Falha ao criar WebSocket:', error, 'URL final:', url);
           throw error;
         }
       };
