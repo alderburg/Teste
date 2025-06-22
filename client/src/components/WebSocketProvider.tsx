@@ -311,30 +311,49 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
 
   // Enviar informações de autenticação quando conectado e usuário logado
   useEffect(() => {
+    console.log('🔐 =============== TENTATIVA DE AUTENTICAÇÃO ===============');
+    console.log('🔐 connected:', connected);
+    console.log('🔐 user:', user ? `ID: ${user.id}` : 'null');
+    console.log('🔐 sendMessage:', typeof sendMessage, '| função válida:', typeof sendMessage === 'function');
+
     // Só executar se todas as condições forem atendidas
-    if (!connected || !user || !sendMessage) {
-      console.log('🔄 Condições para auth não atendidas:', { connected, user: !!user, sendMessage: !!sendMessage });
+    if (!connected || !user || !sendMessage || typeof sendMessage !== 'function') {
+      console.log('🔄 Condições para auth não atendidas:', { 
+        connected, 
+        user: !!user, 
+        sendMessage: !!sendMessage,
+        sendMessageType: typeof sendMessage
+      });
       return;
     }
 
     console.log('🔐 Iniciando autenticação WebSocket para usuário:', user.id);
 
-    // Buscar token de sessão do Express/Passport
+    // Buscar token de sessão do Express/Passport - MÉTODO MAIS ROBUSTO
     const getSessionToken = () => {
+      console.log('🍪 Buscando token nos cookies...');
+      console.log('🍪 Todos os cookies:', document.cookie);
+      
       const cookies = document.cookie.split(';');
       for (let cookie of cookies) {
         const [name, value] = cookie.trim().split('=');
+        console.log(`🍪 Cookie encontrado: ${name} = ${value?.substring(0, 10)}...`);
+        
         if (name === 'mpc.sid' || name === 'connect.sid') {
-          return decodeURIComponent(value);
+          const decodedValue = decodeURIComponent(value);
+          console.log(`✅ Token de sessão encontrado: ${name} = ${decodedValue.substring(0, 10)}...`);
+          return decodedValue;
         }
       }
+      
+      console.log('❌ Nenhum token de sessão encontrado nos cookies');
       return null;
     };
 
     const sessionToken = getSessionToken();
 
     if (!sessionToken) {
-      console.log('❌ Token de sessão não encontrado');
+      console.log('❌ Token de sessão não encontrado - não é possível autenticar');
       return;
     }
 
@@ -345,13 +364,18 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
       sessionToken: sessionToken
     };
 
-    console.log(`🔐 Enviando autenticação WebSocket para usuário ${user.id}`);
-    const sucesso = sendMessage(authMessage);
-
-    if (sucesso) {
-      console.log('✅ Mensagem de autenticação enviada');
-    } else {
-      console.log('❌ Falha ao enviar autenticação');
+    console.log(`🔐 Enviando mensagem de autenticação:`, authMessage);
+    
+    try {
+      const sucesso = sendMessage(authMessage);
+      
+      if (sucesso) {
+        console.log('✅ Mensagem de autenticação enviada com sucesso');
+      } else {
+        console.log('❌ Falha ao enviar autenticação - sendMessage retornou false');
+      }
+    } catch (error) {
+      console.error('❌ Erro ao enviar mensagem de autenticação:', error);
     }
   }, [connected, user, sendMessage]);
 
@@ -363,10 +387,10 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
     console.log('👤 SendMessage:', !!sendMessage);
 
     if (user && connected && sendMessage) {
-      // Delay pequeno para garantir que tudo está estabilizado
-      setTimeout(() => {
-        console.log('👤 FORÇANDO autenticação devido à mudança do usuário...');
-        // Repetir a lógica de autenticação aqui também
+      // Múltiplas tentativas com delays diferentes
+      const tentarAutenticacao = (tentativa: number) => {
+        console.log(`👤 Tentativa ${tentativa} de autenticação...`);
+        
         const sessionToken = document.cookie
           .split(';')
           .find(cookie => {
@@ -383,13 +407,40 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
             sessionToken: decodedToken
           };
 
-          console.log('👤 Enviando AUTH forçado:', JSON.stringify(authMessage, null, 2));
-          const resultado = sendMessage(authMessage);
-          console.log('👤 Resultado do AUTH forçado:', resultado);
+          console.log(`👤 Tentativa ${tentativa} - Enviando AUTH:`, authMessage);
+          
+          try {
+            const resultado = sendMessage(authMessage);
+            console.log(`👤 Tentativa ${tentativa} - Resultado:`, resultado);
+            
+            if (!resultado && tentativa < 3) {
+              // Se falhou, tentar novamente
+              setTimeout(() => tentarAutenticacao(tentativa + 1), 1000 * tentativa);
+            }
+          } catch (error) {
+            console.error(`👤 Tentativa ${tentativa} - Erro:`, error);
+            if (tentativa < 3) {
+              setTimeout(() => tentarAutenticacao(tentativa + 1), 1000 * tentativa);
+            }
+          }
+        } else {
+          console.log(`👤 Tentativa ${tentativa} - Token não encontrado`);
+          if (tentativa < 3) {
+            setTimeout(() => tentarAutenticacao(tentativa + 1), 1000 * tentativa);
+          }
         }
-      }, 500);
+      };
+
+      // Primeira tentativa imediata
+      setTimeout(() => tentarAutenticacao(1), 100);
+      
+      // Segunda tentativa após 1 segundo
+      setTimeout(() => tentarAutenticacao(2), 1000);
+      
+      // Terceira tentativa após 2 segundos
+      setTimeout(() => tentarAutenticacao(3), 2000);
     }
-  }, [user, sendMessage]); // Dependência apenas do user
+  }, [user]); // Dependência apenas do user
 
   return (
     <WebSocketContext.Provider value={{ connected, sendMessage, lastUpdated }}>
