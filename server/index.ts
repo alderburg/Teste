@@ -919,24 +919,68 @@ if (process.env.EXTERNAL_API_URL) {
       };
 
       let notificationsSent = 0;
+      let disconnectionsMade = 0;
+      const clientsToDisconnect = [];
 
       // Procurar especificamente o cliente com a sessão encerrada
       global.wsClients.forEach((ws: any) => {
         if (ws.readyState === 1) { // WebSocket.OPEN = 1
           const client = global.clientsInfo?.get(ws);
 
-          // Notificar o cliente específico da sessão encerrada
+          // Notificar e desconectar o cliente específico da sessão encerrada
           if (client && client.sessionToken === sessionToken) {
             try {
+              // PRIMEIRO: Enviar notificação
               ws.send(JSON.stringify(message));
               notificationsSent++;
               console.log(`📤 Notificação enviada para cliente específico: ${client.id} (usuário ${client.userId})`);
+              
+              // SEGUNDO: Marcar para desconexão forçada
+              clientsToDisconnect.push({ ws, client });
             } catch (error) {
               console.error('❌ Erro ao enviar notificação de sessão:', error);
             }
           }
         }
       });
+
+      // TERCEIRO: Desconectar clientes após enviar notificação (com delay pequeno)
+      if (clientsToDisconnect.length > 0) {
+        setTimeout(() => {
+          clientsToDisconnect.forEach(({ ws, client }) => {
+            try {
+              console.log(`🔌 Forçando desconexão do cliente ${client.id} (sessão encerrada)`);
+              
+              // Marcar cliente como desconectado
+              client.authenticated = false;
+              client.sessionToken = null;
+              
+              // Enviar mensagem de desconexão forçada
+              if (ws.readyState === 1) {
+                ws.send(JSON.stringify({
+                  type: 'force_disconnect',
+                  message: 'Sua sessão foi encerrada - desconectando...',
+                  timestamp: new Date().toISOString()
+                }));
+              }
+
+              // Fechar conexão WebSocket
+              ws.close(1000, 'Sessão encerrada');
+              
+              // Remover da lista de clientes
+              global.wsClients.delete(ws);
+              global.clientsInfo?.delete(ws);
+              
+              disconnectionsMade++;
+              console.log(`✅ Cliente ${client.id} desconectado com sucesso`);
+            } catch (disconnectError) {
+              console.error(`❌ Erro ao desconectar cliente ${client.id}:`, disconnectError);
+            }
+          });
+          
+          console.log(`🔌 Total de ${disconnectionsMade} cliente(s) desconectado(s) por sessão encerrada`);
+        }, 500); // Aguardar 500ms para garantir que a notificação seja enviada
+      }
 
       if (notificationsSent === 0) {
         console.log(`⚠️ Cliente com sessão ${sessionToken.substring(0, 8)}... não encontrado entre os ${global.wsClients.size} cliente(s) conectado(s)`);

@@ -199,6 +199,12 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
         }
       }
 
+      if (message.type === 'force_disconnect') {
+        console.log('🔌 Recebida mensagem de desconexão forçada do servidor');
+        // A desconexão será tratada pelo servidor, apenas registrar
+        activateSessionProtection(message.message || "Conexão encerrada pelo servidor");
+      }
+
       if (message.type === 'data_update') {
         const { resource, action, data } = message;
         const customEvent = new CustomEvent('websocket-data-update', {
