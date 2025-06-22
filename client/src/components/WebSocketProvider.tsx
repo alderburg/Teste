@@ -35,17 +35,23 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
   const [terminationMessage, setTerminationMessage] = useState<string>("");
   const [authAttempted, setAuthAttempted] = useState(false);
 
-  
+  console.log('🔐 WebSocketProvider - Estados:', {
+    connected,
+    user: user?.id,
+    authAttempted
+  });
 
   // Inicializar WebSocket apenas uma vez quando há usuário logado
   useEffect(() => {
     if (user && !connected) {
+      console.log('🔗 Inicializando WebSocket para usuário logado:', user.id);
       initWebSocket();
       setConnected(true);
     }
     
     return () => {
       if (!user && connected) {
+        console.log('🔌 Fechando WebSocket - usuário deslogado');
         closeWebSocket();
         setConnected(false);
       }
@@ -73,6 +79,7 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
       const [name, value] = cookie.trim().split('=');
       if (name === 'connect.sid' || name === 'mpc.sid') {
         const decodedValue = decodeURIComponent(value);
+        console.log(`🍪 Token encontrado: ${name} = ${decodedValue.substring(0, 10)}...`);
         return decodedValue;
       }
     }
@@ -87,13 +94,15 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
       if (xhr.status === 200) {
         const response = JSON.parse(xhr.responseText);
         if (response.token) {
+          console.log(`🔑 Token obtido via API: ${response.token.substring(0, 10)}...`);
           return response.token;
         }
       }
     } catch (error) {
-      // Silenciar erro
+      console.error('Erro ao obter token via API:', error);
     }
 
+    console.log('❌ Nenhum token de sessão encontrado');
     return null;
   };
 
@@ -103,9 +112,12 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
       return;
     }
 
+    console.log('🔐 Iniciando autenticação WebSocket SIMPLIFICADA...');
+
     const sessionToken = getSessionToken();
 
     if (!sessionToken) {
+      console.log('❌ Token de sessão não encontrado - não é possível autenticar');
       return;
     }
 
@@ -115,17 +127,27 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
       sessionToken: sessionToken
     };
 
+    console.log(`🔐 Enviando autenticação:`, {
+      type: authMessage.type,
+      userId: authMessage.userId,
+      tokenPreview: authMessage.sessionToken.substring(0, 10) + '...'
+    });
+
     try {
       const success = sendMessage(authMessage);
       setAuthAttempted(true);
 
-      if (!success) {
+      if (success) {
+        console.log('✅ Mensagem de autenticação enviada com sucesso');
+      } else {
+        console.log('❌ Falha ao enviar autenticação');
         // Tentar novamente após 2 segundos
         setTimeout(() => {
           setAuthAttempted(false);
         }, 2000);
       }
     } catch (error) {
+      console.error('❌ Erro ao enviar mensagem de autenticação:', error);
       setAuthAttempted(false);
     }
   }, [connected, user, authAttempted]);
@@ -158,6 +180,7 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
 
   // Função para ativar proteção total
   const activateSessionProtection = (message: string) => {
+    console.log('🔒 ATIVANDO PROTEÇÃO TOTAL DA SESSÃO');
     queryClient.invalidateQueries();
     queryClient.clear();
     setSessionTerminated(true);
@@ -177,6 +200,7 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
       }
 
       if (message.type === 'force_disconnect') {
+        console.log('🔌 Recebida mensagem de desconexão forçada do servidor');
         // A desconexão será tratada pelo servidor, apenas registrar
         activateSessionProtection(message.message || "Conexão encerrada pelo servidor");
       }
@@ -187,6 +211,10 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
           detail: { resource, action, data }
         });
         window.dispatchEvent(customEvent);
+      }
+
+      if (message.type === 'auth_success') {
+        console.log('✅ Autenticação WebSocket confirmada pelo servidor');
       }
     });
 
@@ -200,7 +228,7 @@ export default function WebSocketProvider({ children }: WebSocketProviderProps) 
       <SessionTerminatedModal
         isOpen={sessionTerminated}
         onClose={() => {
-          // Tentativa de fechar modal bloqueada - forçando logout
+          console.log('🔒 Tentativa de fechar modal bloqueada - forçando logout');
         }}
         message={terminationMessage}
       />

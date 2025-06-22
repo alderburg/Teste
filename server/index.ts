@@ -28,12 +28,6 @@ import { createProxyMiddleware } from 'http-proxy-middleware';
 
 const app = express();
 
-// Rota simples para fornecer SITE_URL para o interceptador WebSocket
-app.get('/api/site-url', (req: Request, res: Response) => {
-  res.set('Content-Type', 'text/plain');
-  res.send(process.env.SITE_URL || '');
-});
-
 // Configurar webhook do Stripe ANTES dos middlewares de parsing
 app.post("/api/stripe-webhook", express.raw({type: 'application/json'}), async (req, res) => {
   const sig = req.headers['stripe-signature'] as string;
@@ -564,6 +558,7 @@ if (process.env.EXTERNAL_API_URL) {
     server: server, 
     path: '/ws',
     verifyClient: (info) => {
+      console.log('🔍 WebSocket connection attempt from:', info.origin);
       return true; // Aceitar todas as conexões por enquanto
     }
   });
@@ -578,6 +573,10 @@ if (process.env.EXTERNAL_API_URL) {
 
   // Configurar eventos do WebSocket Server
   wss.on('connection', (ws, request) => {
+    console.log('🔗 Nova conexão WebSocket estabelecida');
+    console.log('🔗 URL:', request.url);
+    console.log('🔗 IP:', request.socket.remoteAddress);
+
     // Adicionar cliente ao conjunto global
     global.wsClients.add(ws);
 
@@ -596,6 +595,8 @@ if (process.env.EXTERNAL_API_URL) {
 
     global.clientsInfo.set(ws, clientInfo);
 
+    console.log(`📊 Cliente ${clientId} conectado. Total de clientes: ${global.wsClients.size}`);
+
     // Configurar ping/pong para manter conexão viva
     ws.isAlive = true;
     ws.on('pong', () => {
@@ -608,18 +609,25 @@ if (process.env.EXTERNAL_API_URL) {
     ws.on('message', async (data) => {
       try {
         const message = JSON.parse(data.toString());
+        console.log('📨 Mensagem WebSocket recebida:', message.type, `(Cliente: ${clientInfo.id})`);
 
         // Processar mensagem de autenticação
         if (message.type === 'auth') {
+          console.log('🔐 Processando autenticação para cliente:', clientInfo.id);
           await handleWebSocketAuth(ws, message, clientInfo);
         }
 
-        // Responder a pings do servidor com pongs
-        if (message.type === 'server_ping') {
+        // Processar informações do cliente
+        if (message.type === 'client_info') {
+          console.log('ℹ️ Informações do cliente recebidas:', clientInfo.id);
+          // Não fazer nada especial, apenas registrar
+        }
+
+        // Responder a pings do cliente
+        if (message.type === 'ping') {
           ws.send(JSON.stringify({ 
             type: 'pong', 
-            timestamp: message.timestamp,
-            client_info: { url: window.location.pathname }
+            timestamp: new Date().toISOString() 
           }));
         }
 
@@ -630,13 +638,19 @@ if (process.env.EXTERNAL_API_URL) {
         }
 
       } catch (error) {
-        // Silenciar erros de WebSocket
+        console.error('❌ Erro ao processar mensagem WebSocket:', error);
+        console.error('❌ Dados recebidos:', data.toString());
       }
     });
 
     // Limpar quando cliente desconectar
     ws.on('close', (code, reason) => {
       const clientInfo = global.clientsInfo?.get(ws);
+      console.log(`🔌 Cliente ${clientId} desconectado. Código: ${code}, Razão: ${reason}`);
+
+      if (clientInfo && clientInfo.authenticated) {
+        console.log(`🔌 Cliente autenticado desconectado: ${clientInfo.realUserId || clientInfo.userId} (${clientInfo.userType || 'tipo desconhecido'})`);
+      }
 
       // Garantir remoção completa
       if (global.wsClients.has(ws)) {
@@ -664,11 +678,17 @@ if (process.env.EXTERNAL_API_URL) {
         limpezaAdicional++;
       });
 
+      if (limpezaAdicional > 0) {
+        console.log(`🧹 Limpeza adicional: ${limpezaAdicional} conexão(ões) órfã(s) removida(s)`);
+      }
 
+      console.log(`📊 Total de clientes restantes: ${global.wsClients.size}`);
     });
 
     // Tratar erros de conexão
     ws.on('error', (error) => {
+      console.error(`❌ Erro WebSocket cliente ${clientId}:`, error);
+
       // Garantir remoção completa
       if (global.wsClients.has(ws)) {
         global.wsClients.delete(ws);
@@ -676,6 +696,8 @@ if (process.env.EXTERNAL_API_URL) {
       if (global.clientsInfo?.has(ws)) {
         global.clientsInfo.delete(ws);
       }
+
+      console.log(`📊 Total de clientes após erro: ${global.wsClients.size}`);
     });
 
     // Enviar mensagem de boas-vindas
@@ -707,7 +729,9 @@ if (process.env.EXTERNAL_API_URL) {
       removidos++;
     });
 
-
+    if (removidos > 0) {
+      console.log(`🧹 Limpeza geral: ${removidos} conexão(ões) removida(s). Antes: ${antes}, Depois: ${global.wsClients.size}`);
+    }
 
     return removidos;
   }
@@ -878,10 +902,12 @@ if (process.env.EXTERNAL_API_URL) {
     }
   }
 
-
+  console.log('🔗 WebSocket server configurado no caminho /ws');
 
   // Função global para notificar sobre sessão encerrada via sistema WebSocket existente
   (global as any).notifySessionTerminated = (userId: number, sessionToken: string) => {
+    console.log(`🔔 Notificando encerramento da sessão ${sessionToken.substring(0, 8)}... para usuário ${userId}`);
+
     // Usar o sistema WebSocket existente para enviar notificação
     if (global.wsClients && global.wsClients.size > 0) {
       const message = {
@@ -892,6 +918,8 @@ if (process.env.EXTERNAL_API_URL) {
         timestamp: new Date().toISOString()
       };
 
+      let notificationsSent = 0;
+      let disconnectionsMade = 0;
       const clientsToDisconnect = [];
 
       // Procurar especificamente o cliente com a sessão encerrada
@@ -904,11 +932,13 @@ if (process.env.EXTERNAL_API_URL) {
             try {
               // PRIMEIRO: Enviar notificação
               ws.send(JSON.stringify(message));
-
+              notificationsSent++;
+              console.log(`📤 Notificação enviada para cliente específico: ${client.id} (usuário ${client.userId})`);
+              
               // SEGUNDO: Marcar para desconexão forçada
               clientsToDisconnect.push({ ws, client });
             } catch (error) {
-              // Silenciar erro
+              console.error('❌ Erro ao enviar notificação de sessão:', error);
             }
           }
         }
@@ -919,10 +949,12 @@ if (process.env.EXTERNAL_API_URL) {
         setTimeout(() => {
           clientsToDisconnect.forEach(({ ws, client }) => {
             try {
+              console.log(`🔌 Forçando desconexão do cliente ${client.id} (sessão encerrada)`);
+              
               // Marcar cliente como desconectado
               client.authenticated = false;
               client.sessionToken = null;
-
+              
               // Enviar mensagem de desconexão forçada
               if (ws.readyState === 1) {
                 ws.send(JSON.stringify({
@@ -934,16 +966,37 @@ if (process.env.EXTERNAL_API_URL) {
 
               // Fechar conexão WebSocket
               ws.close(1000, 'Sessão encerrada');
-
+              
               // Remover da lista de clientes
               global.wsClients.delete(ws);
               global.clientsInfo?.delete(ws);
+              
+              disconnectionsMade++;
+              console.log(`✅ Cliente ${client.id} desconectado com sucesso`);
             } catch (disconnectError) {
-              // Silenciar erro
+              console.error(`❌ Erro ao desconectar cliente ${client.id}:`, disconnectError);
             }
           });
+          
+          console.log(`🔌 Total de ${disconnectionsMade} cliente(s) desconectado(s) por sessão encerrada`);
         }, 500); // Aguardar 500ms para garantir que a notificação seja enviada
       }
+
+      if (notificationsSent === 0) {
+        console.log(`⚠️ Cliente com sessão ${sessionToken.substring(0, 8)}... não encontrado entre os ${global.wsClients.size} cliente(s) conectado(s)`);
+
+        // Debug: mostrar sessões dos clientes conectados
+        global.wsClients.forEach((ws: any) => {
+          const client = global.clientsInfo?.get(ws);
+          if (client && client.authenticated) {
+            console.log(`   - Cliente ${client.id}: sessão ${client.sessionToken?.substring(0, 8)}... (usuário ${client.userId})`);
+          }
+        });
+      } else {
+        console.log(`✅ ${notificationsSent} notificação(ões) de sessão encerrada enviada(s)`);
+      }
+    } else {
+      console.log(`⚠️ Nenhum cliente WebSocket conectado`);
     }
   };
 
@@ -1038,24 +1091,7 @@ if (process.env.EXTERNAL_API_URL) {
 
         proxyServer.listen(proxyPort, () => {
           log(`Proxy server running on port ${proxyPort}, forwarding to port ${port}`);
-          
-          // Usar SITE_URL se disponível, senão usar localhost
-          const siteUrl = process.env.SITE_URL;
-          let wsUrl;
-          
-          if (siteUrl) {
-            try {
-              const url = new URL(siteUrl);
-              const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-              wsUrl = `${protocol}//${url.host}/ws`;
-            } catch (e) {
-              wsUrl = `ws://localhost:${proxyPort}/ws`;
-            }
-          } else {
-            wsUrl = `ws://localhost:${proxyPort}/ws`;
-          }
-          
-          log(`WebSocket proxy configurado para upgrades em ${wsUrl}`);
+          log(`WebSocket proxy configurado para upgrades em ws://localhost:${proxyPort}/ws`);
         });
 
         // Sistema de Heartbeat - verificar clientes a cada 30 segundos

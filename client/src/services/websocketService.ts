@@ -89,56 +89,21 @@ export function initWebSocket() {
   
   try {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    // Detectar porta automaticamente baseado na URL atual
     const host = window.location.hostname;
     let port = window.location.port;
     
-    // Construir URL do WebSocket de forma mais robusta
-    let wsUrl: string;
-    
-    // Verificar se estamos em ambiente Replit
-    const isReplit = window.location.hostname.includes('replit.dev') || 
-                     window.location.hostname.includes('replit.co') ||
-                     window.location.hostname.includes('repl.co');
-    
-    if (isReplit) {
-      // Em ambiente Replit, usar a mesma URL base da página atual
-      wsUrl = `${protocol}//${window.location.host}/ws`;
-    } else if (port && port !== '80' && port !== '443') {
-      // Se há porta especificada e não é padrão, usar ela
-      wsUrl = `${protocol}//${host}:${port}/ws`;
-    } else {
-      // Se não há porta ou é padrão, não incluir na URL
-      wsUrl = `${protocol}//${host}/ws`;
+    // Se não houver porta na URL (HTTPS padrão), usar a mesma da página atual
+    if (!port) {
+      port = window.location.protocol === "https:" ? "443" : "80";
     }
     
-    // Validar se a URL está bem formada antes de tentar conectar
-    try {
-      new URL(wsUrl);
-    } catch (urlError) {
-      console.error('URL do WebSocket inválida:', wsUrl);
-      throw new Error(`URL do WebSocket inválida: ${wsUrl}`);
-    }
+    // Para desenvolvimento local, sempre usar a porta atual da página
+    const wsUrl = `${protocol}//${host}:${port}/ws`;
     
     console.log(`Conectando WebSocket em ${wsUrl}`);
     
-    // Tentar criar o WebSocket com tratamento de erro específico
-    try {
-      socket = new WebSocket(wsUrl);
-    } catch (domException) {
-      console.error('Erro ao criar WebSocket - DOMException:', domException);
-      
-      // Se falhar, tentar uma URL alternativa mais simples
-      const fallbackUrl = `${protocol}//${window.location.host}/ws`;
-      console.log(`Tentando URL alternativa: ${fallbackUrl}`);
-      
-      try {
-        socket = new WebSocket(fallbackUrl);
-      } catch (secondError) {
-        console.error('Falha também na URL alternativa:', secondError);
-        isInitializing = false;
-        return;
-      }
-    }
+    socket = new WebSocket(wsUrl);
     
     socket.addEventListener('open', handleOpen);
     socket.addEventListener('message', handleMessage);
@@ -156,17 +121,6 @@ export function initWebSocket() {
     // Iniciar heartbeat quando a conexão for aberta
   } catch (error) {
     console.error("Erro ao inicializar WebSocket:", error);
-    
-    // Verificar se é o erro específico de DOMException
-    if (error instanceof DOMException || (error && typeof error === 'object' && 'name' in error && error.name === 'DOMException')) {
-      console.log("Detectado DOMException - tentando abordagem alternativa");
-      
-      // Tentar com configuração alternativa após um breve delay
-      setTimeout(() => {
-        tryAlternativeConnection();
-      }, 500);
-    }
-    
     isInitializing = false; // Resetar flag em caso de erro
   } finally {
     // Resetar flag após tentativa de conexão
@@ -278,6 +232,7 @@ export function subscribeToMessages(callback: (message: WebSocketMessage) => voi
 
 // Handlers de eventos WebSocket
 function handleOpen(event: Event) {
+  console.log("WebSocket conectado com sucesso");
   reconnectAttempts = 0;
   
   // Enviar informações do cliente para o servidor
@@ -324,6 +279,7 @@ function handleOpen(event: Event) {
 function handleMessage(event: MessageEvent) {
   try {
     const message = JSON.parse(event.data) as WebSocketMessage;
+    console.log("WebSocket mensagem recebida:", message);
     
     // Responder pings do servidor com pongs
     if (message.type === 'server_ping') {
@@ -334,6 +290,20 @@ function handleMessage(event: MessageEvent) {
       });
     }
     
+    // Registrar pongs recebidos
+    if (message.type === 'pong') {
+      console.log("Pong recebido do servidor:", message.timestamp);
+    }
+    
+    // Processar respostas de autenticação
+    if (message.type === 'auth_success') {
+      console.log("✅ Autenticação WebSocket bem-sucedida:", message);
+    }
+    
+    if (message.type === 'auth_error') {
+      console.error("❌ Erro de autenticação WebSocket:", message);
+    }
+    
     // Processar atualizações de dados
     if (message.type === 'data_update') {
       processDataUpdate(message as DataUpdateMessage);
@@ -341,11 +311,14 @@ function handleMessage(event: MessageEvent) {
     
     // Processar atualizações de sessões
     if (message.type === 'session_update') {
+      console.log("Atualização de sessão recebida:", message);
       processSessionUpdate(message as SessionUpdateMessage);
     }
     
     // Processar notificações de sessão encerrada
     if (message.type === 'session_terminated') {
+      console.log("🔒 Sessão encerrada recebida:", message);
+      
       // Verificar se é a sessão atual
       const currentSessionToken = localStorage.getItem('sessionToken') || 
                                  localStorage.getItem('token') || 
@@ -374,11 +347,12 @@ function handleMessage(event: MessageEvent) {
       }
     });
   } catch (error) {
-    // Silenciar erro
+    console.error("Erro ao processar mensagem WebSocket:", error);
   }
 }
 
 function handleClose(event: CloseEvent) {
+  console.log(`WebSocket desconectado: Código ${event.code}, Razão: ${event.reason}`);
   
   // Limpar heartbeat
   if (heartbeatInterval) {
@@ -389,6 +363,7 @@ function handleClose(event: CloseEvent) {
   // Tentar reconectar
   if (reconnectAttempts < maxReconnectAttempts) {
     reconnectAttempts++;
+    console.log(`Tentando reconectar (${reconnectAttempts}/${maxReconnectAttempts}) em ${reconnectDelay}ms...`);
     
     if (reconnectTimeout) {
       clearTimeout(reconnectTimeout);
@@ -397,29 +372,23 @@ function handleClose(event: CloseEvent) {
     reconnectTimeout = setTimeout(() => {
       initWebSocket();
     }, reconnectDelay);
+  } else {
+    console.log("Número máximo de tentativas de reconexão atingido. WebSocket desconectado permanentemente.");
   }
 }
 
 function handleError(event: Event) {
   console.error("Erro na conexão WebSocket:", event);
-  
-  // Se for um erro de DOMException durante a conexão, tentar reconectar com URL alternativa
-  if (event instanceof ErrorEvent && event.message) {
-    console.error("Detalhes do erro WebSocket:", event.message);
-  }
-  
-  // Limpar conexão com erro
-  if (socket) {
-    socket = null;
-  }
-  
-  // Resetar flag de inicialização
-  isInitializing = false;
 }
 
 // Funções auxiliares
 function processDataUpdate(message: DataUpdateMessage) {
   const { resource, action, data, userId } = message;
+  
+  // Aqui você pode adicionar lógica específica para cada tipo de recurso
+  // Por exemplo, invalidar cache do React Query ou atualizar estados locais
+  
+  console.log(`Atualização de dados via WebSocket: ${action} em ${resource}, userId: ${userId || 'n/a'}`);
   
   // Disparar um evento customizado que componentes podem ouvir
   if (typeof window !== 'undefined') {
@@ -432,6 +401,8 @@ function processDataUpdate(message: DataUpdateMessage) {
 
 function processSessionUpdate(message: SessionUpdateMessage) {
   const { sessionId, status, deviceInfo, timestamp, userId } = message;
+  
+  console.log(`Atualização de sessão via WebSocket: ${status} para sessão ${sessionId}`);
   
   // Disparar um evento customizado que componentes podem ouvir
   if (typeof window !== 'undefined') {
@@ -493,110 +464,6 @@ function startHeartbeat() {
       });
     }
   }, heartbeatInterval_ms);
-}
-
-/**
- * Função para tentar conexão alternativa quando há DOMException
- */
-function tryAlternativeConnection() {
-  if (typeof window === 'undefined' || socket || isInitializing) return;
-  
-  console.log("Tentando conexão WebSocket alternativa...");
-  isInitializing = true;
-  
-  try {
-    // Tentar diferentes variações de URL
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const isReplit = window.location.hostname.includes('replit.dev') || 
-                     window.location.hostname.includes('replit.co') ||
-                     window.location.hostname.includes('repl.co');
-    
-    const alternatives: string[] = [];
-    
-    if (isReplit) {
-      // Para Replit, usar apenas a URL base da página atual
-      alternatives.push(`${protocol}//${window.location.host}/ws`);
-    } else {
-      // Para desenvolvimento local, tentar várias opções
-      alternatives.push(
-        `${protocol}//${window.location.hostname}:${window.location.port || '3000'}/ws`,
-        `ws://localhost:3000/ws`,
-        `ws://127.0.0.1:3000/ws`,
-        `${protocol}//${window.location.host}/ws`
-      );
-    }
-    
-    let connected = false;
-    let attemptIndex = 0;
-    
-    const tryNextUrl = () => {
-      if (attemptIndex >= alternatives.length || connected) {
-        if (!connected) {
-          console.log("Todas as URLs alternativas falharam");
-          socket = null;
-        }
-        isInitializing = false;
-        return;
-      }
-      
-      const wsUrl = alternatives[attemptIndex];
-      attemptIndex++;
-      
-      try {
-        console.log(`Tentando URL alternativa: ${wsUrl}`);
-        socket = new WebSocket(wsUrl);
-        
-        socket.addEventListener('open', () => {
-          console.log(`Conexão bem-sucedida com URL alternativa: ${wsUrl}`);
-          connected = true;
-          isInitializing = false;
-          handleOpen(new Event('open'));
-        });
-        
-        socket.addEventListener('message', handleMessage);
-        socket.addEventListener('close', handleClose);
-        
-        socket.addEventListener('error', (error) => {
-          console.log(`Falha na URL alternativa ${wsUrl}:`, error);
-          if (socket) {
-            socket.close();
-            socket = null;
-          }
-          // Tentar próxima URL após um breve delay
-          setTimeout(tryNextUrl, 500);
-        });
-        
-        // Timeout para tentar próxima URL se não conectar em 2 segundos
-        setTimeout(() => {
-          if (socket && socket.readyState !== WebSocket.OPEN && !connected) {
-            console.log(`Timeout na URL ${wsUrl}, tentando próxima...`);
-            if (socket) {
-              socket.close();
-              socket = null;
-            }
-            tryNextUrl();
-          }
-        }, 2000);
-        
-      } catch (error) {
-        console.log(`Erro na URL alternativa ${wsUrl}:`, error);
-        if (socket) {
-          socket.close();
-          socket = null;
-        }
-        // Tentar próxima URL
-        setTimeout(tryNextUrl, 500);
-      }
-    };
-    
-    // Iniciar tentativas
-    tryNextUrl();
-    
-  } catch (error) {
-    console.error("Erro na conexão alternativa:", error);
-    socket = null;
-    isInitializing = false;
-  }
 }
 
 // Exportar funções principais
